@@ -427,10 +427,9 @@
         const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.9 });
         const unallocatedMaterial = new THREE.MeshStandardMaterial({
             color: 0x4b5563,
-            roughness: 0.8,
-            transparent: false,
-            opacity: 1.0,
-            wireframe: true
+            transparent: true,
+            opacity: 0.0,
+            depthWrite: false
         });
 
         // Phase 1: Interactive Polish Globals
@@ -785,7 +784,7 @@
                 let currentYOffset = 0;
                 let allocatedMemory = 0;
 
-                node.pods.forEach((pod) => {
+                node.pods.forEach((pod, index) => {
                     const podHeight = pod.memoryGB * heightScale;
                     const marginY = Math.min(0.05, podHeight * 0.05);
 
@@ -834,7 +833,22 @@
                     allocatedMemory += pod.memoryGB;
 
                     // Slice Internal Partition Floor Slab (Placed between stacked pod rooms)
-                    const partitionThickness = 0.15;
+                    // Scale partition thickness dynamically if either adjacent element is very small
+                    // to prevent thin pod layers from being swallowed/overlapped by the divider slab.
+                    const nextPod = node.pods[index + 1];
+                    let nextAdjacentHeight = Infinity;
+                    if (nextPod) {
+                        nextAdjacentHeight = nextPod.memoryGB * heightScale;
+                    } else if (allocatedMemory < node.maxMemoryGB) {
+                        nextAdjacentHeight = (node.maxMemoryGB - allocatedMemory) * heightScale;
+                    }
+
+                    const minAdjacentHeight = Math.min(podHeight, nextAdjacentHeight);
+                    let partitionThickness = 0.15;
+                    if (minAdjacentHeight < 0.8) {
+                        partitionThickness = Math.max(0.01, minAdjacentHeight * 0.15);
+                    }
+
                     const partitionGeo = new THREE.BoxGeometry(buildingWidth - wallThickness, partitionThickness, buildingDepth - wallThickness);
                     const partition = new THREE.Mesh(partitionGeo, partitionMaterial);
                     partition.position.set(0, currentYOffset, buildingDepth / 2);
@@ -874,13 +888,6 @@
                         nodeMaxMemory: node.maxMemoryGB
                     };
                     nodeBuilding.add(unallocatedBox);
-
-                    // Sleek wireframe edge outlines for the unallocated/available space
-                    const leftoverEdges = new THREE.EdgesGeometry(unallocatedGeo);
-                    const leftoverLineMat = new THREE.LineBasicMaterial({ color: 0x4b5563, transparent: true, opacity: 0.4 });
-                    const leftoverLine = new THREE.LineSegments(leftoverEdges, leftoverLineMat);
-                    leftoverLine.position.copy(unallocatedBox.position);
-                    nodeBuilding.add(leftoverLine);
 
                     currentYOffset += leftoverHeight;
                 }
