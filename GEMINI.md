@@ -4,10 +4,10 @@ An interactive, in-browser 3D topology visualizer that maps a Kubernetes cluster
 
 ## Core Concepts & Rules
 
-- **Nodes = Buildings:** Every node in the cluster is an open-roof building. The total length/footprint of the building represents its total allocatable memory.
+- **Nodes = Buildings:** Every node in the cluster is a skyscraper structure with a fixed footprint. The total height of the building represents its total allocatable memory.
 - **Pods = Rooms:** Each pod scheduled to a node is rendered as an individual room within that building. 
-- **Resource Proportions:** Rooms are dynamically sliced along the floor grid. If a pod requests 12GB on a 24GB node, its room boundaries take up exactly 50% of that building's internal area.
-- **Under-utilization Visibility:** If total pod allocations don't equal 100% of node capacity, the remaining space renders as an empty "Available Capacity" gray wireframe room.
+- **Resource Proportions:** Rooms are dynamically stacked as floor segments vertically. If a pod requests 12GB on a 24GB node, its floor room takes up exactly 50% of that building's internal height.
+- **Under-utilization Visibility:** If total pod allocations don't equal 100% of node capacity, the remaining space renders as an empty "Available Capacity" gray wireframe room at the top.
 
 ---
 
@@ -57,7 +57,7 @@ A unified Python pipeline (`parse_cluster.py`) has been added to extract and com
 
 Dev Logs & Next Targets
 - **Collision Spawning Bug Fix**: Resolved a critical issue where players would spawn inside the physical structure of a node building and get trapped due to the AABB colliders. Implemented dynamic bounding box calculation in `generateClusterWorld()` to offset the player safely to the front-center of the entire cluster at `Z = -25`, rotated 180 degrees to face the nodes directly.
-- **Glassmorphic 3D Pod Heights & Idle Space Wireframes**: Replaced flat floors with floating 3D Glassmorphic boxes with heights proportional to their memory share percentage ($\frac{\text{pod.memoryGB}}{\text{node.maxMemoryGB}} \times \text{wallHeight}$). Leftover/unallocated node capacity is rendered as a clean, proportional dark gray wireframe room.
+- **Vertical Skyscraper Stacking Architecture**: Transitioned the visual world layout from horizontal depth-slicing to vertical skyscraper stacking. The maximum memory capacity of a node now dictates the overall height of its building structure, while scheduled pods are stacked vertically inside it as modern glassmorphic floor rooms. Horizontal partition slabs act as ceiling/floor layers, and unallocated/idle node capacity resides at the top of the building as a proportional dark gray wireframe room. Sleek margins around all boxes prevent any rendering overlap (Z-fighting) with the outer walls.
 - **Smooth Spectator Flight Physics**: Implemented seamless spectator flying controls (`Space` to float up, `Shift` to glide down) with dynamic, height-aware AABB collision detection. The camera can fly over buildings without boundary collisions but maintains realistic outer/partition wall collisions when walking or flying inside the rooms.
 - **One-Decimal Precision & CPU Ingestion**: Implemented precise resource rounding to 1 decimal place (e.g., `48` or `32.5`) for Memory and CPU cores. Integrated full parsing for CPU limits/requests from pod containers and capacities from nodes, presenting them in a new, high-tech HUD overlay.
 - **Dynamic Node Heights**: Fully implemented dynamic node building height scaling proportional to each node's maximum Memory allotment (e.g., a 24GB node building is twice as tall as a 12GB node building).
