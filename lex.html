@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K8s Cluster 3D World</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap');
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #0b0b0f;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        #ui-container {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(13, 13, 18, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            max-width: 320px;
+            pointer-events: auto;
+            z-index: 10;
+            transition: all 0.3s ease;
+        }
+
+        #ui-container h3 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-size: 20px;
+        }
+
+        .instructions {
+            color: #94a3b8;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .instructions strong {
+            color: #3b82f6;
+        }
+
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 8px;
+            height: 8px;
+            transform: translate(-50%, -50%);
+            border: 2px solid rgba(255, 255, 255, 0.8);
+            border-radius: 50%;
+            pointer-events: none;
+            user-select: none;
+            z-index: 100;
+            transition: transform 0.1s ease, border-color 0.1s ease, box-shadow 0.1s ease;
+        }
+
+        #crosshair.active {
+            transform: translate(-50%, -50%) scale(1.6);
+            border-color: #3b82f6;
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.8);
+        }
+
+        /* Hover HUD Card */
+        #hud-tooltip {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 340px;
+            background: rgba(13, 13, 18, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 16px;
+            color: #f1f5f9;
+            padding: 24px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1);
+            z-index: 10;
+            transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1), transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            transform: translateY(10px);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #hud-tooltip.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .hud-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .hud-type {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            font-weight: 800;
+            color: #3b82f6;
+            background: rgba(59, 130, 246, 0.15);
+            padding: 4px 8px;
+            border-radius: 6px;
+            border: 1px solid rgba(59, 130, 246, 0.2);
+        }
+
+        .hud-title {
+            font-size: 18px;
+            font-weight: 800;
+            margin-top: 8px;
+            word-break: break-all;
+            font-family: 'JetBrains Mono', monospace;
+            letter-spacing: -0.5px;
+        }
+
+        .hud-meta-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            font-size: 14px;
+        }
+
+        .hud-meta-row:last-child {
+            border-bottom: none;
+        }
+
+        .hud-label {
+            color: #94a3b8;
+            font-weight: 400;
+        }
+
+        .hud-value {
+            font-weight: 600;
+            color: #f1f5f9;
+        }
+
+        /* Status badge styling */
+        .badge {
+            padding: 3px 8px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            background: rgba(148, 163, 184, 0.15);
+            color: #94a3b8;
+            border: 1px solid rgba(148, 163, 184, 0.2);
+        }
+
+        .badge-running {
+            background: rgba(16, 185, 129, 0.15);
+            color: #10b981;
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .badge-pending, .badge-containercreating {
+            background: rgba(245, 158, 11, 0.15);
+            color: #f59e0b;
+            border: 1px solid rgba(245, 158, 11, 0.2);
+        }
+
+        .badge-failed, .badge-error, .badge-crashloopbackoff, .badge-imagepullbackoff {
+            background: rgba(239, 68, 68, 0.15);
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+
+        .badge-succeeded, .badge-completed {
+            background: rgba(16, 185, 129, 0.15);
+            color: #10b981;
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        /* Resource Bar */
+        .resource-bar-container {
+            width: 100%;
+            height: 8px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 4px;
+            margin-top: 6px;
+            overflow: hidden;
+        }
+
+        .resource-bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+        }
+    </style>
+    <!-- Import maps polyfill -->
+    <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+      }
+    </script>
+</head>
+
+<body>
+
+    <div id="ui-container">
+        <h3>K8s 3D Cluster Environment</h3>
+        <p class="instructions">
+            <strong>Click screen</strong> to lock mouse and look around.<br>
+            <strong>WASD / Arrow Keys:</strong> Move around<br>
+            <strong>ESC:</strong> Exit mouse lock
+        </p>
+        <div id="node-info" style="margin-top: 10px; font-size: 12px;"></div>
+    </div>
+
+    <div id="hud-tooltip"></div>
+    <div id="crosshair"></div>
+    <div id="canvas-container"></div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+
+        // 1. Mock Kubernetes Cluster Configuration Data (Normalized to GB)
+        let clusterData = {
+            nodes: [
+                {
+                    name: "node-alpha",
+                    maxMemoryGB: 24,
+                    pods: [
+                        { name: "frontend-pod-7d4f9b8c-2x9v4", memoryGB: 12, color: 0x00f0ff, status: "Running", namespace: "production" },
+                        { name: "backend-pod-5c8e7a1b-9p3k8", memoryGB: 4, color: 0x3b82f6, status: "Running", namespace: "production" },
+                        { name: "cache-pod-9a3f2c7d-5m1q9", memoryGB: 4, color: 0xec4899, status: "Pending", namespace: "production" }
+                    ]
+                },
+                {
+                    name: "node-bravo",
+                    maxMemoryGB: 16,
+                    pods: [
+                        { name: "db-pod-0-8b6d4c2e-4w8z7", memoryGB: 8, color: 0xf59e0b, status: "Running", namespace: "database" },
+                        { name: "db-pod-1-8b6d4c2e-5x9a2", memoryGB: 8, color: 0x10b981, status: "Running", namespace: "database" }
+                    ]
+                },
+                {
+                    name: "node-charlie",
+                    maxMemoryGB: 32,
+                    pods: [
+                        { name: "analytics-worker-6f9e8d7c-8y2v4", memoryGB: 16, color: 0x8b5cf6, status: "Running", namespace: "analytics" },
+                        { name: "logging-agent-3a5b7c9d-1r4q8", memoryGB: 4, color: 0x6b7280, status: "Running", namespace: "kube-system" }
+                    ]
+                }
+            ]
+        };
+
+        // 2. Scene Variables & Initialization
+        let scene, camera, renderer, controls;
+        let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
+
+        const clock = new THREE.Clock();
+        const velocity = new THREE.Vector3();
+        const direction = new THREE.Vector3();
+
+        const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.7 });
+        const partitionMaterial = new THREE.MeshStandardMaterial({ color: 0x777777, roughness: 0.5, transparent: true, opacity: 0.8 });
+        const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.9 });
+        const unallocatedMaterial = new THREE.MeshStandardMaterial({ color: 0x333333, wireframe: true });
+
+        // Phase 1: Interactive Polish Globals
+        const colliders = [];
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2(0, 0); // Raycast from center of screen
+
+        init();
+
+        // Dynamically load live cluster data with local fallback
+        fetch('cluster_state.json')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log("Successfully loaded live cluster state:", data);
+                if (data && Array.isArray(data.nodes)) {
+                    clusterData = data;
+                }
+                const nodeInfo = document.getElementById('node-info');
+                if (nodeInfo) {
+                    nodeInfo.innerHTML = `
+                        <span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 20px; background: rgba(16, 185, 129, 0.12); color: #10b981; font-size: 11px; font-weight: 700; border: 1px solid rgba(16, 185, 129, 0.2); text-transform: uppercase; letter-spacing: 0.5px;">
+                            <span style="width: 6px; height: 6px; border-radius: 50%; background: #10b981; display: inline-block; box-shadow: 0 0 8px #10b981;"></span>
+                            Live Cluster
+                        </span>
+                    `;
+                }
+                generateClusterWorld();
+                animate();
+            })
+            .catch(error => {
+                console.warn("Could not fetch cluster_state.json (falling back to static mock configuration). Reason:", error.message);
+                const nodeInfo = document.getElementById('node-info');
+                if (nodeInfo) {
+                    nodeInfo.innerHTML = `
+                        <span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 20px; background: rgba(245, 158, 11, 0.12); color: #f59e0b; font-size: 11px; font-weight: 700; border: 1px solid rgba(245, 158, 11, 0.2); text-transform: uppercase; letter-spacing: 0.5px;">
+                            <span style="width: 6px; height: 6px; border-radius: 50%; background: #f59e0b; display: inline-block; box-shadow: 0 0 8px #f59e0b;"></span>
+                            Demo Mode
+                        </span>
+                    `;
+                }
+                generateClusterWorld();
+                animate();
+            });
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a0a0e);
+            scene.fog = new THREE.FogExp2(0x0a0a0e, 0.015);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 5, 20); // Initial player position
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+            scene.add(ambientLight);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.position.set(20, 40, 20);
+            scene.add(dirLight);
+
+            // Ground plane (Flat infinite-like world floor)
+            const groundGeo = new THREE.PlaneGeometry(1000, 1000);
+            const groundMat = new THREE.MeshStandardMaterial({ color: 0x111116, roughness: 0.8 });
+            const ground = new THREE.Mesh(groundGeo, groundMat);
+            ground.rotation.x = -Math.PI / 2;
+            scene.add(ground);
+
+            // Grid helper to capture that Minecraft/structural vibe
+            const gridHelper = new THREE.GridHelper(200, 100, 0x3b82f6, 0x1e293b);
+            gridHelper.position.y = 0.01;
+            scene.add(gridHelper);
+
+            // Setup Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            // First Person Pointer Lock Controls
+            controls = new PointerLockControls(camera, renderer.domElement);
+
+            document.body.addEventListener('click', () => {
+                controls.lock();
+            });
+
+            // Input Listeners
+            const onKeyDown = (event) => {
+                switch (event.code) {
+                    case 'ArrowUp':
+                    case 'KeyW': moveForward = true; break;
+                    case 'ArrowLeft':
+                    case 'KeyA': moveLeft = true; break;
+                    case 'ArrowDown':
+                    case 'KeyS': moveBackward = true; break;
+                    case 'ArrowRight':
+                    case 'KeyD': moveRight = true; break;
+                }
+            };
+
+            const onKeyUp = (event) => {
+                switch (event.code) {
+                    case 'ArrowUp':
+                    case 'KeyW': moveForward = false; break;
+                    case 'ArrowLeft':
+                    case 'KeyA': moveLeft = false; break;
+                    case 'ArrowDown':
+                    case 'KeyS': moveBackward = false; break;
+                    case 'ArrowRight':
+                    case 'KeyD': moveRight = false; break;
+                }
+            };
+
+            document.addEventListener('keydown', onKeyDown);
+            document.addEventListener('keyup', onKeyUp);
+
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        // 3. Procedural Map Generation Logic
+        function generateClusterWorld() {
+            const buildingWidth = 12;      // Fixed width for every node structure
+            const depthScale = 1.5;        // Scale factor: 1GB allocations equals 1.5 units in length
+            const wallHeight = 4;          // Room/Building height
+            const wallThickness = 0.4;     // Thickness of structural walls
+            const spacing = 10;            // Gap space between buildings
+
+            let currentXOffset = -((clusterData.nodes.length * (buildingWidth + spacing)) / 2);
+
+            clusterData.nodes.forEach((node) => {
+                // Calculate total building length derived from its maximum physical capacity
+                const buildingLength = node.maxMemoryGB * depthScale;
+
+                // Group representing our single structural node container
+                const nodeBuilding = new THREE.Group();
+                nodeBuilding.position.set(currentXOffset, 0, 0);
+
+                // Calculate metadata for node interaction
+                const totalAllocatedMemory = node.pods.reduce((sum, p) => sum + p.memoryGB, 0);
+                const nodeMetadata = {
+                    type: "node",
+                    nodeName: node.name,
+                    maxMemoryGB: node.maxMemoryGB,
+                    allocatedMemory: totalAllocatedMemory,
+                    podsCount: node.pods.length
+                };
+
+                // --- Outer Shell Construction (No Roof Box) ---
+                // Outer Left & Right Structural Walls
+                const sideWallGeo = new THREE.BoxGeometry(wallThickness, wallHeight, buildingLength);
+
+                const leftWall = new THREE.Mesh(sideWallGeo, wallMaterial);
+                leftWall.position.set(-buildingWidth / 2, wallHeight / 2, buildingLength / 2);
+                leftWall.userData = nodeMetadata;
+                nodeBuilding.add(leftWall);
+
+                const rightWall = new THREE.Mesh(sideWallGeo, wallMaterial);
+                rightWall.position.set(buildingWidth / 2, wallHeight / 2, buildingLength / 2);
+                rightWall.userData = nodeMetadata;
+                nodeBuilding.add(rightWall);
+
+                // Back Wall
+                const backWallGeo = new THREE.BoxGeometry(buildingWidth + wallThickness, wallHeight, wallThickness);
+                const backWall = new THREE.Mesh(backWallGeo, wallMaterial);
+                backWall.position.set(0, wallHeight / 2, 0);
+                backWall.userData = nodeMetadata;
+                nodeBuilding.add(backWall);
+
+                // --- Room Segmentation (Pods Layout) ---
+                let currentZOffset = 0;
+                let allocatedMemory = 0;
+
+                node.pods.forEach((pod) => {
+                    const podDepth = pod.memoryGB * depthScale;
+
+                    // Render individual pod unit floors
+                    const podFloorGeo = new THREE.PlaneGeometry(buildingWidth - wallThickness, podDepth);
+                    const podFloorMat = new THREE.MeshStandardMaterial({ color: pod.color, roughness: 0.4 });
+                    const podFloor = new THREE.Mesh(podFloorGeo, podFloorMat);
+                    podFloor.rotation.x = -Math.PI / 2;
+                    // Position at the core center of this pod's allocated zone section
+                    podFloor.position.set(0, 0.05, currentZOffset + (podDepth / 2));
+                    
+                    // Attach pod metadata
+                    podFloor.userData = {
+                        type: "pod",
+                        podName: pod.name,
+                        nodeName: node.name,
+                        memoryGB: pod.memoryGB,
+                        color: pod.color,
+                        status: pod.status,
+                        namespace: pod.namespace,
+                        nodeMaxMemory: node.maxMemoryGB
+                    };
+                    nodeBuilding.add(podFloor);
+
+                    // Slice Internal Partition Wall (Placed at the end boundary of the pod room)
+                    currentZOffset += podDepth;
+                    allocatedMemory += pod.memoryGB;
+
+                    const partitionGeo = new THREE.BoxGeometry(buildingWidth - wallThickness, wallHeight, wallThickness);
+                    const partition = new THREE.Mesh(partitionGeo, partitionMaterial);
+                    partition.position.set(0, wallHeight / 2, currentZOffset);
+                    partition.userData = nodeMetadata;
+                    nodeBuilding.add(partition);
+                });
+
+                // --- Handle Leftover/Unallocated Cluster Node Resources ---
+                if (allocatedMemory < node.maxMemoryGB) {
+                    const leftoverMemory = node.maxMemoryGB - allocatedMemory;
+                    const leftoverDepth = leftoverMemory * depthScale;
+
+                    const unallocatedFloorGeo = new THREE.PlaneGeometry(buildingWidth - wallThickness, leftoverDepth);
+                    const unallocatedFloor = new THREE.Mesh(unallocatedFloorGeo, unallocatedMaterial);
+                    unallocatedFloor.rotation.x = -Math.PI / 2;
+                    unallocatedFloor.position.set(0, 0.05, currentZOffset + (leftoverDepth / 2));
+                    
+                    unallocatedFloor.userData = {
+                        type: "unallocated",
+                        nodeName: node.name,
+                        memoryGB: leftoverMemory,
+                        nodeMaxMemory: node.maxMemoryGB
+                    };
+                    nodeBuilding.add(unallocatedFloor);
+
+                    currentZOffset += leftoverDepth;
+                }
+
+                // Front Wall closing out the complete structural node shell
+                const frontWallGeo = new THREE.BoxGeometry(buildingWidth + wallThickness, wallHeight, wallThickness);
+                const frontWall = new THREE.Mesh(frontWallGeo, wallMaterial);
+                frontWall.position.set(0, wallHeight / 2, currentZOffset);
+                frontWall.userData = nodeMetadata;
+                nodeBuilding.add(frontWall);
+
+                scene.add(nodeBuilding);
+                
+                // Construct World Colliders from AABB Walls
+                nodeBuilding.updateMatrixWorld(true);
+                nodeBuilding.children.forEach((child) => {
+                    if (child.geometry && child.geometry.type === 'BoxGeometry') {
+                        const box = new THREE.Box3().setFromObject(child);
+                        colliders.push(box);
+                    }
+                });
+
+                currentXOffset += buildingWidth + spacing; // Stride index position for rendering next node structure
+            });
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // AABB Collision Check Helpers
+        const playerBox = new THREE.Box3();
+        const playerRadius = 0.5; // Clearance distance from walls
+
+        function checkCollision() {
+            // Represent user's height and thickness
+            playerBox.setFromCenterAndSize(
+                new THREE.Vector3(camera.position.x, 2.5, camera.position.z),
+                new THREE.Vector3(playerRadius * 2, 2.0, playerRadius * 2)
+            );
+            for (let i = 0; i < colliders.length; i++) {
+                if (playerBox.intersectsBox(colliders[i])) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // 4. Game Animation & Camera Movement Loops
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (controls.isLocked === true) {
+                const delta = clock.getDelta();
+
+                // Damping friction simulation loops to make movement feel clean
+                velocity.x -= velocity.x * 10.0 * delta;
+                velocity.z -= velocity.z * 10.0 * delta;
+
+                direction.z = Number(moveForward) - Number(moveBackward);
+                direction.x = Number(moveRight) - Number(moveLeft);
+                direction.normalize();
+
+                // Apply velocity values based on direction inputs
+                if (moveForward || moveBackward) velocity.z -= direction.z * 100.0 * delta;
+                if (moveLeft || moveRight) velocity.x -= direction.x * 100.0 * delta;
+
+                // Save previous camera position
+                const prevPosition = camera.position.clone();
+
+                // Apply proposed movement
+                controls.moveRight(-velocity.x * delta);
+                controls.moveForward(-velocity.z * delta);
+                camera.position.y = 2.5;
+
+                // Sliding Collision Resolution
+                if (checkCollision()) {
+                    const proposedPosition = camera.position.clone();
+
+                    // Try to keep X movement but discard Z movement
+                    camera.position.set(proposedPosition.x, 2.5, prevPosition.z);
+                    if (checkCollision()) {
+                        // Collides, so try keeping Z movement but discarding X movement
+                        camera.position.set(prevPosition.x, 2.5, proposedPosition.z);
+                        if (checkCollision()) {
+                            // Both fail, fully revert
+                            camera.position.copy(prevPosition);
+                        }
+                    }
+                }
+            }
+
+            // Raycast for Look Tooltips
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(scene.children, true);
+
+            let hoveredObj = null;
+            for (let i = 0; i < intersects.length; i++) {
+                const obj = intersects[i].object;
+                if (obj.userData && obj.userData.type) {
+                    hoveredObj = obj;
+                    break;
+                }
+            }
+
+            const hud = document.getElementById('hud-tooltip');
+            const crosshair = document.getElementById('crosshair');
+
+            if (hoveredObj && controls.isLocked) {
+                crosshair.classList.add('active');
+                hud.classList.add('visible');
+
+                const data = hoveredObj.userData;
+                if (data.type === 'pod') {
+                    const memoryPercentage = Math.round((data.memoryGB / data.nodeMaxMemory) * 100);
+                    hud.innerHTML = `
+                        <div class="hud-header">
+                            <span class="hud-type">Pod Unit</span>
+                            <span class="badge badge-${data.status.toLowerCase()}">${data.status}</span>
+                        </div>
+                        <div class="hud-title">${data.podName}</div>
+                        <div style="margin-top: 16px;">
+                            <div class="hud-meta-row">
+                                <span class="hud-label">Namespace</span>
+                                <span class="hud-value" style="font-family: 'JetBrains Mono', monospace;">${data.namespace}</span>
+                            </div>
+                            <div class="hud-meta-row">
+                                <span class="hud-label">Memory Request</span>
+                                <span class="hud-value">${data.memoryGB} GB</span>
+                            </div>
+                            <div class="hud-meta-row">
+                                <span class="hud-label">Node Host</span>
+                                <span class="hud-value">${data.nodeName}</span>
+                            </div>
+                            <div style="margin-top: 16px;">
+                                <div style="display:flex; justify-content:space-between; font-size:12px; color:#94a3b8; margin-bottom: 4px;">
+                                    <span>Memory Allocation Share</span>
+                                    <span>${memoryPercentage}%</span>
+                                </div>
+                                <div class="resource-bar-container">
+                                    <div class="resource-bar-fill" style="width: ${memoryPercentage}%; background: #${data.color.toString(16).padStart(6, '0')};"></div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                } else if (data.type === 'node') {
+                    const allocationPercentage = Math.round((data.allocatedMemory / data.maxMemoryGB) * 100);
+                    hud.innerHTML = `
+                        <div class="hud-header">
+                            <span class="hud-type" style="color: #10b981; background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.2);">Node Building</span>
+                        </div>
+                        <div class="hud-title">${data.nodeName}</div>
+                        <div style="margin-top: 16px;">
+                            <div class="hud-meta-row">
+                                <span class="hud-label">Total Capacity</span>
+                                <span class="hud-value">${data.maxMemoryGB} GB</span>
+                            </div>
+                            <div class="hud-meta-row">
+                                <span class="hud-label">Allocated Memory</span>
+                                <span class="hud-value">${data.allocatedMemory} GB (${allocationPercentage}%)</span>
+                            </div>
+                            <div class="hud-meta-row">
+                                <span class="hud-label">Running Pods</span>
+                                <span class="hud-value">${data.podsCount}</span>
+                            </div>
+                            <div style="margin-top: 16px;">
+                                <div style="display:flex; justify-content:space-between; font-size:12px; color:#94a3b8; margin-bottom: 4px;">
+                                    <span>Total Capacity Allocated</span>
+                                    <span>${allocationPercentage}%</span>
+                                </div>
+                                <div class="resource-bar-container">
+                                    <div class="resource-bar-fill" style="width: ${allocationPercentage}%; background: linear-gradient(90deg, #10b981 0%, #3b82f6 100%);"></div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                } else if (data.type === 'unallocated') {
+                    const unallocatedPercentage = Math.round((data.memoryGB / data.nodeMaxMemory) * 100);
+                    hud.innerHTML = `
+                        <div class="hud-header">
+                            <span class="hud-type" style="color: #94a3b8; background: rgba(148, 163, 184, 0.15); border-color: rgba(148, 163, 184, 0.2);">Unallocated</span>
+                        </div>
+                        <div class="hud-title">Available Capacity</div>
+                        <div style="margin-top: 16px;">
+                            <div class="hud-meta-row">
+                                <span class="hud-label">Parent Node</span>
+                                <span class="hud-value">${data.nodeName}</span>
+                            </div>
+                            <div class="hud-meta-row">
+                                <span class="hud-label">Available Size</span>
+                                <span class="hud-value">${data.memoryGB} GB</span>
+                            </div>
+                            <div style="margin-top: 16px;">
+                                <div style="display:flex; justify-content:space-between; font-size:12px; color:#94a3b8; margin-bottom: 4px;">
+                                    <span>Available Room Share</span>
+                                    <span>${unallocatedPercentage}%</span>
+                                </div>
+                                <div class="resource-bar-container">
+                                    <div class="resource-bar-fill" style="width: ${unallocatedPercentage}%; background: #4b5563;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+            } else {
+                crosshair.classList.remove('active');
+                hud.classList.remove('visible');
+            }
+
+            renderer.render(scene, camera);
+        }
+    </script>
+</body>
+
+</html>
