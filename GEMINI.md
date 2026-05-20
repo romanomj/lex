@@ -60,6 +60,9 @@ Dev Logs & Next Targets
 - **Glassmorphic 3D Pod Heights & Idle Space Wireframes**: Replaced flat floors with floating 3D Glassmorphic boxes with heights proportional to their memory share percentage ($\frac{\text{pod.memoryGB}}{\text{node.maxMemoryGB}} \times \text{wallHeight}$). Leftover/unallocated node capacity is rendered as a clean, proportional dark gray wireframe room.
 - **Smooth Spectator Flight Physics**: Implemented seamless spectator flying controls (`Space` to float up, `Shift` to glide down) with dynamic, height-aware AABB collision detection. The camera can fly over buildings without boundary collisions but maintains realistic outer/partition wall collisions when walking or flying inside the rooms.
 - **One-Decimal Precision & CPU Ingestion**: Implemented precise resource rounding to 1 decimal place (e.g., `48` or `32.5`) for Memory and CPU cores. Integrated full parsing for CPU limits/requests from pod containers and capacities from nodes, presenting them in a new, high-tech HUD overlay.
+- **Dynamic Node Heights**: Fully implemented dynamic node building height scaling proportional to each node's maximum Memory allotment (e.g., a 24GB node building is twice as tall as a 12GB node building).
+- **Glassmorphic Semi-Transparent Outer Walls & Glowing Outlines**: Replaced flat solid gray outer walls and partitions with modern glassmorphic, semi-transparent blue/slate glass materials and added glowing holographic wireframe outlines to the building shells, making internal colorful pods perfectly visible from the outside.
+- **Precision Collision Optimization**: Restructured collider construction to only include structural outer/partition walls, excluding internal pod volume boxes so players can seamlessly walk or fly inside pod rooms.
 - **Optimization Pass**: Look into Three.js InstancedMesh if handling clusters scaling past 50+ nodes/1000+ pods to avoid draw-call bottlenecks.
 
 Potential Future Requests

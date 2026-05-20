@@ -285,8 +285,22 @@
         const velocity = new THREE.Vector3();
         const direction = new THREE.Vector3();
 
-        const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.7 });
-        const partitionMaterial = new THREE.MeshStandardMaterial({ color: 0x777777, roughness: 0.5, transparent: true, opacity: 0.8 });
+        const wallMaterial = new THREE.MeshStandardMaterial({
+            color: 0x1e293b,
+            roughness: 0.2,
+            metalness: 0.8,
+            transparent: true,
+            opacity: 0.15,
+            side: THREE.DoubleSide
+        });
+        const partitionMaterial = new THREE.MeshStandardMaterial({
+            color: 0x475569,
+            roughness: 0.2,
+            metalness: 0.5,
+            transparent: true,
+            opacity: 0.25,
+            side: THREE.DoubleSide
+        });
         const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.9 });
         const unallocatedMaterial = new THREE.MeshStandardMaterial({
             color: 0x4b5563,
@@ -426,7 +440,7 @@
         function generateClusterWorld() {
             const buildingWidth = 12;      // Fixed width for every node structure
             const depthScale = 1.5;        // Scale factor: 1GB allocations equals 1.5 units in length
-            const wallHeight = 12;         // Room/Building height
+            const heightScale = 0.5;       // Height scale: 24GB memory matches 12 units height
             const wallThickness = 0.4;     // Thickness of structural walls
             const spacing = 10;            // Gap space between buildings
 
@@ -437,6 +451,8 @@
             let maxZ = -Infinity;
 
             clusterData.nodes.forEach((node) => {
+                // Calculate dynamic building height derived from maximum memory capacity
+                const nodeWallHeight = node.maxMemoryGB * heightScale;
                 // Calculate total building length derived from its maximum physical capacity
                 const buildingLength = node.maxMemoryGB * depthScale;
 
@@ -467,24 +483,45 @@
 
                 // --- Outer Shell Construction (No Roof Box) ---
                 // Outer Left & Right Structural Walls
-                const sideWallGeo = new THREE.BoxGeometry(wallThickness, wallHeight, buildingLength);
+                const sideWallGeo = new THREE.BoxGeometry(wallThickness, nodeWallHeight, buildingLength);
 
                 const leftWall = new THREE.Mesh(sideWallGeo, wallMaterial);
-                leftWall.position.set(-buildingWidth / 2, wallHeight / 2, buildingLength / 2);
+                leftWall.position.set(-buildingWidth / 2, nodeWallHeight / 2, buildingLength / 2);
                 leftWall.userData = nodeMetadata;
                 nodeBuilding.add(leftWall);
 
+                // Add glowing outline to left wall for premium wireframe styling
+                const leftWallEdges = new THREE.EdgesGeometry(sideWallGeo);
+                const leftWallLineMat = new THREE.LineBasicMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.35 });
+                const leftWallLine = new THREE.LineSegments(leftWallEdges, leftWallLineMat);
+                leftWallLine.position.copy(leftWall.position);
+                nodeBuilding.add(leftWallLine);
+
                 const rightWall = new THREE.Mesh(sideWallGeo, wallMaterial);
-                rightWall.position.set(buildingWidth / 2, wallHeight / 2, buildingLength / 2);
+                rightWall.position.set(buildingWidth / 2, nodeWallHeight / 2, buildingLength / 2);
                 rightWall.userData = nodeMetadata;
                 nodeBuilding.add(rightWall);
 
+                // Add glowing outline to right wall
+                const rightWallEdges = new THREE.EdgesGeometry(sideWallGeo);
+                const rightWallLineMat = new THREE.LineBasicMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.35 });
+                const rightWallLine = new THREE.LineSegments(rightWallEdges, rightWallLineMat);
+                rightWallLine.position.copy(rightWall.position);
+                nodeBuilding.add(rightWallLine);
+
                 // Back Wall
-                const backWallGeo = new THREE.BoxGeometry(buildingWidth + wallThickness, wallHeight, wallThickness);
+                const backWallGeo = new THREE.BoxGeometry(buildingWidth + wallThickness, nodeWallHeight, wallThickness);
                 const backWall = new THREE.Mesh(backWallGeo, wallMaterial);
-                backWall.position.set(0, wallHeight / 2, 0);
+                backWall.position.set(0, nodeWallHeight / 2, 0);
                 backWall.userData = nodeMetadata;
                 nodeBuilding.add(backWall);
+
+                // Add glowing outline to back wall
+                const backWallEdges = new THREE.EdgesGeometry(backWallGeo);
+                const backWallLineMat = new THREE.LineBasicMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.35 });
+                const backWallLine = new THREE.LineSegments(backWallEdges, backWallLineMat);
+                backWallLine.position.copy(backWall.position);
+                nodeBuilding.add(backWallLine);
 
                 // --- Room Segmentation (Pods Layout) ---
                 let currentZOffset = 0;
@@ -492,8 +529,8 @@
 
                 node.pods.forEach((pod) => {
                     const podDepth = pod.memoryGB * depthScale;
-                    // Proportional height: height of the pod box is a percentage of node capacity * wallHeight
-                    const podHeight = (pod.memoryGB / node.maxMemoryGB) * wallHeight;
+                    // Proportional height: height of the pod box is a percentage of node capacity * nodeWallHeight
+                    const podHeight = (pod.memoryGB / node.maxMemoryGB) * nodeWallHeight;
 
                     // Render individual pod unit as a glassmorphic 3D Box
                     const podGeo = new THREE.BoxGeometry(buildingWidth - wallThickness, podHeight, podDepth);
@@ -535,18 +572,25 @@
                     currentZOffset += podDepth;
                     allocatedMemory += pod.memoryGB;
 
-                    const partitionGeo = new THREE.BoxGeometry(buildingWidth - wallThickness, wallHeight, wallThickness);
+                    const partitionGeo = new THREE.BoxGeometry(buildingWidth - wallThickness, nodeWallHeight, wallThickness);
                     const partition = new THREE.Mesh(partitionGeo, partitionMaterial);
-                    partition.position.set(0, wallHeight / 2, currentZOffset);
+                    partition.position.set(0, nodeWallHeight / 2, currentZOffset);
                     partition.userData = nodeMetadata;
                     nodeBuilding.add(partition);
+
+                    // Add glowing outline to partition
+                    const partitionEdges = new THREE.EdgesGeometry(partitionGeo);
+                    const partitionLineMat = new THREE.LineBasicMaterial({ color: 0x475569, transparent: true, opacity: 0.35 });
+                    const partitionLine = new THREE.LineSegments(partitionEdges, partitionLineMat);
+                    partitionLine.position.copy(partition.position);
+                    nodeBuilding.add(partitionLine);
                 });
 
                 // --- Handle Leftover/Unallocated Cluster Node Resources ---
                 if (allocatedMemory < node.maxMemoryGB) {
                     const leftoverMemory = node.maxMemoryGB - allocatedMemory;
                     const leftoverDepth = leftoverMemory * depthScale;
-                    const leftoverHeight = (leftoverMemory / node.maxMemoryGB) * wallHeight;
+                    const leftoverHeight = (leftoverMemory / node.maxMemoryGB) * nodeWallHeight;
 
                     const unallocatedGeo = new THREE.BoxGeometry(buildingWidth - wallThickness, leftoverHeight, leftoverDepth);
                     const unallocatedBox = new THREE.Mesh(unallocatedGeo, unallocatedMaterial);
@@ -571,20 +615,30 @@
                 }
 
                 // Front Wall closing out the complete structural node shell
-                const frontWallGeo = new THREE.BoxGeometry(buildingWidth + wallThickness, wallHeight, wallThickness);
+                const frontWallGeo = new THREE.BoxGeometry(buildingWidth + wallThickness, nodeWallHeight, wallThickness);
                 const frontWall = new THREE.Mesh(frontWallGeo, wallMaterial);
-                frontWall.position.set(0, wallHeight / 2, currentZOffset);
+                frontWall.position.set(0, nodeWallHeight / 2, currentZOffset);
                 frontWall.userData = nodeMetadata;
                 nodeBuilding.add(frontWall);
 
+                // Add glowing outline to front wall
+                const frontWallEdges = new THREE.EdgesGeometry(frontWallGeo);
+                const frontWallLineMat = new THREE.LineBasicMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.35 });
+                const frontWallLine = new THREE.LineSegments(frontWallEdges, frontWallLineMat);
+                frontWallLine.position.copy(frontWall.position);
+                nodeBuilding.add(frontWallLine);
+
                 scene.add(nodeBuilding);
                 
-                // Construct World Colliders from AABB Walls
+                // Construct World Colliders from AABB Walls (Structural outer walls and partitions only)
                 nodeBuilding.updateMatrixWorld(true);
                 nodeBuilding.children.forEach((child) => {
                     if (child.geometry && child.geometry.type === 'BoxGeometry') {
-                        const box = new THREE.Box3().setFromObject(child);
-                        colliders.push(box);
+                        // Only add actual physical walls and partitions as colliders, not the internal pod/unallocated room volumes
+                        if (child.userData && child.userData.type === 'node') {
+                            const box = new THREE.Box3().setFromObject(child);
+                            colliders.push(box);
+                        }
                     }
                 });
 
