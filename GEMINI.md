@@ -28,6 +28,8 @@ Phase 1: Interactive Polish (3D Visual Layer)
 
 [x] Hover/Look Tooltips: Cast a ray from the crosshair (Raycaster) to detect which pod room or node building the user is staring at, displaying real-time metadata (Pod Name, Status, Namespace, Exact Memory Request) via an overlay box.
 
+[x] Dynamic Player Spawning: Calculate physical boundaries of the generated buildings dynamically, spawning the player at a safe distance outside the cluster `(centerX, 2.5, -25)` looking at the cluster's center. This avoids AABB collision traps at startup and provides an open, immersive street-level entrance.
+
 Phase 2: Live Cluster Data Integration
 To transition the world from static mock JSON data to a live infrastructure view, the pipeline uses a decoupled ingestion approach that processes data externally:
 
@@ -54,6 +56,11 @@ A unified Python pipeline (`parse_cluster.py`) has been added to extract and com
 - Features a connection status indicator (`● Live Cluster` vs `▲ Demo Mode`) in the HUD.
 
 Dev Logs & Next Targets
-Optimization Pass: Look into Three.js InstancedMesh if handling clusters scaling past 50+ nodes/1000+ pods to avoid draw-call bottlenecks.
+- **Collision Spawning Bug Fix**: Resolved a critical issue where players would spawn inside the physical structure of a node building and get trapped due to the AABB colliders. Implemented dynamic bounding box calculation in `generateClusterWorld()` to offset the player safely to the front-center of the entire cluster at `Z = -25`, rotated 180 degrees to face the nodes directly.
+- **Optimization Pass**: Look into Three.js InstancedMesh if handling clusters scaling past 50+ nodes/1000+ pods to avoid draw-call bottlenecks.
+- **Expansion**: Think about mapping CPU limits to wall heights in future sprints, transforming 2D floor areas into dynamic 3D room volumes!
 
-Expansion: Think about mapping CPU limits to wall heights in future sprints, transforming 2D floor areas into dynamic 3D room volumes!
+Potential Future Requests
+1. **Fly Mode / Spectator Toggle**: Implement a key (e.g. `V` or `Space` for double jump) to toggle between first-person street walk and spectator fly mode, allowing the player to look down at the open-roof structures from above.
+2. **Minimap or HUD Radar**: Add a 2D canvas overlay in the HUD showing a bird's-eye schematic map of the cluster layout, highlighting the player's current coordinate and looking direction.
+3. **Collision Override Toggle**: Allow a debug key (e.g., `N` for noclip) to temporarily disable AABB collision detection, allowing rapid debugging or walking directly through walls.
