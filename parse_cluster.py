@@ -157,6 +157,14 @@ def run_kubectl():
     print("● Live cluster data successfully extracted!")
     return True
 
+def get_cluster_name():
+    """Attempts to fetch active Kubernetes context/cluster name."""
+    try:
+        res = subprocess.run(["kubectl", "config", "current-context"], capture_output=True, text=True, check=True)
+        return res.stdout.strip()
+    except Exception:
+        return None
+
 def create_mock_files_if_missing():
     """Generates standard mock JSON files if they don't exist in the directory."""
     if os.path.exists(NODES_RAW_FILE) and os.path.exists(PODS_RAW_FILE):
@@ -374,7 +382,10 @@ def parse_cluster():
     # Sort nodes alphabetically for structured rendering layout
     compiled_nodes.sort(key=lambda x: x["name"])
 
+    cluster_name = get_cluster_name() or "ClusterNamePlaceHolder"
+
     output_state = {
+        "clusterName": cluster_name,
         "nodes": compiled_nodes
     }
 
@@ -383,7 +394,7 @@ def parse_cluster():
         json.dump(output_state, f, indent=2)
 
     print(f"✔ Successfully parsed {len(node_list)} nodes and {len(pod_list)} pods.")
-    print(f"✔ Compiled cluster environment state written to '{OUTPUT_FILE}'.")
+    print(f"✔ Compiled cluster environment state written to '{OUTPUT_FILE}' for cluster: {cluster_name}.")
 
 if __name__ == "__main__":
     parse_cluster()

@@ -88,7 +88,7 @@
             border-radius: 16px;
             color: #f1f5f9;
             padding: 24px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
             z-index: 10;
             transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1), transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
             transform: translateY(10px);
@@ -134,7 +134,7 @@
             justify-content: space-between;
             align-items: center;
             padding: 8px 0;
-            border-bottom: 1px solid rgba(255,255,255,0.05);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
             font-size: 14px;
         }
 
@@ -170,19 +170,24 @@
             border: 1px solid rgba(16, 185, 129, 0.2);
         }
 
-        .badge-pending, .badge-containercreating {
+        .badge-pending,
+        .badge-containercreating {
             background: rgba(245, 158, 11, 0.15);
             color: #f59e0b;
             border: 1px solid rgba(245, 158, 11, 0.2);
         }
 
-        .badge-failed, .badge-error, .badge-crashloopbackoff, .badge-imagepullbackoff {
+        .badge-failed,
+        .badge-error,
+        .badge-crashloopbackoff,
+        .badge-imagepullbackoff {
             background: rgba(239, 68, 68, 0.15);
             color: #ef4444;
             border: 1px solid rgba(239, 68, 68, 0.2);
         }
 
-        .badge-succeeded, .badge-completed {
+        .badge-succeeded,
+        .badge-completed {
             background: rgba(16, 185, 129, 0.15);
             color: #10b981;
             border: 1px solid rgba(16, 185, 129, 0.2);
@@ -192,7 +197,7 @@
         .resource-bar-container {
             width: 100%;
             height: 8px;
-            background: rgba(255,255,255,0.1);
+            background: rgba(255, 255, 255, 0.1);
             border-radius: 4px;
             margin-top: 6px;
             overflow: hidden;
@@ -207,6 +212,100 @@
         #canvas-container {
             width: 100vw;
             height: 100vh;
+        }
+
+        /* Stats Panel Styles */
+        #stats-panel {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(13, 13, 18, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            color: #e2e8f0;
+            padding: 12px 24px;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            pointer-events: auto;
+            transition: all 0.3s ease;
+            min-width: 380px;
+        }
+
+        #stats-panel:hover {
+            border-color: rgba(59, 130, 246, 0.3);
+            box-shadow: 0 12px 40px 0 rgba(59, 130, 246, 0.15);
+        }
+
+        .stats-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            color: #94a3b8;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            width: 100%;
+            padding-bottom: 6px;
+            justify-content: center;
+        }
+
+        .stats-cluster-icon {
+            color: #3b82f6;
+            font-size: 16px;
+            text-shadow: 0 0 8px rgba(59, 130, 246, 0.5);
+            animation: pulse-glow 2s infinite ease-in-out;
+        }
+
+        .stats-cluster-name {
+            background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 15px;
+        }
+
+        .stats-grid {
+            display: flex;
+            gap: 24px;
+            justify-content: space-around;
+            width: 100%;
+            padding-top: 4px;
+        }
+
+        .stats-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .stats-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #64748b;
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+
+        .stats-val {
+            font-size: 18px;
+            font-weight: 800;
+            color: #f1f5f9;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { opacity: 0.6; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.1); }
         }
     </style>
     <!-- Import maps polyfill -->
@@ -234,6 +333,27 @@
         <div id="node-info" style="margin-top: 10px; font-size: 12px;"></div>
     </div>
 
+    <div id="stats-panel">
+        <div class="stats-header">
+            <span class="stats-cluster-icon">⎈</span>
+            <span class="stats-cluster-name" id="stats-cluster-name">ClusterNamePlaceHolder</span>
+        </div>
+        <div class="stats-grid">
+            <div class="stats-item">
+                <span class="stats-label">Nodes</span>
+                <span class="stats-val" id="stats-nodes">-</span>
+            </div>
+            <div class="stats-item">
+                <span class="stats-label">Pods</span>
+                <span class="stats-val" id="stats-pods">-</span>
+            </div>
+            <div class="stats-item">
+                <span class="stats-label">Total Memory</span>
+                <span class="stats-val" id="stats-memory">-</span>
+            </div>
+        </div>
+    </div>
+
     <div id="hud-tooltip"></div>
     <div id="crosshair"></div>
     <div id="canvas-container"></div>
@@ -244,6 +364,7 @@
 
         // 1. Mock Kubernetes Cluster Configuration Data (Normalized to GB)
         let clusterData = {
+            clusterName: "ClusterNamePlaceHolder",
             nodes: [
                 {
                     name: "node-alpha",
@@ -323,11 +444,11 @@
             canvas.width = 256;
             canvas.height = 256;
             const ctx = canvas.getContext('2d');
-            
+
             // Base sand color
             ctx.fillStyle = '#e8d3a7';
             ctx.fillRect(0, 0, 256, 256);
-            
+
             // Add subtle sand grain noise
             for (let i = 0; i < 6000; i++) {
                 const x = Math.random() * 256;
@@ -343,12 +464,37 @@
                 }
                 ctx.fillRect(x, y, size, size);
             }
-            
+
             const texture = new THREE.CanvasTexture(canvas);
             texture.wrapS = THREE.RepeatWrapping;
             texture.wrapT = THREE.RepeatWrapping;
             texture.repeat.set(16, 16);
             return texture;
+        }
+
+        function updateStatsPanel() {
+            const clusterName = clusterData.clusterName || "ClusterNamePlaceHolder";
+            const totalNodes = clusterData.nodes ? clusterData.nodes.length : 0;
+            
+            let totalPods = 0;
+            let totalMemory = 0;
+            
+            if (clusterData.nodes) {
+                clusterData.nodes.forEach(node => {
+                    if (node.pods) {
+                        totalPods += node.pods.length;
+                    }
+                    totalMemory += node.maxMemoryGB || 0;
+                });
+            }
+            
+            // Format memory to 1 decimal place
+            const formattedMemory = Math.round(totalMemory * 10) / 10;
+            
+            document.getElementById('stats-cluster-name').textContent = clusterName;
+            document.getElementById('stats-nodes').textContent = totalNodes;
+            document.getElementById('stats-pods').textContent = totalPods;
+            document.getElementById('stats-memory').textContent = `${formattedMemory} GB`;
         }
 
         init();
@@ -375,6 +521,7 @@
                         </span>
                     `;
                 }
+                updateStatsPanel();
                 generateClusterWorld();
                 animate();
             })
@@ -389,6 +536,7 @@
                         </span>
                     `;
                 }
+                updateStatsPanel();
                 generateClusterWorld();
                 animate();
             });
@@ -537,25 +685,44 @@
             const wallThickness = 0.4;     // Thickness of structural walls
             const spacing = 10;            // Gap space between buildings
 
-            let currentXOffset = -((clusterData.nodes.length * (buildingWidth + spacing)) / 2);
+            const usableBeachWidth = 200;  // Beach is 250x250, so 200 leaves a 25-unit border on all sides
+            const maxCols = Math.floor((usableBeachWidth + spacing) / (buildingWidth + spacing)); // Math.floor(210 / 22) = 9 cols
+
+            const N = clusterData.nodes.length;
+            const numCols = Math.min(N, maxCols);
+            const numRows = Math.ceil(N / maxCols);
+
+            const gridWidth = numCols * buildingWidth + (numCols - 1) * spacing;
+            const gridDepth = numRows * buildingDepth + (numRows - 1) * spacing;
 
             let minX = Infinity;
             let maxX = -Infinity;
+            let minZ = Infinity;
 
-            clusterData.nodes.forEach((node) => {
+            clusterData.nodes.forEach((node, index) => {
+                // Calculate position in the grid (filling columns first, then rows)
+                const row = Math.floor(index / maxCols);
+                const col = index % maxCols;
+
+                const x = col * (buildingWidth + spacing) - (gridWidth - buildingWidth) / 2;
+                // Center the Z rows around 0. The row 0 will be the front-most row.
+                // Building spans from z to z + buildingDepth.
+                const z = row * (buildingDepth + spacing) - gridDepth / 2;
+
                 // Calculate dynamic building height derived from maximum memory capacity
                 const nodeWallHeight = node.maxMemoryGB * heightScale;
 
                 // Track physical boundaries to spawn player safely outside
                 const halfW = buildingWidth / 2 + wallThickness;
-                const nodeMinX = currentXOffset - halfW;
-                const nodeMaxX = currentXOffset + halfW;
+                const nodeMinX = x - halfW;
+                const nodeMaxX = x + halfW;
                 if (nodeMinX < minX) minX = nodeMinX;
                 if (nodeMaxX > maxX) maxX = nodeMaxX;
+                if (z < minZ) minZ = z;
 
                 // Group representing our single structural node container
                 const nodeBuilding = new THREE.Group();
-                nodeBuilding.position.set(currentXOffset, 0, 0);
+                nodeBuilding.position.set(x, 0, z);
 
                 // Calculate metadata for node interaction
                 const totalAllocatedMemory = node.pods.reduce((sum, p) => sum + p.memoryGB, 0);
@@ -639,7 +806,7 @@
                     const podBox = new THREE.Mesh(podGeo, podMat);
                     // Position at the core center of this pod's allocated zone section, stacked vertically
                     podBox.position.set(0, currentYOffset + (podHeight / 2), buildingDepth / 2);
-                    
+
                     // Attach pod metadata
                     podBox.userData = {
                         type: "pod",
@@ -693,13 +860,13 @@
                     const leftoverMarginY = Math.min(0.05, leftoverHeight * 0.05);
 
                     const unallocatedGeo = new THREE.BoxGeometry(
-                        buildingWidth - wallThickness - 0.2, 
-                        leftoverHeight - leftoverMarginY * 2, 
+                        buildingWidth - wallThickness - 0.2,
+                        leftoverHeight - leftoverMarginY * 2,
                         buildingDepth - wallThickness - 0.2
                     );
                     const unallocatedBox = new THREE.Mesh(unallocatedGeo, unallocatedMaterial);
                     unallocatedBox.position.set(0, currentYOffset + (leftoverHeight / 2), buildingDepth / 2);
-                    
+
                     unallocatedBox.userData = {
                         type: "unallocated",
                         nodeName: node.name,
@@ -719,7 +886,7 @@
                 }
 
                 scene.add(nodeBuilding);
-                
+
                 // Construct World Colliders from AABB Walls (Structural outer walls only)
                 nodeBuilding.updateMatrixWorld(true);
                 nodeBuilding.children.forEach((child) => {
@@ -731,15 +898,14 @@
                         }
                     }
                 });
-
-                currentXOffset += buildingWidth + spacing; // Stride index position for rendering next node structure
             });
 
             // Dynamically position player camera outside the cluster looking at its center
-            if (minX !== Infinity) {
+            if (minX !== Infinity && minZ !== Infinity) {
                 const centerX = (minX + maxX) / 2;
-                camera.position.set(centerX, 2.5, -25);
-                camera.lookAt(new THREE.Vector3(centerX, 2.5, buildingDepth / 2));
+                const spawnZ = minZ - 25;
+                camera.position.set(centerX, 2.5, spawnZ);
+                camera.lookAt(new THREE.Vector3(centerX, 2.5, 0));
             } else {
                 camera.position.set(0, 2.5, -25);
                 camera.lookAt(new THREE.Vector3(0, 2.5, 0));
@@ -896,7 +1062,7 @@
                     const formattedAllocatedCPU = data.allocatedCPU ? Math.round(data.allocatedCPU * 10) / 10 : null;
                     hud.innerHTML = `
                         <div class="hud-header">
-                            <span class="hud-type" style="color: #10b981; background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.2);">Node Building</span>
+                            <span class="hud-type" style="color: #10b981; background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.2);">Node</span>
                         </div>
                         <div class="hud-title">${data.nodeName}</div>
                         <div style="margin-top: 16px;">
