@@ -281,32 +281,34 @@
         let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
         let moveUp = false, moveDown = false;
 
+        let oceanGeometry, oceanMesh, sunGroup, sunMesh;
+
         const clock = new THREE.Clock();
         const velocity = new THREE.Vector3();
         const direction = new THREE.Vector3();
 
         const wallMaterial = new THREE.MeshStandardMaterial({
-            color: 0x1e293b,
+            color: 0x2c2e35, // Sleek premium slate-charcoal gray
             roughness: 0.2,
             metalness: 0.8,
-            transparent: true,
-            opacity: 0.15,
+            transparent: false,
+            opacity: 1.0,
             side: THREE.DoubleSide
         });
         const partitionMaterial = new THREE.MeshStandardMaterial({
-            color: 0x475569,
+            color: 0x3a3d45, // Sleek matching dark gray floor slab
             roughness: 0.2,
             metalness: 0.5,
-            transparent: true,
-            opacity: 0.25,
+            transparent: false,
+            opacity: 1.0,
             side: THREE.DoubleSide
         });
         const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.9 });
         const unallocatedMaterial = new THREE.MeshStandardMaterial({
             color: 0x4b5563,
             roughness: 0.8,
-            transparent: true,
-            opacity: 0.2,
+            transparent: false,
+            opacity: 1.0,
             wireframe: true
         });
 
@@ -314,6 +316,40 @@
         const colliders = [];
         const raycaster = new THREE.Raycaster();
         const mouse = new THREE.Vector2(0, 0); // Raycast from center of screen
+
+        // Procedural Sand Texture Generator using an HTML5 Canvas
+        function createSandTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            
+            // Base sand color
+            ctx.fillStyle = '#e8d3a7';
+            ctx.fillRect(0, 0, 256, 256);
+            
+            // Add subtle sand grain noise
+            for (let i = 0; i < 6000; i++) {
+                const x = Math.random() * 256;
+                const y = Math.random() * 256;
+                const size = Math.random() * 1.2 + 0.4;
+                const r = Math.random();
+                if (r < 0.3) {
+                    ctx.fillStyle = '#eed9b3'; // lighter grain
+                } else if (r < 0.6) {
+                    ctx.fillStyle = '#dfc193'; // darker grain
+                } else {
+                    ctx.fillStyle = '#e0c79b'; // midtone grain
+                }
+                ctx.fillRect(x, y, size, size);
+            }
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(16, 16);
+            return texture;
+        }
 
         init();
 
@@ -359,31 +395,88 @@
 
         function init() {
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x0a0a0e);
-            scene.fog = new THREE.FogExp2(0x0a0a0e, 0.015);
+            // Ambient sky blue background and soft horizon fog
+            scene.background = new THREE.Color(0x8bc0f4);
+            scene.fog = new THREE.FogExp2(0x8bc0f4, 0.002);
 
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
             camera.position.set(0, 2.5, 20); // Initial player position (gameplay height)
 
             // Lighting
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+            // Hemisphere light for realistic sky/ground ambient light contribution
+            const hemiLight = new THREE.HemisphereLight(0x8bc0f4, 0xe8d3a7, 0.6);
+            scene.add(hemiLight);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
             scene.add(ambientLight);
 
-            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-            dirLight.position.set(20, 40, 20);
+            // Warm Directional Sun Light positioned in alignment with the sun
+            const dirLight = new THREE.DirectionalLight(0xfff5e6, 1.2);
+            dirLight.position.set(50, 100, 400);
             scene.add(dirLight);
 
-            // Ground plane (Flat infinite-like world floor)
-            const groundGeo = new THREE.PlaneGeometry(1000, 1000);
-            const groundMat = new THREE.MeshStandardMaterial({ color: 0x111116, roughness: 0.8 });
-            const ground = new THREE.Mesh(groundGeo, groundMat);
-            ground.rotation.x = -Math.PI / 2;
-            scene.add(ground);
+            // Ground - Sandy Beach Platform Island
+            const sandTexture = createSandTexture();
+            const beachGeo = new THREE.BoxGeometry(250, 4, 250);
+            const beachMat = new THREE.MeshStandardMaterial({
+                map: sandTexture,
+                roughness: 0.95,
+                metalness: 0.05
+            });
+            const beach = new THREE.Mesh(beachGeo, beachMat);
+            beach.position.set(0, -2, 0); // Top surface is at y = 0
+            scene.add(beach);
 
-            // Grid helper to capture that Minecraft/structural vibe
-            const gridHelper = new THREE.GridHelper(200, 100, 0x3b82f6, 0x1e293b);
-            gridHelper.position.y = 0.01;
-            scene.add(gridHelper);
+
+
+            // Large surrounding Animated Ocean
+            const oceanMat = new THREE.MeshStandardMaterial({
+                color: 0x0077be,
+                roughness: 0.1,
+                metalness: 0.8,
+                transparent: true,
+                opacity: 0.85,
+                side: THREE.DoubleSide
+            });
+            oceanGeometry = new THREE.PlaneGeometry(2000, 2000, 40, 40);
+            oceanMesh = new THREE.Mesh(oceanGeometry, oceanMat);
+            oceanMesh.rotation.x = -Math.PI / 2;
+            oceanMesh.position.set(0, -1.2, 0); // Sits slightly below beach top
+            scene.add(oceanMesh);
+
+            // Glowing Sun with Concentric Billboard Halo Rings
+            sunGroup = new THREE.Group();
+            sunGroup.position.set(50, 100, 400);
+
+            // Core sun sphere
+            const sunGeo = new THREE.SphereGeometry(15, 32, 32);
+            const sunMat = new THREE.MeshBasicMaterial({ color: 0xfffaed });
+            sunMesh = new THREE.Mesh(sunGeo, sunMat);
+            sunGroup.add(sunMesh);
+
+            // Outer glow ring 1
+            const glowGeo1 = new THREE.RingGeometry(16, 28, 32);
+            const glowMat1 = new THREE.MeshBasicMaterial({
+                color: 0xffe8bd,
+                transparent: true,
+                opacity: 0.35,
+                side: THREE.DoubleSide
+            });
+            const glowMesh1 = new THREE.Mesh(glowGeo1, glowMat1);
+            sunGroup.add(glowMesh1);
+
+            // Outer glow ring 2
+            const glowGeo2 = new THREE.RingGeometry(28, 45, 32);
+            const glowMat2 = new THREE.MeshBasicMaterial({
+                color: 0xffd08a,
+                transparent: true,
+                opacity: 0.15,
+                side: THREE.DoubleSide
+            });
+            const glowMesh2 = new THREE.Mesh(glowGeo2, glowMat2);
+            sunGroup.add(glowMesh2);
+
+            scene.add(sunGroup);
 
             // Setup Renderer
             renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -505,33 +598,21 @@
                 rightWallLine.position.copy(rightWall.position);
                 nodeBuilding.add(rightWallLine);
 
-                // Back Wall
-                const backWallGeo = new THREE.BoxGeometry(buildingWidth + wallThickness, nodeWallHeight, wallThickness);
-                const backWall = new THREE.Mesh(backWallGeo, wallMaterial);
-                backWall.position.set(0, nodeWallHeight / 2, 0);
-                backWall.userData = nodeMetadata;
-                nodeBuilding.add(backWall);
-
-                // Add glowing outline to back wall
-                const backWallEdges = new THREE.EdgesGeometry(backWallGeo);
-                const backWallLineMat = new THREE.LineBasicMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.35 });
-                const backWallLine = new THREE.LineSegments(backWallEdges, backWallLineMat);
-                backWallLine.position.copy(backWall.position);
-                nodeBuilding.add(backWallLine);
-
-                // Front Wall closing out the complete structural node shell
+                // Back panel relative to player (at Z = buildingDepth)
                 const frontWallGeo = new THREE.BoxGeometry(buildingWidth + wallThickness, nodeWallHeight, wallThickness);
                 const frontWall = new THREE.Mesh(frontWallGeo, wallMaterial);
                 frontWall.position.set(0, nodeWallHeight / 2, buildingDepth);
                 frontWall.userData = nodeMetadata;
                 nodeBuilding.add(frontWall);
 
-                // Add glowing outline to front wall
+                // Add glowing outline to back panel
                 const frontWallEdges = new THREE.EdgesGeometry(frontWallGeo);
                 const frontWallLineMat = new THREE.LineBasicMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.35 });
                 const frontWallLine = new THREE.LineSegments(frontWallEdges, frontWallLineMat);
                 frontWallLine.position.copy(frontWall.position);
                 nodeBuilding.add(frontWallLine);
+
+
 
                 // --- Room Segmentation (Pods Layout) ---
                 let currentYOffset = 0;
@@ -549,10 +630,10 @@
                     );
                     const podMat = new THREE.MeshStandardMaterial({
                         color: pod.color,
-                        roughness: 0.1,
+                        roughness: 0.2,
                         metalness: 0.1,
-                        transparent: true,
-                        opacity: 0.65,
+                        transparent: false,
+                        opacity: 1.0,
                         side: THREE.DoubleSide
                     });
                     const podBox = new THREE.Mesh(podGeo, podMat);
@@ -884,6 +965,30 @@
             } else {
                 crosshair.classList.remove('active');
                 hud.classList.remove('visible');
+            }
+
+            // Animate ocean waves over time
+            if (oceanGeometry) {
+                const time = clock.getElapsedTime();
+                const position = oceanGeometry.attributes.position;
+                for (let i = 0; i < position.count; i++) {
+                    const u = position.getX(i);
+                    const v = position.getY(i);
+                    // Compute wave height using a multi-frequency sine wave
+                    const z = Math.sin(u * 0.02 + time * 0.8) * 0.4 + Math.cos(v * 0.02 + time * 0.6) * 0.4;
+                    position.setZ(i, z);
+                }
+                position.needsUpdate = true;
+                oceanGeometry.computeVertexNormals();
+            }
+
+            // Billboard effect: Make sun glow rings face the player camera
+            if (sunGroup && camera) {
+                sunGroup.children.forEach((child) => {
+                    if (child !== sunMesh) {
+                        child.lookAt(camera.position);
+                    }
+                });
             }
 
             renderer.render(scene, camera);
