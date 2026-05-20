@@ -16,11 +16,9 @@ NAMESPACE_COLORS = [
     0x3b82f6,  # Indigo/Sleek Blue
     0x10b981,  # Emerald Green
     0x8b5cf6,  # Purple/Violet
-    0xec4899,  # Rose Pink
     0xf59e0b,  # Warm Amber
     0x06b6d4,  # Vivid Cyan
     0x14b8a6,  # Modern Teal
-    0xf43f5e,  # Rose Red
     0x6366f1,  # Electric Indigo
     0xa855f7,  # Deep Purple
 ]
@@ -262,7 +260,7 @@ def create_mock_files_if_missing():
             {
                 "metadata": {"name": "cache-pod-9a3f2c7d-5m1q9", "namespace": "production"},
                 "spec": {"nodeName": "node-alpha", "containers": [{"resources": {"requests": {"memory": "4Gi"}}}]},
-                "status": {"phase": "Pending"}
+                "status": {"phase": "CrashLoopBackOff"}
             },
             {
                 "metadata": {"name": "db-pod-0-8b6d4c2e-4w8z7", "namespace": "database"},

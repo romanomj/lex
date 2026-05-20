@@ -73,7 +73,7 @@
         ]
       },
       "status": {
-        "phase": "Pending"
+        "phase": "CrashLoopBackOff"
       }
     },
     {

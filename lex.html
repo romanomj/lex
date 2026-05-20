@@ -569,7 +569,7 @@
                     pods: [
                         { name: "frontend-pod-7d4f9b8c-2x9v4", memoryGB: 12, cpuCores: 4, color: 0x00f0ff, status: "Running", namespace: "production" },
                         { name: "backend-pod-5c8e7a1b-9p3k8", memoryGB: 4, cpuCores: 2, color: 0x3b82f6, status: "Running", namespace: "production" },
-                        { name: "cache-pod-9a3f2c7d-5m1q9", memoryGB: 4, cpuCores: 1, color: 0xec4899, status: "Pending", namespace: "production" }
+                        { name: "cache-pod-9a3f2c7d-5m1q9", memoryGB: 4, cpuCores: 1, color: 0x6366f1, status: "CrashLoopBackOff", namespace: "production" }
                     ]
                 },
                 {
@@ -721,6 +721,59 @@
             opacity: 1.0,
             side: THREE.DoubleSide
         });
+        const failedWallMaterial = new THREE.MeshStandardMaterial({
+            color: 0xef4444, // Solid red base
+            roughness: 0.4,  // Smooth matte look (less metallic, so it's a solid rich red under all lights!)
+            metalness: 0.1,  // Very low metalness to keep it solid red
+            transparent: false,
+            opacity: 1.0,
+            side: THREE.DoubleSide
+        });
+        const failedOutlineMaterial = new THREE.LineBasicMaterial({
+            color: 0xef4444,
+            transparent: true,
+            opacity: 0.65 // Slightly brighter outline for failure alert
+        });
+
+        const failedPodMaterial = new THREE.MeshStandardMaterial({
+            color: 0xef4444, // Solid red base
+            roughness: 0.4,
+            metalness: 0.1,
+            transparent: false,
+            opacity: 1.0,
+            side: THREE.DoubleSide
+        });
+        const failedPodOutlineMaterial = new THREE.LineBasicMaterial({
+            color: 0xef4444,
+            transparent: true,
+            opacity: 0.8
+        });
+
+        function isNodeFailed(node) {
+            if (!node || !node.conditions) return false;
+            const conditions = node.conditions;
+            if (conditions.Ready !== undefined && conditions.Ready !== "True") {
+                return true;
+            }
+            if (conditions.MemoryPressure === "True" || 
+                conditions.DiskPressure === "True" || 
+                conditions.PIDPressure === "True" ||
+                conditions.NetworkUnavailable === "True") {
+                return true;
+            }
+            return false;
+        }
+
+        function isPodFailed(status) {
+            if (!status) return false;
+            const s = status.toLowerCase();
+            return s.includes('fail') || 
+                   s.includes('error') || 
+                   s.includes('backoff') || 
+                   s.includes('invalid') || 
+                   s === 'failed';
+        }
+
         const partitionMaterial = new THREE.MeshStandardMaterial({
             color: 0x3a3d45, // Sleek matching dark gray floor slab
             roughness: 0.2,
@@ -1266,29 +1319,33 @@
                 };
 
                 // --- Outer Shell Construction (No Roof Box) ---
+                const isFailedNode = isNodeFailed(node);
+                const activeWallMaterial = isFailedNode ? failedWallMaterial : wallMaterial;
+                const activeOutlineColor = isFailedNode ? 0xef4444 : 0x3b82f6;
+
                 // Outer Left & Right Structural Walls
                 const sideWallGeo = new THREE.BoxGeometry(wallThickness, nodeWallHeight, buildingDepth);
 
-                const leftWall = new THREE.Mesh(sideWallGeo, wallMaterial);
+                const leftWall = new THREE.Mesh(sideWallGeo, activeWallMaterial);
                 leftWall.position.set(-buildingWidth / 2, nodeWallHeight / 2, buildingDepth / 2);
                 leftWall.userData = nodeMetadata;
                 nodeBuilding.add(leftWall);
 
                 // Add glowing outline to left wall for premium wireframe styling
                 const leftWallEdges = new THREE.EdgesGeometry(sideWallGeo);
-                const leftWallLineMat = new THREE.LineBasicMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.35 });
+                const leftWallLineMat = isFailedNode ? failedOutlineMaterial : new THREE.LineBasicMaterial({ color: activeOutlineColor, transparent: true, opacity: 0.35 });
                 const leftWallLine = new THREE.LineSegments(leftWallEdges, leftWallLineMat);
                 leftWallLine.position.copy(leftWall.position);
                 nodeBuilding.add(leftWallLine);
 
-                const rightWall = new THREE.Mesh(sideWallGeo, wallMaterial);
+                const rightWall = new THREE.Mesh(sideWallGeo, activeWallMaterial);
                 rightWall.position.set(buildingWidth / 2, nodeWallHeight / 2, buildingDepth / 2);
                 rightWall.userData = nodeMetadata;
                 nodeBuilding.add(rightWall);
 
                 // Add glowing outline to right wall
                 const rightWallEdges = new THREE.EdgesGeometry(sideWallGeo);
-                const rightWallLineMat = new THREE.LineBasicMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.35 });
+                const rightWallLineMat = isFailedNode ? failedOutlineMaterial : new THREE.LineBasicMaterial({ color: activeOutlineColor, transparent: true, opacity: 0.35 });
                 const rightWallLine = new THREE.LineSegments(rightWallEdges, rightWallLineMat);
                 rightWallLine.position.copy(rightWall.position);
                 nodeBuilding.add(rightWallLine);
@@ -1323,14 +1380,14 @@
 
                 // Back panel relative to player (at Z = buildingDepth)
                 const frontWallGeo = new THREE.BoxGeometry(buildingWidth + wallThickness, nodeWallHeight, wallThickness);
-                const frontWall = new THREE.Mesh(frontWallGeo, wallMaterial);
+                const frontWall = new THREE.Mesh(frontWallGeo, activeWallMaterial);
                 frontWall.position.set(0, nodeWallHeight / 2, buildingDepth);
                 frontWall.userData = nodeMetadata;
                 nodeBuilding.add(frontWall);
 
                 // Add glowing outline to back panel
                 const frontWallEdges = new THREE.EdgesGeometry(frontWallGeo);
-                const frontWallLineMat = new THREE.LineBasicMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.35 });
+                const frontWallLineMat = isFailedNode ? failedOutlineMaterial : new THREE.LineBasicMaterial({ color: activeOutlineColor, transparent: true, opacity: 0.35 });
                 const frontWallLine = new THREE.LineSegments(frontWallEdges, frontWallLineMat);
                 frontWallLine.position.copy(frontWall.position);
                 nodeBuilding.add(frontWallLine);
@@ -1351,14 +1408,22 @@
                         podHeight - marginY * 2,            // leave margin on top/bottom to prevent floor partition intersection
                         buildingDepth - wallThickness - 0.2  // leave margin on depth to prevent front/back wall intersection
                     );
-                    const podMat = new THREE.MeshStandardMaterial({
-                        color: pod.color,
-                        roughness: 0.2,
-                        metalness: 0.1,
-                        transparent: false,
-                        opacity: 1.0,
-                        side: THREE.DoubleSide
-                    });
+                    const isFailed = isPodFailed(pod.status);
+                    const podColor = isFailed ? 0xef4444 : pod.color;
+
+                    let podMat;
+                    if (isFailed) {
+                        podMat = failedPodMaterial;
+                    } else {
+                        podMat = new THREE.MeshStandardMaterial({
+                            color: podColor,
+                            roughness: 0.2,
+                            metalness: 0.1,
+                            transparent: false,
+                            opacity: 1.0,
+                            side: THREE.DoubleSide
+                        });
+                    }
                     const podBox = new THREE.Mesh(podGeo, podMat);
                     // Position at the core center of this pod's allocated zone section, stacked vertically
                     podBox.position.set(0, currentYOffset + (podHeight / 2), buildingDepth / 2);
@@ -1370,7 +1435,7 @@
                         nodeName: node.name,
                         memoryGB: pod.memoryGB,
                         cpuCores: pod.cpuCores || null,
-                        color: pod.color,
+                        color: podColor,
                         status: pod.status,
                         namespace: pod.namespace,
                         nodeMaxMemory: node.maxMemoryGB,
@@ -1382,7 +1447,7 @@
 
                     // Add high-tech holographic wireframe outlines to the glassmorphic pod box
                     const edges = new THREE.EdgesGeometry(podGeo);
-                    const lineMat = new THREE.LineBasicMaterial({ color: pod.color, transparent: true, opacity: 0.8 });
+                    const lineMat = isFailed ? failedPodOutlineMaterial : new THREE.LineBasicMaterial({ color: podColor, transparent: true, opacity: 0.8 });
                     const line = new THREE.LineSegments(edges, lineMat);
                     line.position.copy(podBox.position);
                     nodeBuilding.add(line);
@@ -1633,10 +1698,7 @@
                     if (containerEl) containerEl.scrollTop = 0;
                 }
             } else {
-                // Player is NOT inside: Hide YAML panel, run standard raycast check
-                yamlPanel.classList.remove('visible');
-                delete yamlPanel.dataset.activePod;
-
+                // Player is NOT inside: run standard raycast check
                 raycaster.setFromCamera(mouse, camera);
                 const intersects = raycaster.intersectObjects(scene.children, true);
 
@@ -1694,83 +1756,102 @@
                                 </div>
                             </div>
                         `;
-                    } else if (data.type === 'node') {
-                        const allocationPercentage = Math.round((data.allocatedMemory / data.maxMemoryGB) * 100);
-                        const formattedMaxMemory = Math.round(data.maxMemoryGB * 10) / 10;
-                        const formattedAllocatedMemory = Math.round(data.allocatedMemory * 10) / 10;
-                        const formattedMaxCPU = data.maxCPUCores ? Math.round(data.maxCPUCores * 10) / 10 : null;
-                        const formattedAllocatedCPU = data.allocatedCPU ? Math.round(data.allocatedCPU * 10) / 10 : null;
-                        hud.innerHTML = `
-                            <div class="hud-header">
-                                <span class="hud-type" style="color: #10b981; background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.2);">Node</span>
-                            </div>
-                            <div class="hud-title">${data.nodeName}</div>
-                            <div style="margin-top: 16px;">
-                                <div class="hud-meta-row">
-                                    <span class="hud-label">Total Capacity</span>
-                                    <span class="hud-value">${formattedMaxMemory}GB</span>
+
+                        // Show YAML panel on hover
+                        yamlPanel.classList.add('visible');
+                        if (yamlPanel.dataset.activePod !== data.podName) {
+                            yamlPanel.dataset.activePod = data.podName;
+                            yamlText.innerHTML = jsonToYaml(data.raw);
+                            // Reset scroll to top for fresh pod view
+                            const containerEl = document.getElementById('yaml-container');
+                            if (containerEl) containerEl.scrollTop = 0;
+                        }
+                    } else {
+                        // Hovered node or unallocated space: hide YAML panel
+                        yamlPanel.classList.remove('visible');
+                        delete yamlPanel.dataset.activePod;
+
+                        if (data.type === 'node') {
+                            const allocationPercentage = Math.round((data.allocatedMemory / data.maxMemoryGB) * 100);
+                            const formattedMaxMemory = Math.round(data.maxMemoryGB * 10) / 10;
+                            const formattedAllocatedMemory = Math.round(data.allocatedMemory * 10) / 10;
+                            const formattedMaxCPU = data.maxCPUCores ? Math.round(data.maxCPUCores * 10) / 10 : null;
+                            const formattedAllocatedCPU = data.allocatedCPU ? Math.round(data.allocatedCPU * 10) / 10 : null;
+                            hud.innerHTML = `
+                                <div class="hud-header">
+                                    <span class="hud-type" style="color: #10b981; background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.2);">Node</span>
                                 </div>
-                                <div class="hud-meta-row">
-                                    <span class="hud-label">Allocated Memory</span>
-                                    <span class="hud-value">${formattedAllocatedMemory}GB (${allocationPercentage}%)</span>
-                                </div>
-                                ${formattedMaxCPU !== null ? `
-                                <div class="hud-meta-row">
-                                    <span class="hud-label">CPU Capacity</span>
-                                    <span class="hud-value">${formattedMaxCPU} Core${formattedMaxCPU !== 1 ? 's' : ''}</span>
-                                </div>
-                                <div class="hud-meta-row">
-                                    <span class="hud-label">Allocated CPU</span>
-                                    <span class="hud-value">${formattedAllocatedCPU || 0} Core${formattedAllocatedCPU !== 1 ? 's' : ''}</span>
-                                </div>
-                                ` : ''}
-                                <div class="hud-meta-row">
-                                    <span class="hud-label">Running Pods</span>
-                                    <span class="hud-value">${data.podsCount}</span>
-                                </div>
+                                <div class="hud-title">${data.nodeName}</div>
                                 <div style="margin-top: 16px;">
-                                    <div style="display:flex; justify-content:space-between; font-size:12px; color:#94a3b8; margin-bottom: 4px;">
-                                        <span>Total Capacity Allocated</span>
-                                        <span>${allocationPercentage}%</span>
+                                    <div class="hud-meta-row">
+                                        <span class="hud-label">Total Capacity</span>
+                                        <span class="hud-value">${formattedMaxMemory}GB</span>
                                     </div>
-                                    <div class="resource-bar-container">
-                                        <div class="resource-bar-fill" style="width: ${allocationPercentage}%; background: linear-gradient(90deg, #10b981 0%, #3b82f6 100%);"></div>
+                                    <div class="hud-meta-row">
+                                        <span class="hud-label">Allocated Memory</span>
+                                        <span class="hud-value">${formattedAllocatedMemory}GB (${allocationPercentage}%)</span>
+                                    </div>
+                                    ${formattedMaxCPU !== null ? `
+                                    <div class="hud-meta-row">
+                                        <span class="hud-label">CPU Capacity</span>
+                                        <span class="hud-value">${formattedMaxCPU} Core${formattedMaxCPU !== 1 ? 's' : ''}</span>
+                                    </div>
+                                    <div class="hud-meta-row">
+                                        <span class="hud-label">Allocated CPU</span>
+                                        <span class="hud-value">${formattedAllocatedCPU || 0} Core${formattedAllocatedCPU !== 1 ? 's' : ''}</span>
+                                    </div>
+                                    ` : ''}
+                                    <div class="hud-meta-row">
+                                        <span class="hud-label">Running Pods</span>
+                                        <span class="hud-value">${data.podsCount}</span>
+                                    </div>
+                                    <div style="margin-top: 16px;">
+                                        <div style="display:flex; justify-content:space-between; font-size:12px; color:#94a3b8; margin-bottom: 4px;">
+                                            <span>Total Capacity Allocated</span>
+                                            <span>${allocationPercentage}%</span>
+                                        </div>
+                                        <div class="resource-bar-container">
+                                            <div class="resource-bar-fill" style="width: ${allocationPercentage}%; background: linear-gradient(90deg, #10b981 0%, #3b82f6 100%);"></div>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        `;
-                    } else if (data.type === 'unallocated') {
-                        const unallocatedPercentage = Math.round((data.memoryGB / data.nodeMaxMemory) * 100);
-                        const formattedMemory = Math.round(data.memoryGB * 10) / 10;
-                        hud.innerHTML = `
-                            <div class="hud-header">
-                                <span class="hud-type" style="color: #94a3b8; background: rgba(148, 163, 184, 0.15); border-color: rgba(148, 163, 184, 0.2);">Unallocated</span>
-                            </div>
-                            <div class="hud-title">Available Capacity</div>
-                            <div style="margin-top: 16px;">
-                                <div class="hud-meta-row">
-                                    <span class="hud-label">Parent Node</span>
-                                    <span class="hud-value">${data.nodeName}</span>
+                            `;
+                        } else if (data.type === 'unallocated') {
+                            const unallocatedPercentage = Math.round((data.memoryGB / data.nodeMaxMemory) * 100);
+                            const formattedMemory = Math.round(data.memoryGB * 10) / 10;
+                            hud.innerHTML = `
+                                <div class="hud-header">
+                                    <span class="hud-type" style="color: #94a3b8; background: rgba(148, 163, 184, 0.15); border-color: rgba(148, 163, 184, 0.2);">Unallocated</span>
                                 </div>
-                                <div class="hud-meta-row">
-                                    <span class="hud-label">Available Size</span>
-                                    <span class="hud-value">${formattedMemory}GB</span>
-                                </div>
+                                <div class="hud-title">Available Capacity</div>
                                 <div style="margin-top: 16px;">
-                                    <div style="display:flex; justify-content:space-between; font-size:12px; color:#94a3b8; margin-bottom: 4px;">
-                                        <span>Available Room Share</span>
-                                        <span>${unallocatedPercentage}%</span>
+                                    <div class="hud-meta-row">
+                                        <span class="hud-label">Parent Node</span>
+                                        <span class="hud-value">${data.nodeName}</span>
                                     </div>
-                                    <div class="resource-bar-container">
-                                        <div class="resource-bar-fill" style="width: ${unallocatedPercentage}%; background: #4b5563;"></div>
+                                    <div class="hud-meta-row">
+                                        <span class="hud-label">Available Size</span>
+                                        <span class="hud-value">${formattedMemory}GB</span>
+                                    </div>
+                                    <div style="margin-top: 16px;">
+                                        <div style="display:flex; justify-content:space-between; font-size:12px; color:#94a3b8; margin-bottom: 4px;">
+                                            <span>Available Room Share</span>
+                                            <span>${unallocatedPercentage}%</span>
+                                        </div>
+                                        <div class="resource-bar-container">
+                                            <div class="resource-bar-fill" style="width: ${unallocatedPercentage}%; background: #4b5563;"></div>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        `;
+                            `;
+                        }
                     }
                 } else {
                     crosshair.classList.remove('active');
                     hud.classList.remove('visible');
+                    // Hide YAML panel when nothing is hovered
+                    yamlPanel.classList.remove('visible');
+                    delete yamlPanel.dataset.activePod;
                 }
             }
 
@@ -1797,6 +1878,30 @@
                     }
                 });
             }
+
+            // High-fidelity synchronized blinking red animation for failed nodes and pods
+            const animTime = clock.getElapsedTime();
+            const blinkFactor = (Math.sin(animTime * 5.5) + 1.0) / 2.0; // Smooth oscillation at ~5.5 rad/sec between 0.0 and 1.0
+
+            // Pulse failed node walls from a clean solid dark red to a highly saturated solid bright red
+            const nodeDark = new THREE.Color(0x400505);  // Solid rich dark red
+            const nodeBright = new THREE.Color(0xef4444); // Rich bright warning red
+            failedWallMaterial.color.copy(nodeDark).lerp(nodeBright, blinkFactor);
+
+            // Pulse failed node glowing outlines
+            const outlineDark = new THREE.Color(0x400505);
+            const outlineBright = new THREE.Color(0xff4444);
+            failedOutlineMaterial.color.copy(outlineDark).lerp(outlineBright, blinkFactor);
+
+            // Pulse failed pod rooms
+            const podDark = new THREE.Color(0x400505);
+            const podBright = new THREE.Color(0xff3333);
+            failedPodMaterial.color.copy(podDark).lerp(podBright, blinkFactor);
+
+            // Pulse failed pod glowing outlines
+            const podOutlineDark = new THREE.Color(0x400505);
+            const podOutlineBright = new THREE.Color(0xff4444);
+            failedPodOutlineMaterial.color.copy(podOutlineDark).lerp(podOutlineBright, blinkFactor);
 
             renderer.render(scene, camera);
         }
