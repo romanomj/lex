@@ -338,7 +338,7 @@
             scene.fog = new THREE.FogExp2(0x0a0a0e, 0.015);
 
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.set(0, 5, 20); // Initial player position
+            camera.position.set(0, 2.5, 20); // Initial player position (gameplay height)
 
             // Lighting
             const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
@@ -415,9 +415,21 @@
 
             let currentXOffset = -((clusterData.nodes.length * (buildingWidth + spacing)) / 2);
 
+            let minX = Infinity;
+            let maxX = -Infinity;
+            let maxZ = -Infinity;
+
             clusterData.nodes.forEach((node) => {
                 // Calculate total building length derived from its maximum physical capacity
                 const buildingLength = node.maxMemoryGB * depthScale;
+
+                // Track physical boundaries to spawn player safely outside
+                const halfW = buildingWidth / 2 + wallThickness;
+                const nodeMinX = currentXOffset - halfW;
+                const nodeMaxX = currentXOffset + halfW;
+                if (nodeMinX < minX) minX = nodeMinX;
+                if (nodeMaxX > maxX) maxX = nodeMaxX;
+                if (buildingLength > maxZ) maxZ = buildingLength;
 
                 // Group representing our single structural node container
                 const nodeBuilding = new THREE.Group();
@@ -534,6 +546,16 @@
 
                 currentXOffset += buildingWidth + spacing; // Stride index position for rendering next node structure
             });
+
+            // Dynamically position player camera outside the cluster looking at its center
+            if (minX !== Infinity) {
+                const centerX = (minX + maxX) / 2;
+                camera.position.set(centerX, 2.5, -25);
+                camera.lookAt(new THREE.Vector3(centerX, 2.5, maxZ / 2));
+            } else {
+                camera.position.set(0, 2.5, -25);
+                camera.lookAt(new THREE.Vector3(0, 2.5, 0));
+            }
         }
 
         function onWindowResize() {
