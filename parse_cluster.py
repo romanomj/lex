@@ -176,9 +176,72 @@ def create_mock_files_if_missing():
         "apiVersion": "v1",
         "kind": "List",
         "items": [
-            {"metadata": {"name": "node-alpha"}, "status": {"allocatable": {"memory": "24Gi"}, "capacity": {"memory": "24Gi"}}},
-            {"metadata": {"name": "node-bravo"}, "status": {"allocatable": {"memory": "16Gi"}, "capacity": {"memory": "16Gi"}}},
-            {"metadata": {"name": "node-charlie"}, "status": {"allocatable": {"memory": "32Gi"}, "capacity": {"memory": "32Gi"}}}
+            {
+                "metadata": {
+                    "name": "node-alpha",
+                    "labels": {
+                        "kubernetes.io/hostname": "node-alpha",
+                        "kubernetes.io/os": "linux",
+                        "kubernetes.io/arch": "amd64",
+                        "node.kubernetes.io/instance-type": "t3.large",
+                        "environment": "production"
+                    }
+                },
+                "status": {
+                    "allocatable": {"memory": "24Gi", "cpu": "8"},
+                    "capacity": {"memory": "24Gi", "cpu": "8"},
+                    "conditions": [
+                        {"type": "Ready", "status": "True"},
+                        {"type": "MemoryPressure", "status": "False"},
+                        {"type": "DiskPressure", "status": "False"},
+                        {"type": "PIDPressure", "status": "False"}
+                    ]
+                }
+            },
+            {
+                "metadata": {
+                    "name": "node-bravo",
+                    "labels": {
+                        "kubernetes.io/hostname": "node-bravo",
+                        "kubernetes.io/os": "linux",
+                        "kubernetes.io/arch": "amd64",
+                        "node.kubernetes.io/instance-type": "t3.medium",
+                        "environment": "database"
+                    }
+                },
+                "status": {
+                    "allocatable": {"memory": "16Gi", "cpu": "4"},
+                    "capacity": {"memory": "16Gi", "cpu": "4"},
+                    "conditions": [
+                        {"type": "Ready", "status": "True"},
+                        {"type": "MemoryPressure", "status": "False"},
+                        {"type": "DiskPressure", "status": "False"},
+                        {"type": "PIDPressure", "status": "False"}
+                    ]
+                }
+            },
+            {
+                "metadata": {
+                    "name": "node-charlie",
+                    "labels": {
+                        "kubernetes.io/hostname": "node-charlie",
+                        "kubernetes.io/os": "linux",
+                        "kubernetes.io/arch": "amd64",
+                        "node.kubernetes.io/instance-type": "m5.xlarge",
+                        "environment": "analytics"
+                    }
+                },
+                "status": {
+                    "allocatable": {"memory": "32Gi", "cpu": "16"},
+                    "capacity": {"memory": "32Gi", "cpu": "16"},
+                    "conditions": [
+                        {"type": "Ready", "status": "True"},
+                        {"type": "MemoryPressure", "status": "True"},
+                        {"type": "DiskPressure", "status": "False"},
+                        {"type": "PIDPressure", "status": "False"}
+                    ]
+                }
+            }
         ]
     }
     
@@ -291,10 +354,22 @@ def parse_cluster():
         cpu_str = allocatable.get("cpu") or capacity.get("cpu", "1")
         max_cpu_cores = parse_cpu_to_cores(cpu_str)
         
+        # Extract labels and conditions
+        labels = metadata.get("labels", {})
+        conditions_raw = status.get("conditions", [])
+        conditions = {}
+        for cond in conditions_raw:
+            c_type = cond.get("type")
+            c_status = cond.get("status")
+            if c_type and c_status:
+                conditions[c_type] = c_status
+
         node_map[name] = {
             "name": name,
             "maxMemoryGB": max_mem_gb,
             "maxCPUCores": max_cpu_cores,
+            "labels": labels,
+            "conditions": conditions,
             "pods": []
         }
 
@@ -371,6 +446,17 @@ def parse_cluster():
                 "name": node_name,
                 "maxMemoryGB": placeholder_capacity,
                 "maxCPUCores": placeholder_cpu,
+                "labels": {
+                    "kubernetes.io/hostname": node_name,
+                    "kubernetes.io/os": "linux",
+                    "note": "auto-created-placeholder"
+                },
+                "conditions": {
+                    "Ready": "True",
+                    "MemoryPressure": "False",
+                    "DiskPressure": "False",
+                    "PIDPressure": "False"
+                },
                 "pods": []
             }
 

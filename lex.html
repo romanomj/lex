@@ -370,6 +370,19 @@
                     name: "node-alpha",
                     maxMemoryGB: 24,
                     maxCPUCores: 8,
+                    labels: {
+                        "kubernetes.io/hostname": "node-alpha",
+                        "kubernetes.io/os": "linux",
+                        "kubernetes.io/arch": "amd64",
+                        "node.kubernetes.io/instance-type": "t3.large",
+                        "environment": "production"
+                    },
+                    conditions: {
+                        "Ready": "True",
+                        "MemoryPressure": "False",
+                        "DiskPressure": "False",
+                        "PIDPressure": "False"
+                    },
                     pods: [
                         { name: "frontend-pod-7d4f9b8c-2x9v4", memoryGB: 12, cpuCores: 4, color: 0x00f0ff, status: "Running", namespace: "production" },
                         { name: "backend-pod-5c8e7a1b-9p3k8", memoryGB: 4, cpuCores: 2, color: 0x3b82f6, status: "Running", namespace: "production" },
@@ -380,6 +393,19 @@
                     name: "node-bravo",
                     maxMemoryGB: 16,
                     maxCPUCores: 4,
+                    labels: {
+                        "kubernetes.io/hostname": "node-bravo",
+                        "kubernetes.io/os": "linux",
+                        "kubernetes.io/arch": "amd64",
+                        "node.kubernetes.io/instance-type": "t3.medium",
+                        "environment": "database"
+                    },
+                    conditions: {
+                        "Ready": "True",
+                        "MemoryPressure": "False",
+                        "DiskPressure": "False",
+                        "PIDPressure": "False"
+                    },
                     pods: [
                         { name: "db-pod-0-8b6d4c2e-4w8z7", memoryGB: 8, cpuCores: 2, color: 0xf59e0b, status: "Running", namespace: "database" },
                         { name: "db-pod-1-8b6d4c2e-5x9a2", memoryGB: 8, cpuCores: 2, color: 0x10b981, status: "Running", namespace: "database" }
@@ -389,6 +415,19 @@
                     name: "node-charlie",
                     maxMemoryGB: 32,
                     maxCPUCores: 16,
+                    labels: {
+                        "kubernetes.io/hostname": "node-charlie",
+                        "kubernetes.io/os": "linux",
+                        "kubernetes.io/arch": "amd64",
+                        "node.kubernetes.io/instance-type": "m5.xlarge",
+                        "environment": "analytics"
+                    },
+                    conditions: {
+                        "Ready": "True",
+                        "MemoryPressure": "True",
+                        "DiskPressure": "False",
+                        "PIDPressure": "False"
+                    },
                     pods: [
                         { name: "analytics-worker-6f9e8d7c-8y2v4", memoryGB: 16, cpuCores: 8, color: 0x8b5cf6, status: "Running", namespace: "analytics" },
                         { name: "logging-agent-3a5b7c9d-1r4q8", memoryGB: 4, cpuCores: 1, color: 0x6b7280, status: "Running", namespace: "kube-system" }
@@ -676,6 +715,134 @@
             window.addEventListener('resize', onWindowResize);
         }
 
+        // Helper to generate glowing canvas textures for node metrics
+        function createNodeTextTexture(title, dataObj, isConditions) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 1024;
+            const ctx = canvas.getContext('2d');
+
+            // Draw clean dark glassmorphic background panel
+            ctx.fillStyle = 'rgba(20, 22, 28, 0.85)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Sleek premium border
+            const accentColor = isConditions ? '#3b82f6' : '#8b5cf6';
+            ctx.strokeStyle = accentColor;
+            ctx.lineWidth = 12;
+            ctx.strokeRect(6, 6, canvas.width - 12, canvas.height - 12);
+
+            // Title
+            ctx.fillStyle = accentColor;
+            ctx.font = "bold 38px 'Outfit', sans-serif";
+            ctx.textAlign = "center";
+            ctx.fillText(title, canvas.width / 2, 80);
+
+            // Draw a separator line
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(40, 110);
+            ctx.lineTo(canvas.width - 40, 110);
+            ctx.stroke();
+
+            // Draw content
+            ctx.textAlign = "left";
+            let currentY = 160;
+            const itemSpacing = 50;
+
+            if (isConditions) {
+                // Ensure dataObj is present
+                const conditions = dataObj || {};
+                const list = [
+                    { label: "Ready", val: conditions.Ready || "Unknown" },
+                    { label: "MemoryPressure", val: conditions.MemoryPressure || "False" },
+                    { label: "DiskPressure", val: conditions.DiskPressure || "False" },
+                    { label: "PIDPressure", val: conditions.PIDPressure || "False" }
+                ];
+
+                list.forEach(item => {
+                    // Check pressure or ready health status
+                    let isHealthy = true;
+                    if (item.label === "Ready") {
+                        isHealthy = (item.val === "True");
+                    } else {
+                        // Pressure is healthy when False
+                        isHealthy = (item.val !== "True");
+                    }
+
+                    // Draw label
+                    ctx.fillStyle = '#94a3b8';
+                    ctx.font = "bold 26px 'Outfit', sans-serif";
+                    ctx.fillText(item.label + ":", 45, currentY);
+
+                    // Draw value with glowing health state
+                    ctx.fillStyle = isHealthy ? '#10b981' : '#ef4444';
+                    ctx.font = "bold 26px 'JetBrains Mono', monospace";
+                    
+                    // Add subtle text shadow/glow for state values
+                    ctx.shadowColor = isHealthy ? 'rgba(16, 185, 129, 0.5)' : 'rgba(239, 68, 68, 0.5)';
+                    ctx.shadowBlur = 6;
+                    ctx.fillText(item.val, canvas.width - 170, currentY);
+                    
+                    // Reset shadow for subsequent drawings
+                    ctx.shadowBlur = 0;
+
+                    currentY += itemSpacing;
+                });
+            } else {
+                // Labels object
+                const labels = dataObj || {};
+                const entries = Object.entries(labels);
+
+                if (entries.length === 0) {
+                    ctx.fillStyle = '#64748b';
+                    ctx.font = "italic 24px 'Outfit', sans-serif";
+                    ctx.fillText("No labels found", 45, currentY);
+                } else {
+                    entries.forEach(([key, value]) => {
+                        if (currentY > canvas.height - 80) return; // Prevent overflow
+
+                        // Dynamic wrapping or font-size adjustment for long labels
+                        ctx.fillStyle = '#60a5fa';
+                        ctx.font = "bold 22px 'JetBrains Mono', monospace";
+                        
+                        // We will fit keys by splitting or wrapping if they are extremely long
+                        let displayKey = key;
+                        if (key.length > 25) {
+                            // Split or truncate prefix
+                            displayKey = key.replace(/^(kubernetes\.io\/|beta\.kubernetes\.io\/|node\.kubernetes\.io\/)/, '');
+                        }
+
+                        ctx.fillText(displayKey + ":", 45, currentY);
+                        currentY += 28;
+
+                        ctx.fillStyle = '#f8fafc';
+                        ctx.font = "20px 'JetBrains Mono', monospace";
+                        
+                        // Wrap value text if too long
+                        const maxChars = 38;
+                        if (value.length > maxChars) {
+                            const part1 = value.substring(0, maxChars);
+                            const part2 = value.substring(maxChars);
+                            ctx.fillText(part1, 65, currentY);
+                            currentY += 26;
+                            ctx.fillText(part2, 65, currentY);
+                        } else {
+                            ctx.fillText(value, 65, currentY);
+                        }
+                        
+                        currentY += itemSpacing - 10;
+                    });
+                }
+            }
+
+            const texture = new THREE.CanvasTexture(canvas);
+            // Higher anisotropic filtering for crisp rendering at steep camera angles
+            texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+            return texture;
+        }
+
         // 3. Procedural Map Generation Logic
         function generateClusterWorld() {
             const buildingWidth = 12;      // Fixed width for every node structure
@@ -763,6 +930,34 @@
                 const rightWallLine = new THREE.LineSegments(rightWallEdges, rightWallLineMat);
                 rightWallLine.position.copy(rightWall.position);
                 nodeBuilding.add(rightWallLine);
+
+                // --- Text Billboard/Screen Panels on Sides ---
+                // Left text panel: Health Conditions
+                const leftTextTexture = createNodeTextTexture("CONDITIONS", node.conditions, true);
+                const textPanelGeo = new THREE.PlaneGeometry(buildingDepth, nodeWallHeight);
+                const leftTextMat = new THREE.MeshBasicMaterial({
+                    map: leftTextTexture,
+                    transparent: true,
+                    side: THREE.DoubleSide
+                });
+                const leftTextMesh = new THREE.Mesh(textPanelGeo, leftTextMat);
+                leftTextMesh.position.set(-buildingWidth / 2 - wallThickness / 2 - 0.02, nodeWallHeight / 2, buildingDepth / 2);
+                leftTextMesh.rotation.y = -Math.PI / 2;
+                leftTextMesh.userData = nodeMetadata; // Hovering triggers node HUD overlay
+                nodeBuilding.add(leftTextMesh);
+
+                // Right text panel: Node Labels
+                const rightTextTexture = createNodeTextTexture("NODE LABELS", node.labels, false);
+                const rightTextMat = new THREE.MeshBasicMaterial({
+                    map: rightTextTexture,
+                    transparent: true,
+                    side: THREE.DoubleSide
+                });
+                const rightTextMesh = new THREE.Mesh(textPanelGeo, rightTextMat);
+                rightTextMesh.position.set(buildingWidth / 2 + wallThickness / 2 + 0.02, nodeWallHeight / 2, buildingDepth / 2);
+                rightTextMesh.rotation.y = Math.PI / 2;
+                rightTextMesh.userData = nodeMetadata; // Hovering triggers node HUD overlay
+                nodeBuilding.add(rightTextMesh);
 
                 // Back panel relative to player (at Z = buildingDepth)
                 const frontWallGeo = new THREE.BoxGeometry(buildingWidth + wallThickness, nodeWallHeight, wallThickness);
