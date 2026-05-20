@@ -101,6 +101,141 @@
             transform: translateY(0);
         }
 
+        /* Pod YAML Panel styling */
+        #pod-yaml-panel {
+            position: absolute;
+            top: 400px;
+            right: 20px;
+            width: 340px;
+            bottom: 20px;
+            background: rgba(13, 13, 18, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 16px;
+            color: #e2e8f0;
+            padding: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            opacity: 0;
+            transform: translateY(10px);
+            pointer-events: none;
+            transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1), transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        #pod-yaml-panel.visible {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+
+        .yaml-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            padding-bottom: 8px;
+            flex-shrink: 0;
+        }
+
+        .yaml-title {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            font-weight: 800;
+            color: #a78bfa;
+            background: rgba(139, 92, 246, 0.15);
+            padding: 4px 8px;
+            border-radius: 6px;
+            border: 1px solid rgba(139, 92, 246, 0.2);
+        }
+
+        .yaml-scroll-controls {
+            display: flex;
+            gap: 6px;
+        }
+
+        .yaml-scroll-btn {
+            width: 24px;
+            height: 24px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            background: rgba(255, 255, 255, 0.05);
+            color: #f1f5f9;
+            font-size: 10px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            user-select: none;
+        }
+
+        .yaml-scroll-btn:hover {
+            background: rgba(139, 92, 246, 0.25);
+            border-color: #8b5cf6;
+            color: #fff;
+            box-shadow: 0 0 8px rgba(139, 92, 246, 0.4);
+        }
+
+        .yaml-scroll-btn:active {
+            transform: scale(0.9);
+        }
+
+        #yaml-container {
+            flex: 1;
+            overflow-y: auto;
+            margin: 0;
+            padding-right: 4px;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+        }
+
+        /* Glassmorphic custom webkit scrollbar */
+        #yaml-container::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        #yaml-container::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        #yaml-container::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.12);
+            border-radius: 3px;
+            transition: background 0.2s ease;
+        }
+
+        #yaml-container::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.25);
+        }
+
+        #yaml-text {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            line-height: 1.5;
+            color: #cbd5e1;
+            white-space: pre-wrap;
+            word-break: break-all;
+            margin: 0;
+        }
+        
+        .yaml-key {
+            color: #a78bfa;
+            font-weight: 600;
+        }
+        
+        .yaml-value {
+            color: #f8fafc;
+        }
+        
+        .yaml-string {
+            color: #60a5fa;
+        }
+
         .hud-header {
             display: flex;
             justify-content: space-between;
@@ -307,6 +442,34 @@
             0%, 100% { opacity: 0.6; transform: scale(1); }
             50% { opacity: 1; transform: scale(1.1); }
         }
+
+        #ui-container button {
+            width: 24px;
+            height: 24px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            background: rgba(255, 255, 255, 0.05);
+            color: #f1f5f9;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            user-select: none;
+        }
+
+        #ui-container button:hover {
+            background: rgba(59, 130, 246, 0.25);
+            border-color: #3b82f6;
+            color: #fff;
+            box-shadow: 0 0 8px rgba(59, 130, 246, 0.4);
+        }
+
+        #ui-container button:active {
+            transform: scale(0.9);
+        }
     </style>
     <!-- Import maps polyfill -->
     <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
@@ -330,6 +493,14 @@
             <strong>Space / Shift:</strong> Fly Up / Down<br>
             <strong>ESC:</strong> Exit mouse lock
         </p>
+        <div style="margin-top: 15px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: space-between;">
+            <span style="font-size: 13px; color: #94a3b8; font-weight: 600;">Speed Control:</span>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <button id="btn-speed-down" title="Decrease Speed (-10%)">-</button>
+                <span id="speed-pct" style="font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 700; color: #3b82f6; width: 45px; text-align: center; display: inline-block; transition: transform 0.1s ease;">100%</span>
+                <button id="btn-speed-up" title="Increase Speed (+10%)">+</button>
+            </div>
+        </div>
         <div id="node-info" style="margin-top: 10px; font-size: 12px;"></div>
     </div>
 
@@ -355,6 +526,18 @@
     </div>
 
     <div id="hud-tooltip"></div>
+    <div id="pod-yaml-panel">
+        <div class="yaml-header">
+            <span class="yaml-title">Pod Specification (YAML)</span>
+            <div class="yaml-scroll-controls">
+                <button class="yaml-scroll-btn" id="yaml-scroll-up" title="Scroll Up">▲</button>
+                <button class="yaml-scroll-btn" id="yaml-scroll-down" title="Scroll Down">▼</button>
+            </div>
+        </div>
+        <div id="yaml-container">
+            <pre id="yaml-text"></pre>
+        </div>
+    </div>
     <div id="crosshair"></div>
     <div id="canvas-container"></div>
 
@@ -441,7 +624,90 @@
         let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
         let moveUp = false, moveDown = false;
 
+        let baseMovementSpeed = 200.0; // By default twice the original 100.0 speed
+        let speedMultiplier = 1.0;
+
+        function adjustSpeed(amount) {
+            speedMultiplier = Math.max(0.1, Math.min(5.0, speedMultiplier + amount));
+            updateSpeedUI();
+            
+            // Highlight speed percentage text briefly on change
+            const speedPctEl = document.getElementById('speed-pct');
+            if (speedPctEl) {
+                speedPctEl.style.transform = 'scale(1.25)';
+                setTimeout(() => {
+                    speedPctEl.style.transform = 'scale(1)';
+                }, 150);
+            }
+        }
+
+        function updateSpeedUI() {
+            const speedPctEl = document.getElementById('speed-pct');
+            if (speedPctEl) {
+                speedPctEl.textContent = `${Math.round(speedMultiplier * 100)}%`;
+            }
+        }
+
         let oceanGeometry, oceanMesh, sunGroup, sunMesh;
+        const renderedPods = [];
+
+        // Recursive helper to format JSON into beautiful, syntactically styled YAML
+        function jsonToYaml(val, indentNum = 0) {
+            const indent = " ".repeat(indentNum);
+            if (val === null) return "<span class=\"yaml-value\">null</span>\n";
+            if (val === undefined) return "\n";
+            
+            if (typeof val !== 'object') {
+                if (typeof val === 'string') {
+                    let escaped = val;
+                    if (val.includes('\n') || val.includes('"') || val.includes("'") || val.includes(':')) {
+                        escaped = JSON.stringify(val);
+                    }
+                    return `<span class="yaml-string">${escaped}</span>\n`;
+                }
+                return `<span class="yaml-value">${val}</span>\n`;
+            }
+            
+            if (Array.isArray(val)) {
+                if (val.length === 0) return "[]\n";
+                let res = "\n";
+                val.forEach(item => {
+                    const formattedItem = jsonToYaml(item, indentNum + 2);
+                    const trimmed = formattedItem.trimStart();
+                    res += `${indent}- ${trimmed}`;
+                });
+                return res;
+            }
+            
+            // Standard Object formatting
+            const keys = Object.keys(val);
+            if (keys.length === 0) return "{}\n";
+            
+            let res = "";
+            const sortedKeys = [...keys];
+            // Sort standard k8s keys to the top for pure authenticity
+            const topKeys = ['apiVersion', 'kind', 'metadata', 'spec', 'status'];
+            sortedKeys.sort((a, b) => {
+                const idxA = topKeys.indexOf(a);
+                const idxB = topKeys.indexOf(b);
+                if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                if (idxA !== -1) return -1;
+                if (idxB !== -1) return 1;
+                return a.localeCompare(b);
+            });
+
+            sortedKeys.forEach(key => {
+                const v = val[key];
+                const formattedVal = jsonToYaml(v, indentNum + 2);
+                
+                if (typeof v === 'object' && v !== null && !(Array.isArray(v) && v.length === 0)) {
+                    res += `${indent}<span class="yaml-key">${key}</span>:${formattedVal}`;
+                } else {
+                    res += `${indent}<span class="yaml-key">${key}</span>: ${formattedVal.trimStart()}`;
+                }
+            });
+            return res;
+        }
 
         const clock = new THREE.Clock();
         const velocity = new THREE.Vector3();
@@ -535,6 +801,55 @@
             document.getElementById('stats-memory').textContent = `${formattedMemory} GB`;
         }
 
+        function ensureRawPods() {
+            if (!clusterData || !Array.isArray(clusterData.nodes)) return;
+            clusterData.nodes.forEach(node => {
+                if (!Array.isArray(node.pods)) return;
+                node.pods.forEach(pod => {
+                    if (!pod.raw) {
+                        // Programmatically synthesize standard k8s YAML-compatible object
+                        pod.raw = {
+                            apiVersion: "v1",
+                            kind: "Pod",
+                            metadata: {
+                                name: pod.name,
+                                namespace: pod.namespace || "default",
+                                creationTimestamp: new Date().toISOString().split('T')[0] + "T00:00:00Z",
+                                labels: {
+                                    "app": pod.name.split('-')[0] || pod.name,
+                                    "environment": (node.labels && node.labels.environment) || "demo"
+                                }
+                            },
+                            spec: {
+                                nodeName: node.name,
+                                containers: [
+                                    {
+                                        name: pod.name.split('-')[0] || "main-container",
+                                        image: "nginx:stable-alpine",
+                                        resources: {
+                                            requests: {
+                                                memory: pod.memoryGB + "Gi",
+                                                cpu: (pod.cpuCores || 0.1) + ""
+                                            },
+                                            limits: {
+                                                memory: pod.memoryGB + "Gi",
+                                                cpu: (pod.cpuCores || 0.1) + ""
+                                            }
+                                        }
+                                    }
+                                ]
+                            },
+                            status: {
+                                phase: pod.status || "Running",
+                                hostIP: "192.168.1.100",
+                                podIP: "10.244.1.45"
+                            }
+                        };
+                    }
+                });
+            });
+        }
+
         init();
 
         // Dynamically load live cluster data with local fallback
@@ -550,6 +865,7 @@
                 if (data && Array.isArray(data.nodes)) {
                     clusterData = data;
                 }
+                ensureRawPods();
                 const nodeInfo = document.getElementById('node-info');
                 if (nodeInfo) {
                     nodeInfo.innerHTML = `
@@ -565,6 +881,7 @@
             })
             .catch(error => {
                 console.warn("Could not fetch cluster_state.json (falling back to static mock configuration). Reason:", error.message);
+                ensureRawPods();
                 const nodeInfo = document.getElementById('node-info');
                 if (nodeInfo) {
                     nodeInfo.innerHTML = `
@@ -672,7 +989,13 @@
             // First Person Pointer Lock Controls
             controls = new PointerLockControls(camera, renderer.domElement);
 
-            document.body.addEventListener('click', () => {
+            document.body.addEventListener('click', (event) => {
+                const uiContainer = document.getElementById('ui-container');
+                const statsPanel = document.getElementById('stats-panel');
+                if ((uiContainer && uiContainer.contains(event.target)) || 
+                    (statsPanel && statsPanel.contains(event.target))) {
+                    return;
+                }
                 controls.lock();
             });
 
@@ -690,6 +1013,15 @@
                     case 'Space': moveUp = true; break;
                     case 'ShiftLeft':
                     case 'ShiftRight': moveDown = true; break;
+                }
+
+                // Check for '+' and '-' keys (without browser zoom Ctrl/Meta)
+                if (!event.ctrlKey && !event.metaKey) {
+                    if (event.key === '+' || event.key === '=' || event.code === 'NumpadAdd' || event.code === 'Equal') {
+                        adjustSpeed(0.1);
+                    } else if (event.key === '-' || event.code === 'NumpadSubtract' || event.code === 'Minus') {
+                        adjustSpeed(-0.1);
+                    }
                 }
             };
 
@@ -712,14 +1044,43 @@
             document.addEventListener('keydown', onKeyDown);
             document.addEventListener('keyup', onKeyUp);
 
+            // Wire up UI speed buttons
+            const btnSpeedUp = document.getElementById('btn-speed-up');
+            const btnSpeedDown = document.getElementById('btn-speed-down');
+            if (btnSpeedUp && btnSpeedDown) {
+                btnSpeedUp.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    adjustSpeed(0.1);
+                });
+                btnSpeedDown.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    adjustSpeed(-0.1);
+                });
+            }
+
+            // Wire up YAML scroll buttons
+            const yamlContainer = document.getElementById('yaml-container');
+            const scrollUpBtn = document.getElementById('yaml-scroll-up');
+            const scrollDownBtn = document.getElementById('yaml-scroll-down');
+            if (scrollUpBtn && scrollDownBtn && yamlContainer) {
+                scrollUpBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    yamlContainer.scrollTop -= 50;
+                });
+                scrollDownBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    yamlContainer.scrollTop += 50;
+                });
+            }
+
             window.addEventListener('resize', onWindowResize);
         }
 
         // Helper to generate glowing canvas textures for node metrics
-        function createNodeTextTexture(title, dataObj, isConditions) {
+        function createNodeTextTexture(title, dataObj, isConditions, nodeWallHeight, buildingDepth) {
             const canvas = document.createElement('canvas');
             canvas.width = 512;
-            canvas.height = 1024;
+            canvas.height = Math.round(512 * (nodeWallHeight / buildingDepth));
             const ctx = canvas.getContext('2d');
 
             // Draw clean dark glassmorphic background panel
@@ -845,6 +1206,7 @@
 
         // 3. Procedural Map Generation Logic
         function generateClusterWorld() {
+            renderedPods.length = 0;
             const buildingWidth = 12;      // Fixed width for every node structure
             const buildingDepth = 12;      // Fixed depth for every node structure
             const heightScale = 0.8;       // Height scale: 1GB memory matches 0.8 units in height
@@ -933,7 +1295,7 @@
 
                 // --- Text Billboard/Screen Panels on Sides ---
                 // Left text panel: Health Conditions
-                const leftTextTexture = createNodeTextTexture("CONDITIONS", node.conditions, true);
+                const leftTextTexture = createNodeTextTexture("CONDITIONS", node.conditions, true, nodeWallHeight, buildingDepth);
                 const textPanelGeo = new THREE.PlaneGeometry(buildingDepth, nodeWallHeight);
                 const leftTextMat = new THREE.MeshBasicMaterial({
                     map: leftTextTexture,
@@ -947,7 +1309,7 @@
                 nodeBuilding.add(leftTextMesh);
 
                 // Right text panel: Node Labels
-                const rightTextTexture = createNodeTextTexture("NODE LABELS", node.labels, false);
+                const rightTextTexture = createNodeTextTexture("NODE LABELS", node.labels, false, nodeWallHeight, buildingDepth);
                 const rightTextMat = new THREE.MeshBasicMaterial({
                     map: rightTextTexture,
                     transparent: true,
@@ -1012,9 +1374,11 @@
                         status: pod.status,
                         namespace: pod.namespace,
                         nodeMaxMemory: node.maxMemoryGB,
-                        nodeMaxCPUCores: node.maxCPUCores || null
+                        nodeMaxCPUCores: node.maxCPUCores || null,
+                        raw: pod.raw
                     };
                     nodeBuilding.add(podBox);
+                    renderedPods.push(podBox);
 
                     // Add high-tech holographic wireframe outlines to the glassmorphic pod box
                     const edges = new THREE.EdgesGeometry(podGeo);
@@ -1156,9 +1520,10 @@
                 direction.normalize();
 
                 // Apply velocity values based on direction inputs
-                if (moveForward || moveBackward) velocity.z -= direction.z * 100.0 * delta;
-                if (moveLeft || moveRight) velocity.x -= direction.x * 100.0 * delta;
-                if (moveUp || moveDown) velocity.y -= direction.y * 100.0 * delta;
+                const currentSpeed = baseMovementSpeed * speedMultiplier;
+                if (moveForward || moveBackward) velocity.z -= direction.z * currentSpeed * delta;
+                if (moveLeft || moveRight) velocity.x -= direction.x * currentSpeed * delta;
+                if (moveUp || moveDown) velocity.y -= direction.y * currentSpeed * delta;
 
                 // Save previous camera position
                 const prevPosition = camera.position.clone();
@@ -1195,144 +1560,218 @@
                 }
             }
 
-            // Raycast for Look Tooltips
-            raycaster.setFromCamera(mouse, camera);
-            const intersects = raycaster.intersectObjects(scene.children, true);
+            const hud = document.getElementById('hud-tooltip');
+            const crosshair = document.getElementById('crosshair');
+            const yamlPanel = document.getElementById('pod-yaml-panel');
+            const yamlText = document.getElementById('yaml-text');
 
-            let hoveredObj = null;
-            for (let i = 0; i < intersects.length; i++) {
-                const obj = intersects[i].object;
-                if (obj.userData && obj.userData.type) {
-                    hoveredObj = obj;
+            // 1. Physical coordinates coordinate check: are we inside a pod?
+            let insidePod = null;
+            const tempBox = new THREE.Box3();
+            for (let i = 0; i < renderedPods.length; i++) {
+                const podMesh = renderedPods[i];
+                tempBox.setFromObject(podMesh);
+                if (tempBox.containsPoint(camera.position)) {
+                    insidePod = podMesh;
                     break;
                 }
             }
 
-            const hud = document.getElementById('hud-tooltip');
-            const crosshair = document.getElementById('crosshair');
-
-            if (hoveredObj && controls.isLocked) {
+            if (insidePod) {
+                // Player is inside: Lock HUD and YAML panel to this pod
                 crosshair.classList.add('active');
                 hud.classList.add('visible');
+                yamlPanel.classList.add('visible');
 
-                const data = hoveredObj.userData;
-                if (data.type === 'pod') {
-                    const memoryPercentage = Math.round((data.memoryGB / data.nodeMaxMemory) * 100);
-                    const formattedMemory = Math.round(data.memoryGB * 10) / 10;
-                    const formattedCPU = data.cpuCores ? Math.round(data.cpuCores * 10) / 10 : null;
-                    hud.innerHTML = `
-                        <div class="hud-header">
-                            <span class="hud-type">Pod Unit</span>
-                            <span class="badge badge-${data.status.toLowerCase()}">${data.status}</span>
+                const data = insidePod.userData;
+                const memoryPercentage = Math.round((data.memoryGB / data.nodeMaxMemory) * 100);
+                const formattedMemory = Math.round(data.memoryGB * 10) / 10;
+                const formattedCPU = data.cpuCores ? Math.round(data.cpuCores * 10) / 10 : null;
+                
+                hud.innerHTML = `
+                    <div class="hud-header">
+                        <span class="hud-type" style="background: rgba(167, 139, 250, 0.15); color: #a78bfa; border-color: rgba(167, 139, 250, 0.2);">Pod Unit (Inside)</span>
+                        <span class="badge badge-${data.status.toLowerCase()}">${data.status}</span>
+                    </div>
+                    <div class="hud-title">${data.podName}</div>
+                    <div style="margin-top: 16px;">
+                        <div class="hud-meta-row">
+                            <span class="hud-label">Namespace</span>
+                            <span class="hud-value" style="font-family: 'JetBrains Mono', monospace;">${data.namespace}</span>
                         </div>
-                        <div class="hud-title">${data.podName}</div>
+                        <div class="hud-meta-row">
+                            <span class="hud-label">Memory Request</span>
+                            <span class="hud-value">${formattedMemory}GB</span>
+                        </div>
+                        ${formattedCPU !== null ? `
+                        <div class="hud-meta-row">
+                            <span class="hud-label">CPU Request</span>
+                            <span class="hud-value">${formattedCPU} Core${formattedCPU !== 1 ? 's' : ''}</span>
+                        </div>
+                        ` : ''}
+                        <div class="hud-meta-row">
+                            <span class="hud-label">Node Host</span>
+                            <span class="hud-value">${data.nodeName}</span>
+                        </div>
                         <div style="margin-top: 16px;">
-                            <div class="hud-meta-row">
-                                <span class="hud-label">Namespace</span>
-                                <span class="hud-value" style="font-family: 'JetBrains Mono', monospace;">${data.namespace}</span>
+                            <div style="display:flex; justify-content:space-between; font-size:12px; color:#94a3b8; margin-bottom: 4px;">
+                                <span>Memory Allocation Share</span>
+                                <span>${memoryPercentage}%</span>
                             </div>
-                            <div class="hud-meta-row">
-                                <span class="hud-label">Memory Request</span>
-                                <span class="hud-value">${formattedMemory}GB</span>
-                            </div>
-                            ${formattedCPU !== null ? `
-                            <div class="hud-meta-row">
-                                <span class="hud-label">CPU Request</span>
-                                <span class="hud-value">${formattedCPU} Core${formattedCPU !== 1 ? 's' : ''}</span>
-                            </div>
-                            ` : ''}
-                            <div class="hud-meta-row">
-                                <span class="hud-label">Node Host</span>
-                                <span class="hud-value">${data.nodeName}</span>
-                            </div>
-                            <div style="margin-top: 16px;">
-                                <div style="display:flex; justify-content:space-between; font-size:12px; color:#94a3b8; margin-bottom: 4px;">
-                                    <span>Memory Allocation Share</span>
-                                    <span>${memoryPercentage}%</span>
-                                </div>
-                                <div class="resource-bar-container">
-                                    <div class="resource-bar-fill" style="width: ${memoryPercentage}%; background: #${data.color.toString(16).padStart(6, '0')};"></div>
-                                </div>
+                            <div class="resource-bar-container">
+                                <div class="resource-bar-fill" style="width: ${memoryPercentage}%; background: #${data.color.toString(16).padStart(6, '0')};"></div>
                             </div>
                         </div>
-                    `;
-                } else if (data.type === 'node') {
-                    const allocationPercentage = Math.round((data.allocatedMemory / data.maxMemoryGB) * 100);
-                    const formattedMaxMemory = Math.round(data.maxMemoryGB * 10) / 10;
-                    const formattedAllocatedMemory = Math.round(data.allocatedMemory * 10) / 10;
-                    const formattedMaxCPU = data.maxCPUCores ? Math.round(data.maxCPUCores * 10) / 10 : null;
-                    const formattedAllocatedCPU = data.allocatedCPU ? Math.round(data.allocatedCPU * 10) / 10 : null;
-                    hud.innerHTML = `
-                        <div class="hud-header">
-                            <span class="hud-type" style="color: #10b981; background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.2);">Node</span>
-                        </div>
-                        <div class="hud-title">${data.nodeName}</div>
-                        <div style="margin-top: 16px;">
-                            <div class="hud-meta-row">
-                                <span class="hud-label">Total Capacity</span>
-                                <span class="hud-value">${formattedMaxMemory}GB</span>
-                            </div>
-                            <div class="hud-meta-row">
-                                <span class="hud-label">Allocated Memory</span>
-                                <span class="hud-value">${formattedAllocatedMemory}GB (${allocationPercentage}%)</span>
-                            </div>
-                            ${formattedMaxCPU !== null ? `
-                            <div class="hud-meta-row">
-                                <span class="hud-label">CPU Capacity</span>
-                                <span class="hud-value">${formattedMaxCPU} Core${formattedMaxCPU !== 1 ? 's' : ''}</span>
-                            </div>
-                            <div class="hud-meta-row">
-                                <span class="hud-label">Allocated CPU</span>
-                                <span class="hud-value">${formattedAllocatedCPU || 0} Core${formattedAllocatedCPU !== 1 ? 's' : ''}</span>
-                            </div>
-                            ` : ''}
-                            <div class="hud-meta-row">
-                                <span class="hud-label">Running Pods</span>
-                                <span class="hud-value">${data.podsCount}</span>
-                            </div>
-                            <div style="margin-top: 16px;">
-                                <div style="display:flex; justify-content:space-between; font-size:12px; color:#94a3b8; margin-bottom: 4px;">
-                                    <span>Total Capacity Allocated</span>
-                                    <span>${allocationPercentage}%</span>
-                                </div>
-                                <div class="resource-bar-container">
-                                    <div class="resource-bar-fill" style="width: ${allocationPercentage}%; background: linear-gradient(90deg, #10b981 0%, #3b82f6 100%);"></div>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                } else if (data.type === 'unallocated') {
-                    const unallocatedPercentage = Math.round((data.memoryGB / data.nodeMaxMemory) * 100);
-                    const formattedMemory = Math.round(data.memoryGB * 10) / 10;
-                    hud.innerHTML = `
-                        <div class="hud-header">
-                            <span class="hud-type" style="color: #94a3b8; background: rgba(148, 163, 184, 0.15); border-color: rgba(148, 163, 184, 0.2);">Unallocated</span>
-                        </div>
-                        <div class="hud-title">Available Capacity</div>
-                        <div style="margin-top: 16px;">
-                            <div class="hud-meta-row">
-                                <span class="hud-label">Parent Node</span>
-                                <span class="hud-value">${data.nodeName}</span>
-                            </div>
-                            <div class="hud-meta-row">
-                                <span class="hud-label">Available Size</span>
-                                <span class="hud-value">${formattedMemory}GB</span>
-                            </div>
-                            <div style="margin-top: 16px;">
-                                <div style="display:flex; justify-content:space-between; font-size:12px; color:#94a3b8; margin-bottom: 4px;">
-                                    <span>Available Room Share</span>
-                                    <span>${unallocatedPercentage}%</span>
-                                </div>
-                                <div class="resource-bar-container">
-                                    <div class="resource-bar-fill" style="width: ${unallocatedPercentage}%; background: #4b5563;"></div>
-                                </div>
-                            </div>
-                        </div>
-                    `;
+                    </div>
+                `;
+
+                if (yamlPanel.dataset.activePod !== data.podName) {
+                    yamlPanel.dataset.activePod = data.podName;
+                    yamlText.innerHTML = jsonToYaml(data.raw);
+                    // Reset scroll to top for fresh pod view
+                    const containerEl = document.getElementById('yaml-container');
+                    if (containerEl) containerEl.scrollTop = 0;
                 }
             } else {
-                crosshair.classList.remove('active');
-                hud.classList.remove('visible');
+                // Player is NOT inside: Hide YAML panel, run standard raycast check
+                yamlPanel.classList.remove('visible');
+                delete yamlPanel.dataset.activePod;
+
+                raycaster.setFromCamera(mouse, camera);
+                const intersects = raycaster.intersectObjects(scene.children, true);
+
+                let hoveredObj = null;
+                for (let i = 0; i < intersects.length; i++) {
+                    const obj = intersects[i].object;
+                    if (obj.userData && obj.userData.type) {
+                        hoveredObj = obj;
+                        break;
+                    }
+                }
+
+                if (hoveredObj && controls.isLocked) {
+                    crosshair.classList.add('active');
+                    hud.classList.add('visible');
+
+                    const data = hoveredObj.userData;
+                    if (data.type === 'pod') {
+                        const memoryPercentage = Math.round((data.memoryGB / data.nodeMaxMemory) * 100);
+                        const formattedMemory = Math.round(data.memoryGB * 10) / 10;
+                        const formattedCPU = data.cpuCores ? Math.round(data.cpuCores * 10) / 10 : null;
+                        hud.innerHTML = `
+                            <div class="hud-header">
+                                <span class="hud-type">Pod Unit</span>
+                                <span class="badge badge-${data.status.toLowerCase()}">${data.status}</span>
+                            </div>
+                            <div class="hud-title">${data.podName}</div>
+                            <div style="margin-top: 16px;">
+                                <div class="hud-meta-row">
+                                    <span class="hud-label">Namespace</span>
+                                    <span class="hud-value" style="font-family: 'JetBrains Mono', monospace;">${data.namespace}</span>
+                                </div>
+                                <div class="hud-meta-row">
+                                    <span class="hud-label">Memory Request</span>
+                                    <span class="hud-value">${formattedMemory}GB</span>
+                                </div>
+                                ${formattedCPU !== null ? `
+                                <div class="hud-meta-row">
+                                    <span class="hud-label">CPU Request</span>
+                                    <span class="hud-value">${formattedCPU} Core${formattedCPU !== 1 ? 's' : ''}</span>
+                                </div>
+                                ` : ''}
+                                <div class="hud-meta-row">
+                                    <span class="hud-label">Node Host</span>
+                                    <span class="hud-value">${data.nodeName}</span>
+                                </div>
+                                <div style="margin-top: 16px;">
+                                    <div style="display:flex; justify-content:space-between; font-size:12px; color:#94a3b8; margin-bottom: 4px;">
+                                        <span>Memory Allocation Share</span>
+                                        <span>${memoryPercentage}%</span>
+                                    </div>
+                                    <div class="resource-bar-container">
+                                        <div class="resource-bar-fill" style="width: ${memoryPercentage}%; background: #${data.color.toString(16).padStart(6, '0')};"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    } else if (data.type === 'node') {
+                        const allocationPercentage = Math.round((data.allocatedMemory / data.maxMemoryGB) * 100);
+                        const formattedMaxMemory = Math.round(data.maxMemoryGB * 10) / 10;
+                        const formattedAllocatedMemory = Math.round(data.allocatedMemory * 10) / 10;
+                        const formattedMaxCPU = data.maxCPUCores ? Math.round(data.maxCPUCores * 10) / 10 : null;
+                        const formattedAllocatedCPU = data.allocatedCPU ? Math.round(data.allocatedCPU * 10) / 10 : null;
+                        hud.innerHTML = `
+                            <div class="hud-header">
+                                <span class="hud-type" style="color: #10b981; background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.2);">Node</span>
+                            </div>
+                            <div class="hud-title">${data.nodeName}</div>
+                            <div style="margin-top: 16px;">
+                                <div class="hud-meta-row">
+                                    <span class="hud-label">Total Capacity</span>
+                                    <span class="hud-value">${formattedMaxMemory}GB</span>
+                                </div>
+                                <div class="hud-meta-row">
+                                    <span class="hud-label">Allocated Memory</span>
+                                    <span class="hud-value">${formattedAllocatedMemory}GB (${allocationPercentage}%)</span>
+                                </div>
+                                ${formattedMaxCPU !== null ? `
+                                <div class="hud-meta-row">
+                                    <span class="hud-label">CPU Capacity</span>
+                                    <span class="hud-value">${formattedMaxCPU} Core${formattedMaxCPU !== 1 ? 's' : ''}</span>
+                                </div>
+                                <div class="hud-meta-row">
+                                    <span class="hud-label">Allocated CPU</span>
+                                    <span class="hud-value">${formattedAllocatedCPU || 0} Core${formattedAllocatedCPU !== 1 ? 's' : ''}</span>
+                                </div>
+                                ` : ''}
+                                <div class="hud-meta-row">
+                                    <span class="hud-label">Running Pods</span>
+                                    <span class="hud-value">${data.podsCount}</span>
+                                </div>
+                                <div style="margin-top: 16px;">
+                                    <div style="display:flex; justify-content:space-between; font-size:12px; color:#94a3b8; margin-bottom: 4px;">
+                                        <span>Total Capacity Allocated</span>
+                                        <span>${allocationPercentage}%</span>
+                                    </div>
+                                    <div class="resource-bar-container">
+                                        <div class="resource-bar-fill" style="width: ${allocationPercentage}%; background: linear-gradient(90deg, #10b981 0%, #3b82f6 100%);"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    } else if (data.type === 'unallocated') {
+                        const unallocatedPercentage = Math.round((data.memoryGB / data.nodeMaxMemory) * 100);
+                        const formattedMemory = Math.round(data.memoryGB * 10) / 10;
+                        hud.innerHTML = `
+                            <div class="hud-header">
+                                <span class="hud-type" style="color: #94a3b8; background: rgba(148, 163, 184, 0.15); border-color: rgba(148, 163, 184, 0.2);">Unallocated</span>
+                            </div>
+                            <div class="hud-title">Available Capacity</div>
+                            <div style="margin-top: 16px;">
+                                <div class="hud-meta-row">
+                                    <span class="hud-label">Parent Node</span>
+                                    <span class="hud-value">${data.nodeName}</span>
+                                </div>
+                                <div class="hud-meta-row">
+                                    <span class="hud-label">Available Size</span>
+                                    <span class="hud-value">${formattedMemory}GB</span>
+                                </div>
+                                <div style="margin-top: 16px;">
+                                    <div style="display:flex; justify-content:space-between; font-size:12px; color:#94a3b8; margin-bottom: 4px;">
+                                        <span>Available Room Share</span>
+                                        <span>${unallocatedPercentage}%</span>
+                                    </div>
+                                    <div class="resource-bar-container">
+                                        <div class="resource-bar-fill" style="width: ${unallocatedPercentage}%; background: #4b5563;"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }
+                } else {
+                    crosshair.classList.remove('active');
+                    hud.classList.remove('visible');
+                }
             }
 
             // Animate ocean waves over time

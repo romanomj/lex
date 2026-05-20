@@ -434,7 +434,8 @@ def parse_cluster():
             "cpuCores": total_pod_cpu_cores,
             "color": color_int,
             "status": phase,
-            "namespace": namespace
+            "namespace": namespace,
+            "raw": pod
         }
 
         # If a pod is scheduled to a node not in our nodes inventory, create a placeholder node
