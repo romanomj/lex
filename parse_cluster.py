@@ -31,6 +31,40 @@ def get_namespace_color(namespace):
     idx = int(h, 16) % len(NAMESPACE_COLORS)
     return NAMESPACE_COLORS[idx]
 
+def round_to_one_decimal(val):
+    """Rounds a float to the nearest 1 decimal place, returning an integer if it's a whole number."""
+    rounded = round(val, 1)
+    if rounded == int(rounded):
+        return int(rounded)
+    return rounded
+
+def parse_cpu_to_cores(cpu_str):
+    """
+    Parses messy Kubernetes CPU resource strings to floating-point cores.
+    Handles millicores (e.g. 500m, 100m) and raw core numbers.
+    """
+    if not cpu_str:
+        return 0.0
+    
+    cpu_str = str(cpu_str).strip()
+    
+    # Match values like 500m, 2, 1.5, 0.25
+    match = re.match(r'^([0-9]+(?:\.[0-9]+)?)\s*([a-zA-Z]*)$', cpu_str)
+    if not match:
+        return 0.0
+        
+    val_str, unit = match.groups()
+    val = float(val_str)
+    unit = unit.lower()
+    
+    if unit == 'm':
+        cores = val / 1000.0
+    else:
+        # Default to raw cores
+        cores = val
+        
+    return round_to_one_decimal(cores)
+
 def parse_memory_to_gb(mem_str):
     """
     Parses messy Kubernetes resource strings to floating-point Gigabytes.
@@ -81,7 +115,7 @@ def parse_memory_to_gb(mem_str):
         
     # Convert bytes to Gigabytes (binary GiB = 1024^3 bytes)
     gb_val = bytes_val / (1024**3)
-    return round(gb_val, 2)
+    return round_to_one_decimal(gb_val)
 
 def run_kubectl():
     """Attempts to run kubectl to fetch live cluster JSONs."""
@@ -245,9 +279,14 @@ def parse_cluster():
         mem_str = allocatable.get("memory") or capacity.get("memory", "8Gi")
         max_mem_gb = parse_memory_to_gb(mem_str)
         
+        # Get allocatable cpu string, fall back to capacity
+        cpu_str = allocatable.get("cpu") or capacity.get("cpu", "1")
+        max_cpu_cores = parse_cpu_to_cores(cpu_str)
+        
         node_map[name] = {
             "name": name,
             "maxMemoryGB": max_mem_gb,
+            "maxCPUCores": max_cpu_cores,
             "pods": []
         }
 
@@ -272,8 +311,9 @@ def parse_cluster():
         if not node_name:
             continue
 
-        # Sum memory requests across all containers in the pod
+        # Sum memory and CPU requests across all containers in the pod
         total_pod_memory_gb = 0.0
+        total_pod_cpu_cores = 0.0
         containers = spec.get("containers", [])
         
         for c in containers:
@@ -285,13 +325,22 @@ def parse_cluster():
             c_mem = requests.get("memory") or limits.get("memory")
             if c_mem:
                 total_pod_memory_gb += parse_memory_to_gb(c_mem)
+                
+            # Check requests.cpu, fallback to limits.cpu
+            c_cpu = requests.get("cpu") or limits.get("cpu")
+            if c_cpu:
+                total_pod_cpu_cores += parse_cpu_to_cores(c_cpu)
         
         # Fallback if no container memory requests/limits are specified.
         # Set to 0.1 GB (100Mi) to ensure pod still renders as a sleek 3D room.
         if total_pod_memory_gb <= 0.0:
             total_pod_memory_gb = 0.10
+            
+        if total_pod_cpu_cores <= 0.0:
+            total_pod_cpu_cores = 0.10
 
-        total_pod_memory_gb = round(total_pod_memory_gb, 2)
+        total_pod_memory_gb = round_to_one_decimal(total_pod_memory_gb)
+        total_pod_cpu_cores = round_to_one_decimal(total_pod_cpu_cores)
 
         # Dynamic HSL hash-based color matching for the pod namespace
         color_int = get_namespace_color(namespace)
@@ -299,6 +348,7 @@ def parse_cluster():
         pod_item = {
             "name": name,
             "memoryGB": total_pod_memory_gb,
+            "cpuCores": total_pod_cpu_cores,
             "color": color_int,
             "status": phase,
             "namespace": namespace
@@ -308,9 +358,11 @@ def parse_cluster():
         if node_name not in node_map:
             # Estimate a reasonable standard capacity, e.g., 16 GB, or at least enough for the pod
             placeholder_capacity = max(16.0, total_pod_memory_gb)
+            placeholder_cpu = max(4.0, total_pod_cpu_cores)
             node_map[node_name] = {
                 "name": node_name,
                 "maxMemoryGB": placeholder_capacity,
+                "maxCPUCores": placeholder_cpu,
                 "pods": []
             }
 

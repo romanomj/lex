@@ -228,6 +228,7 @@
         <p class="instructions">
             <strong>Click screen</strong> to lock mouse and look around.<br>
             <strong>WASD / Arrow Keys:</strong> Move around<br>
+            <strong>Space / Shift:</strong> Fly Up / Down<br>
             <strong>ESC:</strong> Exit mouse lock
         </p>
         <div id="node-info" style="margin-top: 10px; font-size: 12px;"></div>
@@ -247,26 +248,29 @@
                 {
                     name: "node-alpha",
                     maxMemoryGB: 24,
+                    maxCPUCores: 8,
                     pods: [
-                        { name: "frontend-pod-7d4f9b8c-2x9v4", memoryGB: 12, color: 0x00f0ff, status: "Running", namespace: "production" },
-                        { name: "backend-pod-5c8e7a1b-9p3k8", memoryGB: 4, color: 0x3b82f6, status: "Running", namespace: "production" },
-                        { name: "cache-pod-9a3f2c7d-5m1q9", memoryGB: 4, color: 0xec4899, status: "Pending", namespace: "production" }
+                        { name: "frontend-pod-7d4f9b8c-2x9v4", memoryGB: 12, cpuCores: 4, color: 0x00f0ff, status: "Running", namespace: "production" },
+                        { name: "backend-pod-5c8e7a1b-9p3k8", memoryGB: 4, cpuCores: 2, color: 0x3b82f6, status: "Running", namespace: "production" },
+                        { name: "cache-pod-9a3f2c7d-5m1q9", memoryGB: 4, cpuCores: 1, color: 0xec4899, status: "Pending", namespace: "production" }
                     ]
                 },
                 {
                     name: "node-bravo",
                     maxMemoryGB: 16,
+                    maxCPUCores: 4,
                     pods: [
-                        { name: "db-pod-0-8b6d4c2e-4w8z7", memoryGB: 8, color: 0xf59e0b, status: "Running", namespace: "database" },
-                        { name: "db-pod-1-8b6d4c2e-5x9a2", memoryGB: 8, color: 0x10b981, status: "Running", namespace: "database" }
+                        { name: "db-pod-0-8b6d4c2e-4w8z7", memoryGB: 8, cpuCores: 2, color: 0xf59e0b, status: "Running", namespace: "database" },
+                        { name: "db-pod-1-8b6d4c2e-5x9a2", memoryGB: 8, cpuCores: 2, color: 0x10b981, status: "Running", namespace: "database" }
                     ]
                 },
                 {
                     name: "node-charlie",
                     maxMemoryGB: 32,
+                    maxCPUCores: 16,
                     pods: [
-                        { name: "analytics-worker-6f9e8d7c-8y2v4", memoryGB: 16, color: 0x8b5cf6, status: "Running", namespace: "analytics" },
-                        { name: "logging-agent-3a5b7c9d-1r4q8", memoryGB: 4, color: 0x6b7280, status: "Running", namespace: "kube-system" }
+                        { name: "analytics-worker-6f9e8d7c-8y2v4", memoryGB: 16, cpuCores: 8, color: 0x8b5cf6, status: "Running", namespace: "analytics" },
+                        { name: "logging-agent-3a5b7c9d-1r4q8", memoryGB: 4, cpuCores: 1, color: 0x6b7280, status: "Running", namespace: "kube-system" }
                     ]
                 }
             ]
@@ -275,6 +279,7 @@
         // 2. Scene Variables & Initialization
         let scene, camera, renderer, controls;
         let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
+        let moveUp = false, moveDown = false;
 
         const clock = new THREE.Clock();
         const velocity = new THREE.Vector3();
@@ -283,7 +288,13 @@
         const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.7 });
         const partitionMaterial = new THREE.MeshStandardMaterial({ color: 0x777777, roughness: 0.5, transparent: true, opacity: 0.8 });
         const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.9 });
-        const unallocatedMaterial = new THREE.MeshStandardMaterial({ color: 0x333333, wireframe: true });
+        const unallocatedMaterial = new THREE.MeshStandardMaterial({
+            color: 0x4b5563,
+            roughness: 0.8,
+            transparent: true,
+            opacity: 0.2,
+            wireframe: true
+        });
 
         // Phase 1: Interactive Polish Globals
         const colliders = [];
@@ -383,6 +394,9 @@
                     case 'KeyS': moveBackward = true; break;
                     case 'ArrowRight':
                     case 'KeyD': moveRight = true; break;
+                    case 'Space': moveUp = true; break;
+                    case 'ShiftLeft':
+                    case 'ShiftRight': moveDown = true; break;
                 }
             };
 
@@ -396,6 +410,9 @@
                     case 'KeyS': moveBackward = false; break;
                     case 'ArrowRight':
                     case 'KeyD': moveRight = false; break;
+                    case 'Space': moveUp = false; break;
+                    case 'ShiftLeft':
+                    case 'ShiftRight': moveDown = false; break;
                 }
             };
 
@@ -409,7 +426,7 @@
         function generateClusterWorld() {
             const buildingWidth = 12;      // Fixed width for every node structure
             const depthScale = 1.5;        // Scale factor: 1GB allocations equals 1.5 units in length
-            const wallHeight = 4;          // Room/Building height
+            const wallHeight = 12;         // Room/Building height
             const wallThickness = 0.4;     // Thickness of structural walls
             const spacing = 10;            // Gap space between buildings
 
@@ -437,11 +454,14 @@
 
                 // Calculate metadata for node interaction
                 const totalAllocatedMemory = node.pods.reduce((sum, p) => sum + p.memoryGB, 0);
+                const totalAllocatedCPU = node.pods.reduce((sum, p) => sum + (p.cpuCores || 0), 0);
                 const nodeMetadata = {
                     type: "node",
                     nodeName: node.name,
                     maxMemoryGB: node.maxMemoryGB,
-                    allocatedMemory: totalAllocatedMemory,
+                    maxCPUCores: node.maxCPUCores || null,
+                    allocatedMemory: Math.round(totalAllocatedMemory * 10) / 10,
+                    allocatedCPU: Math.round(totalAllocatedCPU * 10) / 10,
                     podsCount: node.pods.length
                 };
 
@@ -472,27 +492,44 @@
 
                 node.pods.forEach((pod) => {
                     const podDepth = pod.memoryGB * depthScale;
+                    // Proportional height: height of the pod box is a percentage of node capacity * wallHeight
+                    const podHeight = (pod.memoryGB / node.maxMemoryGB) * wallHeight;
 
-                    // Render individual pod unit floors
-                    const podFloorGeo = new THREE.PlaneGeometry(buildingWidth - wallThickness, podDepth);
-                    const podFloorMat = new THREE.MeshStandardMaterial({ color: pod.color, roughness: 0.4 });
-                    const podFloor = new THREE.Mesh(podFloorGeo, podFloorMat);
-                    podFloor.rotation.x = -Math.PI / 2;
+                    // Render individual pod unit as a glassmorphic 3D Box
+                    const podGeo = new THREE.BoxGeometry(buildingWidth - wallThickness, podHeight, podDepth);
+                    const podMat = new THREE.MeshStandardMaterial({
+                        color: pod.color,
+                        roughness: 0.1,
+                        metalness: 0.1,
+                        transparent: true,
+                        opacity: 0.65,
+                        side: THREE.DoubleSide
+                    });
+                    const podBox = new THREE.Mesh(podGeo, podMat);
                     // Position at the core center of this pod's allocated zone section
-                    podFloor.position.set(0, 0.05, currentZOffset + (podDepth / 2));
+                    podBox.position.set(0, podHeight / 2, currentZOffset + (podDepth / 2));
                     
                     // Attach pod metadata
-                    podFloor.userData = {
+                    podBox.userData = {
                         type: "pod",
                         podName: pod.name,
                         nodeName: node.name,
                         memoryGB: pod.memoryGB,
+                        cpuCores: pod.cpuCores || null,
                         color: pod.color,
                         status: pod.status,
                         namespace: pod.namespace,
-                        nodeMaxMemory: node.maxMemoryGB
+                        nodeMaxMemory: node.maxMemoryGB,
+                        nodeMaxCPUCores: node.maxCPUCores || null
                     };
-                    nodeBuilding.add(podFloor);
+                    nodeBuilding.add(podBox);
+
+                    // Add high-tech holographic wireframe outlines to the glassmorphic pod box
+                    const edges = new THREE.EdgesGeometry(podGeo);
+                    const lineMat = new THREE.LineBasicMaterial({ color: pod.color, transparent: true, opacity: 0.8 });
+                    const line = new THREE.LineSegments(edges, lineMat);
+                    line.position.copy(podBox.position);
+                    nodeBuilding.add(line);
 
                     // Slice Internal Partition Wall (Placed at the end boundary of the pod room)
                     currentZOffset += podDepth;
@@ -509,19 +546,26 @@
                 if (allocatedMemory < node.maxMemoryGB) {
                     const leftoverMemory = node.maxMemoryGB - allocatedMemory;
                     const leftoverDepth = leftoverMemory * depthScale;
+                    const leftoverHeight = (leftoverMemory / node.maxMemoryGB) * wallHeight;
 
-                    const unallocatedFloorGeo = new THREE.PlaneGeometry(buildingWidth - wallThickness, leftoverDepth);
-                    const unallocatedFloor = new THREE.Mesh(unallocatedFloorGeo, unallocatedMaterial);
-                    unallocatedFloor.rotation.x = -Math.PI / 2;
-                    unallocatedFloor.position.set(0, 0.05, currentZOffset + (leftoverDepth / 2));
+                    const unallocatedGeo = new THREE.BoxGeometry(buildingWidth - wallThickness, leftoverHeight, leftoverDepth);
+                    const unallocatedBox = new THREE.Mesh(unallocatedGeo, unallocatedMaterial);
+                    unallocatedBox.position.set(0, leftoverHeight / 2, currentZOffset + (leftoverDepth / 2));
                     
-                    unallocatedFloor.userData = {
+                    unallocatedBox.userData = {
                         type: "unallocated",
                         nodeName: node.name,
                         memoryGB: leftoverMemory,
                         nodeMaxMemory: node.maxMemoryGB
                     };
-                    nodeBuilding.add(unallocatedFloor);
+                    nodeBuilding.add(unallocatedBox);
+
+                    // Sleek wireframe edge outlines for the unallocated/available space
+                    const leftoverEdges = new THREE.EdgesGeometry(unallocatedGeo);
+                    const leftoverLineMat = new THREE.LineBasicMaterial({ color: 0x4b5563, transparent: true, opacity: 0.4 });
+                    const leftoverLine = new THREE.LineSegments(leftoverEdges, leftoverLineMat);
+                    leftoverLine.position.copy(unallocatedBox.position);
+                    nodeBuilding.add(leftoverLine);
 
                     currentZOffset += leftoverDepth;
                 }
@@ -571,7 +615,7 @@
         function checkCollision() {
             // Represent user's height and thickness
             playerBox.setFromCenterAndSize(
-                new THREE.Vector3(camera.position.x, 2.5, camera.position.z),
+                new THREE.Vector3(camera.position.x, camera.position.y, camera.position.z),
                 new THREE.Vector3(playerRadius * 2, 2.0, playerRadius * 2)
             );
             for (let i = 0; i < colliders.length; i++) {
@@ -591,15 +635,18 @@
 
                 // Damping friction simulation loops to make movement feel clean
                 velocity.x -= velocity.x * 10.0 * delta;
+                velocity.y -= velocity.y * 10.0 * delta;
                 velocity.z -= velocity.z * 10.0 * delta;
 
                 direction.z = Number(moveForward) - Number(moveBackward);
                 direction.x = Number(moveRight) - Number(moveLeft);
+                direction.y = Number(moveUp) - Number(moveDown);
                 direction.normalize();
 
                 // Apply velocity values based on direction inputs
                 if (moveForward || moveBackward) velocity.z -= direction.z * 100.0 * delta;
                 if (moveLeft || moveRight) velocity.x -= direction.x * 100.0 * delta;
+                if (moveUp || moveDown) velocity.y -= direction.y * 100.0 * delta;
 
                 // Save previous camera position
                 const prevPosition = camera.position.clone();
@@ -607,20 +654,30 @@
                 // Apply proposed movement
                 controls.moveRight(-velocity.x * delta);
                 controls.moveForward(-velocity.z * delta);
-                camera.position.y = 2.5;
+                camera.position.y += -velocity.y * delta;
+
+                // Ground plane boundary (minimum flying height)
+                if (camera.position.y < 2.5) {
+                    camera.position.y = 2.5;
+                    velocity.y = 0;
+                }
 
                 // Sliding Collision Resolution
                 if (checkCollision()) {
                     const proposedPosition = camera.position.clone();
 
-                    // Try to keep X movement but discard Z movement
-                    camera.position.set(proposedPosition.x, 2.5, prevPosition.z);
+                    // Try to keep X and Y movement but discard Z movement
+                    camera.position.set(proposedPosition.x, proposedPosition.y, prevPosition.z);
                     if (checkCollision()) {
-                        // Collides, so try keeping Z movement but discarding X movement
-                        camera.position.set(prevPosition.x, 2.5, proposedPosition.z);
+                        // Collides, so try keeping Z and Y movement but discarding X movement
+                        camera.position.set(prevPosition.x, proposedPosition.y, proposedPosition.z);
                         if (checkCollision()) {
-                            // Both fail, fully revert
-                            camera.position.copy(prevPosition);
+                            // Try keeping X and Z movement but discarding Y movement
+                            camera.position.set(proposedPosition.x, prevPosition.y, proposedPosition.z);
+                            if (checkCollision()) {
+                                // All fail, fully revert
+                                camera.position.copy(prevPosition);
+                            }
                         }
                     }
                 }
@@ -649,6 +706,8 @@
                 const data = hoveredObj.userData;
                 if (data.type === 'pod') {
                     const memoryPercentage = Math.round((data.memoryGB / data.nodeMaxMemory) * 100);
+                    const formattedMemory = Math.round(data.memoryGB * 10) / 10;
+                    const formattedCPU = data.cpuCores ? Math.round(data.cpuCores * 10) / 10 : null;
                     hud.innerHTML = `
                         <div class="hud-header">
                             <span class="hud-type">Pod Unit</span>
@@ -662,8 +721,14 @@
                             </div>
                             <div class="hud-meta-row">
                                 <span class="hud-label">Memory Request</span>
-                                <span class="hud-value">${data.memoryGB} GB</span>
+                                <span class="hud-value">${formattedMemory}GB</span>
                             </div>
+                            ${formattedCPU !== null ? `
+                            <div class="hud-meta-row">
+                                <span class="hud-label">CPU Request</span>
+                                <span class="hud-value">${formattedCPU} Core${formattedCPU !== 1 ? 's' : ''}</span>
+                            </div>
+                            ` : ''}
                             <div class="hud-meta-row">
                                 <span class="hud-label">Node Host</span>
                                 <span class="hud-value">${data.nodeName}</span>
@@ -681,6 +746,10 @@
                     `;
                 } else if (data.type === 'node') {
                     const allocationPercentage = Math.round((data.allocatedMemory / data.maxMemoryGB) * 100);
+                    const formattedMaxMemory = Math.round(data.maxMemoryGB * 10) / 10;
+                    const formattedAllocatedMemory = Math.round(data.allocatedMemory * 10) / 10;
+                    const formattedMaxCPU = data.maxCPUCores ? Math.round(data.maxCPUCores * 10) / 10 : null;
+                    const formattedAllocatedCPU = data.allocatedCPU ? Math.round(data.allocatedCPU * 10) / 10 : null;
                     hud.innerHTML = `
                         <div class="hud-header">
                             <span class="hud-type" style="color: #10b981; background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.2);">Node Building</span>
@@ -689,12 +758,22 @@
                         <div style="margin-top: 16px;">
                             <div class="hud-meta-row">
                                 <span class="hud-label">Total Capacity</span>
-                                <span class="hud-value">${data.maxMemoryGB} GB</span>
+                                <span class="hud-value">${formattedMaxMemory}GB</span>
                             </div>
                             <div class="hud-meta-row">
                                 <span class="hud-label">Allocated Memory</span>
-                                <span class="hud-value">${data.allocatedMemory} GB (${allocationPercentage}%)</span>
+                                <span class="hud-value">${formattedAllocatedMemory}GB (${allocationPercentage}%)</span>
                             </div>
+                            ${formattedMaxCPU !== null ? `
+                            <div class="hud-meta-row">
+                                <span class="hud-label">CPU Capacity</span>
+                                <span class="hud-value">${formattedMaxCPU} Core${formattedMaxCPU !== 1 ? 's' : ''}</span>
+                            </div>
+                            <div class="hud-meta-row">
+                                <span class="hud-label">Allocated CPU</span>
+                                <span class="hud-value">${formattedAllocatedCPU || 0} Core${formattedAllocatedCPU !== 1 ? 's' : ''}</span>
+                            </div>
+                            ` : ''}
                             <div class="hud-meta-row">
                                 <span class="hud-label">Running Pods</span>
                                 <span class="hud-value">${data.podsCount}</span>
@@ -712,6 +791,7 @@
                     `;
                 } else if (data.type === 'unallocated') {
                     const unallocatedPercentage = Math.round((data.memoryGB / data.nodeMaxMemory) * 100);
+                    const formattedMemory = Math.round(data.memoryGB * 10) / 10;
                     hud.innerHTML = `
                         <div class="hud-header">
                             <span class="hud-type" style="color: #94a3b8; background: rgba(148, 163, 184, 0.15); border-color: rgba(148, 163, 184, 0.2);">Unallocated</span>
@@ -724,7 +804,7 @@
                             </div>
                             <div class="hud-meta-row">
                                 <span class="hud-label">Available Size</span>
-                                <span class="hud-value">${data.memoryGB} GB</span>
+                                <span class="hud-value">${formattedMemory}GB</span>
                             </div>
                             <div style="margin-top: 16px;">
                                 <div style="display:flex; justify-content:space-between; font-size:12px; color:#94a3b8; margin-bottom: 4px;">

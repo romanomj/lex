@@ -57,10 +57,12 @@ A unified Python pipeline (`parse_cluster.py`) has been added to extract and com
 
 Dev Logs & Next Targets
 - **Collision Spawning Bug Fix**: Resolved a critical issue where players would spawn inside the physical structure of a node building and get trapped due to the AABB colliders. Implemented dynamic bounding box calculation in `generateClusterWorld()` to offset the player safely to the front-center of the entire cluster at `Z = -25`, rotated 180 degrees to face the nodes directly.
+- **Glassmorphic 3D Pod Heights & Idle Space Wireframes**: Replaced flat floors with floating 3D Glassmorphic boxes with heights proportional to their memory share percentage ($\frac{\text{pod.memoryGB}}{\text{node.maxMemoryGB}} \times \text{wallHeight}$). Leftover/unallocated node capacity is rendered as a clean, proportional dark gray wireframe room.
+- **Smooth Spectator Flight Physics**: Implemented seamless spectator flying controls (`Space` to float up, `Shift` to glide down) with dynamic, height-aware AABB collision detection. The camera can fly over buildings without boundary collisions but maintains realistic outer/partition wall collisions when walking or flying inside the rooms.
+- **One-Decimal Precision & CPU Ingestion**: Implemented precise resource rounding to 1 decimal place (e.g., `48` or `32.5`) for Memory and CPU cores. Integrated full parsing for CPU limits/requests from pod containers and capacities from nodes, presenting them in a new, high-tech HUD overlay.
 - **Optimization Pass**: Look into Three.js InstancedMesh if handling clusters scaling past 50+ nodes/1000+ pods to avoid draw-call bottlenecks.
-- **Expansion**: Think about mapping CPU limits to wall heights in future sprints, transforming 2D floor areas into dynamic 3D room volumes!
 
 Potential Future Requests
-1. **Fly Mode / Spectator Toggle**: Implement a key (e.g. `V` or `Space` for double jump) to toggle between first-person street walk and spectator fly mode, allowing the player to look down at the open-roof structures from above.
-2. **Minimap or HUD Radar**: Add a 2D canvas overlay in the HUD showing a bird's-eye schematic map of the cluster layout, highlighting the player's current coordinate and looking direction.
-3. **Collision Override Toggle**: Allow a debug key (e.g., `N` for noclip) to temporarily disable AABB collision detection, allowing rapid debugging or walking directly through walls.
+1. [x] **Fly Mode / Spectator Toggle**: Enabled flying up and down smoothly using `Space` and `Shift` keys, complete with dynamic spectator bounding physics.
+2. 2. **Minimap or HUD Radar**: Add a 2D canvas overlay in the HUD showing a bird's-eye schematic map of the cluster layout, highlighting the player's current coordinate and looking direction.
+3. 3. **Collision Override Toggle**: Allow a debug key (e.g., `N` for noclip) to temporarily disable AABB collision detection, allowing rapid debugging or walking directly through walls.
