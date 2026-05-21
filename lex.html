@@ -1159,6 +1159,9 @@
         // Start live cluster synchronization interval (every 10s)
         setInterval(fetchClusterState, 10000);
 
+        // Start the animation and rendering loop
+        animate();
+
         function init() {
             scene = new THREE.Scene();
             // Ambient sky blue background and soft horizon fog
