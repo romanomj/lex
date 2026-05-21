@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Lightweight Local API Server for K8s 3D Cluster World.
+Lightweight Local API Server for Lex.
 Serves web assets on http://127.0.0.1:8000, runs a background thread to
 periodically query Kubernetes context, and exposes secure endpoints for pod troubleshooting.
 """
@@ -211,7 +211,7 @@ def main():
     server_address = (BIND_ADDRESS, PORT)
     httpd = http.server.HTTPServer(server_address, LocalAPIServer)
     print(f"============================================================")
-    print(f"🚀 K8s 3D Cluster World Server running successfully!")
+    print(f"🚀 Lex Server running successfully!")
     print(f"🔗 Local Web Interface: http://{BIND_ADDRESS}:{PORT}/lex.html")
     print(f"============================================================")
     

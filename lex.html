@@ -4,7 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>K8s Cluster 3D World</title>
+    <title>Lex</title>
+    <link rel="icon" type="image/png" href="images/lex-small.png">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap');
 
@@ -78,7 +79,7 @@
         /* Hover HUD Card */
         #hud-tooltip {
             position: absolute;
-            top: 20px;
+            top: 75px;
             right: 20px;
             width: 340px;
             background: rgba(13, 13, 18, 0.85);
@@ -104,7 +105,7 @@
         /* Pod YAML Panel styling */
         #pod-yaml-panel {
             position: absolute;
-            top: 400px;
+            top: 50%;
             right: 20px;
             width: 340px;
             bottom: 20px;
@@ -129,6 +130,45 @@
             opacity: 1;
             transform: translateY(0);
             pointer-events: auto;
+        }
+
+        /* Top-Right Brand Logo Container */
+        #logo-container {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 100;
+            pointer-events: auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(13, 13, 18, 0.45);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            padding: 6px 12px;
+            box-shadow: 
+                0 4px 16px 0 rgba(0, 0, 0, 0.4), 
+                inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            user-select: none;
+        }
+
+        #logo-container:hover {
+            background: rgba(13, 13, 18, 0.6);
+            border-color: rgba(59, 130, 246, 0.3);
+            box-shadow: 
+                0 8px 24px 0 rgba(59, 130, 246, 0.15), 
+                inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+            transform: translateY(-2px) scale(1.02);
+        }
+
+        #logo-img {
+            height: 25px;
+            width: auto;
+            object-fit: contain;
+            filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.6));
         }
 
         .yaml-header {
@@ -696,8 +736,7 @@
 <body>
 
     <div id="ui-container">
-        <h3>K8s 3D Cluster Environment</h3>
-        <p class="instructions">
+        <p class="instructions" style="margin-top: 0;">
             <strong>Click screen</strong> to lock mouse and look around.<br>
             <strong>WASD / Arrow Keys:</strong> Move around<br>
             <strong>Space / Shift:</strong> Fly Up / Down<br>
@@ -777,6 +816,11 @@
         </div>
     </div>
 
+    <!-- Top-Right Brand Logo -->
+    <div id="logo-container">
+        <img id="logo-img" src="images/lex.png" alt="Lex Logo">
+    </div>
+
     <div id="crosshair"></div>
     <div id="canvas-container"></div>
 
@@ -792,6 +836,7 @@
                     name: "node-alpha",
                     maxMemoryGB: 24,
                     maxCPUCores: 8,
+                    creationTimestamp: "2026-05-15T00:00:00Z",
                     labels: {
                         "kubernetes.io/hostname": "node-alpha",
                         "kubernetes.io/os": "linux",
@@ -806,15 +851,16 @@
                         "PIDPressure": "False"
                     },
                     pods: [
-                        { name: "frontend-pod-7d4f9b8c-2x9v4", memoryGB: 12, cpuCores: 4, color: 0x00f0ff, status: "Running", namespace: "production" },
-                        { name: "backend-pod-5c8e7a1b-9p3k8", memoryGB: 4, cpuCores: 2, color: 0x3b82f6, status: "Running", namespace: "production" },
-                        { name: "cache-pod-9a3f2c7d-5m1q9", memoryGB: 4, cpuCores: 1, color: 0x6366f1, status: "CrashLoopBackOff", namespace: "production" }
+                        { name: "frontend-pod-7d4f9b8c-2x9v4", memoryGB: 12, cpuCores: 4, color: 0x00f0ff, status: "Running", namespace: "production", restarts: 2, creationTimestamp: "2026-05-19T06:00:00Z" },
+                        { name: "backend-pod-5c8e7a1b-9p3k8", memoryGB: 4, cpuCores: 2, color: 0x3b82f6, status: "Running", namespace: "production", restarts: 0, creationTimestamp: "2026-05-20T12:00:00Z" },
+                        { name: "cache-pod-9a3f2c7d-5m1q9", memoryGB: 4, cpuCores: 1, color: 0x6366f1, status: "CrashLoopBackOff", namespace: "production", restarts: 9, creationTimestamp: "2026-05-21T02:00:00Z" }
                     ]
                 },
                 {
                     name: "node-bravo",
                     maxMemoryGB: 16,
                     maxCPUCores: 4,
+                    creationTimestamp: "2026-05-16T12:00:00Z",
                     labels: {
                         "kubernetes.io/hostname": "node-bravo",
                         "kubernetes.io/os": "linux",
@@ -829,14 +875,15 @@
                         "PIDPressure": "False"
                     },
                     pods: [
-                        { name: "db-pod-0-8b6d4c2e-4w8z7", memoryGB: 8, cpuCores: 2, color: 0xf59e0b, status: "Running", namespace: "database" },
-                        { name: "db-pod-1-8b6d4c2e-5x9a2", memoryGB: 8, cpuCores: 2, color: 0x10b981, status: "Running", namespace: "database" }
+                        { name: "db-pod-0-8b6d4c2e-4w8z7", memoryGB: 8, cpuCores: 2, color: 0xf59e0b, status: "Running", namespace: "database", restarts: 0, creationTimestamp: "2026-05-18T10:00:00Z" },
+                        { name: "db-pod-1-8b6d4c2e-5x9a2", memoryGB: 8, cpuCores: 2, color: 0x10b981, status: "Running", namespace: "database", restarts: 0, creationTimestamp: "2026-05-18T11:00:00Z" }
                     ]
                 },
                 {
                     name: "node-charlie",
                     maxMemoryGB: 32,
                     maxCPUCores: 16,
+                    creationTimestamp: "2026-05-10T08:30:00Z",
                     labels: {
                         "kubernetes.io/hostname": "node-charlie",
                         "kubernetes.io/os": "linux",
@@ -851,14 +898,15 @@
                         "PIDPressure": "False"
                     },
                     pods: [
-                        { name: "analytics-worker-6f9e8d7c-8y2v4", memoryGB: 16, cpuCores: 8, color: 0x8b5cf6, status: "Running", namespace: "analytics" },
-                        { name: "logging-agent-3a5b7c9d-1r4q8", memoryGB: 4, cpuCores: 1, color: 0x6b7280, status: "Running", namespace: "kube-system" }
+                        { name: "analytics-worker-6f9e8d7c-8y2v4", memoryGB: 16, cpuCores: 8, color: 0x8b5cf6, status: "Running", namespace: "analytics", restarts: 3, creationTimestamp: "2026-05-20T04:30:00Z" },
+                        { name: "logging-agent-3a5b7c9d-1r4q8", memoryGB: 4, cpuCores: 1, color: 0x6b7280, status: "Running", namespace: "kube-system", restarts: 1, creationTimestamp: "2026-05-15T01:00:00Z" }
                     ]
                 },
                 {
                     name: "node-delta",
                     maxMemoryGB: 16,
                     maxCPUCores: 4,
+                    creationTimestamp: "2026-05-21T09:00:00Z",
                     labels: {
                         "kubernetes.io/hostname": "node-delta",
                         "kubernetes.io/os": "linux",
@@ -977,6 +1025,30 @@
             return res;
         }
 
+        function getAgeString(creationTimestamp) {
+            if (!creationTimestamp) return "Unknown";
+            const created = new Date(creationTimestamp);
+            if (isNaN(created.getTime())) return "Unknown";
+            const diffMs = Date.now() - created.getTime();
+            if (diffMs < 0) return "Just now";
+            
+            const diffSecs = Math.floor(diffMs / 1000);
+            const diffMins = Math.floor(diffSecs / 60);
+            const diffHours = Math.floor(diffMins / 60);
+            const diffDays = Math.floor(diffHours / 24);
+            
+            if (diffDays > 0) {
+                return `${diffDays}d ${diffHours % 24}h`;
+            }
+            if (diffHours > 0) {
+                return `${diffHours}h ${diffMins % 60}m`;
+            }
+            if (diffMins > 0) {
+                return `${diffMins}m ${diffSecs % 60}s`;
+            }
+            return `${diffSecs}s`;
+        }
+
         function generatePodSummary(data) {
             if (!data) return "No data available";
             const raw = data.raw || {};
@@ -1001,7 +1073,25 @@
                 return `  - <span class="yaml-key">Name:</span> <span class="yaml-string">${name}</span>\n    <span class="yaml-key">Image:</span> <span class="yaml-value">${image}</span>\n    <span class="yaml-key">Requests:</span> <span class="yaml-value">CPU: ${reqCPU} / Mem: ${reqMem}</span>`;
             }).join('\n');
 
-            const creationTime = metadata.creationTimestamp ? new Date(metadata.creationTimestamp).toLocaleString() : "Unknown";
+            // Extract restarts
+            let restarts = 0;
+            if (status.containerStatuses) {
+                status.containerStatuses.forEach(cs => {
+                    restarts += cs.restartCount || 0;
+                });
+            }
+            if (status.initContainerStatuses) {
+                status.initContainerStatuses.forEach(ics => {
+                    restarts += ics.restartCount || 0;
+                });
+            }
+            if (restarts === 0 && typeof data.restarts === 'number') {
+                restarts = data.restarts;
+            }
+
+            const creationTimeStr = metadata.creationTimestamp || data.creationTimestamp;
+            const creationTime = creationTimeStr ? new Date(creationTimeStr).toLocaleString() : "Unknown";
+            const age = creationTimeStr ? getAgeString(creationTimeStr) : "Unknown";
             const podIP = status.podIP || "Unknown";
             const hostIP = status.hostIP || "Unknown";
             const phase = status.phase || data.status || "Unknown";
@@ -1014,6 +1104,8 @@
 <span class="yaml-key">Namespace:</span>  <span class="yaml-value">${data.namespace}</span>
 <span class="yaml-key">Node Host:</span>  <span class="yaml-value">${data.nodeName}</span>
 <span class="yaml-key">Status:</span>     <span class="yaml-value">${phase}</span>
+<span class="yaml-key">Restarts:</span>   <span class="yaml-value">${restarts}</span>
+<span class="yaml-key">Age:</span>        <span class="yaml-value">${age}</span>
 <span class="yaml-key">Created:</span>    <span class="yaml-value">${creationTime}</span>
 <span class="yaml-key">IP Addr:</span>    <span class="yaml-value">${podIP}</span> (Pod)
             <span class="yaml-value">${hostIP}</span> (Node)
@@ -1231,7 +1323,7 @@ ${labels}`;
                             metadata: {
                                 name: pod.name,
                                 namespace: pod.namespace || "default",
-                                creationTimestamp: new Date().toISOString().split('T')[0] + "T00:00:00Z",
+                                creationTimestamp: pod.creationTimestamp || new Date().toISOString().split('T')[0] + "T00:00:00Z",
                                 labels: {
                                     "app": pod.name.split('-')[0] || pod.name,
                                     "environment": (node.labels && node.labels.environment) || "demo"
@@ -1259,7 +1351,13 @@ ${labels}`;
                             status: {
                                 phase: pod.status || "Running",
                                 hostIP: "192.168.1.100",
-                                podIP: "10.244.1.45"
+                                podIP: "10.244.1.45",
+                                containerStatuses: [
+                                    {
+                                        name: pod.name.split('-')[0] || "main-container",
+                                        restartCount: pod.restarts || 0
+                                    }
+                                ]
                             }
                         };
                     }
@@ -1397,10 +1495,16 @@ ${labels}`;
             const onKeyDown = (event) => {
                 if (event.code === 'KeyC') {
                     const menuEl = document.getElementById('pod-command-menu');
-                    if (activeSelectedPodData && menuEl && !menuEl.classList.contains('visible')) {
-                        event.preventDefault();
-                        openPodCommandMenu(activeSelectedPodData);
-                        return;
+                    if (menuEl) {
+                        if (menuEl.classList.contains('visible')) {
+                            event.preventDefault();
+                            closePodCommandMenu();
+                            return;
+                        } else if (activeSelectedPodData && !menuEl.classList.contains('visible')) {
+                            event.preventDefault();
+                            openPodCommandMenu(activeSelectedPodData);
+                            return;
+                        }
                     }
                 }
 
@@ -1804,7 +1908,8 @@ ${labels}`;
                 maxCPUCores: node.maxCPUCores || null,
                 allocatedMemory: Math.round(totalAllocatedMemory * 10) / 10,
                 allocatedCPU: Math.round(totalAllocatedCPU * 10) / 10,
-                podsCount: node.pods ? node.pods.length : 0
+                podsCount: node.pods ? node.pods.length : 0,
+                creationTimestamp: node.creationTimestamp || null
             };
 
             const isFailedNode = isNodeFailed(node);
@@ -1930,6 +2035,8 @@ ${labels}`;
                         namespace: pod.namespace,
                         nodeMaxMemory: node.maxMemoryGB,
                         nodeMaxCPUCores: node.maxCPUCores || null,
+                        restarts: pod.restarts !== undefined ? pod.restarts : 0,
+                        creationTimestamp: pod.creationTimestamp || (pod.raw && pod.raw.metadata && pod.raw.metadata.creationTimestamp) || null,
                         raw: pod.raw
                     };
                     nodeBuilding.add(podBox);
@@ -2638,7 +2745,7 @@ ${labels}`;
                 
                 hud.innerHTML = `
                     <div class="hud-header">
-                        <span class="hud-type" style="background: rgba(167, 139, 250, 0.15); color: #a78bfa; border-color: rgba(167, 139, 250, 0.2);">Pod Unit (Inside)</span>
+                        <span class="hud-type" style="background: rgba(167, 139, 250, 0.15); color: #a78bfa; border-color: rgba(167, 139, 250, 0.2);">Pod (Inside)</span>
                         <span class="badge badge-${data.status.toLowerCase()}">${data.status}</span>
                     </div>
                     <div class="hud-title">${data.podName}</div>
@@ -2646,6 +2753,14 @@ ${labels}`;
                         <div class="hud-meta-row">
                             <span class="hud-label">Namespace</span>
                             <span class="hud-value" style="font-family: 'JetBrains Mono', monospace;">${data.namespace}</span>
+                        </div>
+                        <div class="hud-meta-row">
+                            <span class="hud-label">Restarts</span>
+                            <span class="hud-value">${data.restarts || 0}</span>
+                        </div>
+                        <div class="hud-meta-row">
+                            <span class="hud-label">Age</span>
+                            <span class="hud-value">${data.creationTimestamp ? getAgeString(data.creationTimestamp) : 'Unknown'}</span>
                         </div>
                         <div class="hud-meta-row">
                             <span class="hud-label">Memory Request</span>
@@ -2707,7 +2822,7 @@ ${labels}`;
                         const formattedCPU = data.cpuCores ? Math.round(data.cpuCores * 10) / 10 : null;
                         hud.innerHTML = `
                             <div class="hud-header">
-                                <span class="hud-type">Pod Unit</span>
+                                <span class="hud-type">Pod</span>
                                 <span class="badge badge-${data.status.toLowerCase()}">${data.status}</span>
                             </div>
                             <div class="hud-title">${data.podName}</div>
@@ -2715,6 +2830,14 @@ ${labels}`;
                                 <div class="hud-meta-row">
                                     <span class="hud-label">Namespace</span>
                                     <span class="hud-value" style="font-family: 'JetBrains Mono', monospace;">${data.namespace}</span>
+                                </div>
+                                <div class="hud-meta-row">
+                                    <span class="hud-label">Restarts</span>
+                                    <span class="hud-value">${data.restarts || 0}</span>
+                                </div>
+                                <div class="hud-meta-row">
+                                    <span class="hud-label">Age</span>
+                                    <span class="hud-value">${data.creationTimestamp ? getAgeString(data.creationTimestamp) : 'Unknown'}</span>
                                 </div>
                                 <div class="hud-meta-row">
                                     <span class="hud-label">Memory Request</span>
@@ -2792,6 +2915,10 @@ ${labels}`;
                                     <div class="hud-meta-row">
                                         <span class="hud-label">Running Pods</span>
                                         <span class="hud-value">${data.podsCount}</span>
+                                    </div>
+                                    <div class="hud-meta-row">
+                                        <span class="hud-label">Age</span>
+                                        <span class="hud-value">${data.creationTimestamp ? getAgeString(data.creationTimestamp) : 'Unknown'}</span>
                                     </div>
                                     <div style="margin-top: 16px;">
                                         <div style="display:flex; justify-content:space-between; font-size:12px; color:#94a3b8; margin-bottom: 4px;">

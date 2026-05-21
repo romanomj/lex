@@ -1,4 +1,4 @@
-# K8s 3D Cluster World 🌐🧱
+# Lex 🌐🧱
 
 An interactive, in-browser 3D topology visualizer that maps a Kubernetes cluster into a physical world layout (similar to a roofless Minecraft city). This architecture provides an intuitive, spatial look at hardware resource pressure and workload distributions.
 

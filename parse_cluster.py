@@ -177,6 +177,7 @@ def create_mock_files_if_missing():
             {
                 "metadata": {
                     "name": "node-alpha",
+                    "creationTimestamp": "2026-05-15T00:00:00Z",
                     "labels": {
                         "kubernetes.io/hostname": "node-alpha",
                         "kubernetes.io/os": "linux",
@@ -199,6 +200,7 @@ def create_mock_files_if_missing():
             {
                 "metadata": {
                     "name": "node-bravo",
+                    "creationTimestamp": "2026-05-16T12:00:00Z",
                     "labels": {
                         "kubernetes.io/hostname": "node-bravo",
                         "kubernetes.io/os": "linux",
@@ -221,6 +223,7 @@ def create_mock_files_if_missing():
             {
                 "metadata": {
                     "name": "node-charlie",
+                    "creationTimestamp": "2026-05-10T08:30:00Z",
                     "labels": {
                         "kubernetes.io/hostname": "node-charlie",
                         "kubernetes.io/os": "linux",
@@ -243,6 +246,7 @@ def create_mock_files_if_missing():
             {
                 "metadata": {
                     "name": "node-delta",
+                    "creationTimestamp": "2026-05-21T09:00:00Z",
                     "labels": {
                         "kubernetes.io/hostname": "node-delta",
                         "kubernetes.io/os": "linux",
@@ -270,39 +274,88 @@ def create_mock_files_if_missing():
         "kind": "List",
         "items": [
             {
-                "metadata": {"name": "frontend-pod-7d4f9b8c-2x9v4", "namespace": "production"},
-                "spec": {"nodeName": "node-alpha", "containers": [{"resources": {"requests": {"memory": "12Gi"}}}]},
-                "status": {"phase": "Running"}
+                "metadata": {
+                    "name": "frontend-pod-7d4f9b8c-2x9v4",
+                    "namespace": "production",
+                    "creationTimestamp": "2026-05-19T06:00:00Z"
+                },
+                "spec": {"nodeName": "node-alpha", "containers": [{"name": "frontend", "image": "nginx:stable-alpine", "resources": {"requests": {"memory": "12Gi"}}}]},
+                "status": {
+                    "phase": "Running",
+                    "containerStatuses": [{"name": "frontend", "restartCount": 2}]
+                }
             },
             {
-                "metadata": {"name": "backend-pod-5c8e7a1b-9p3k8", "namespace": "production"},
-                "spec": {"nodeName": "node-alpha", "containers": [{"resources": {"requests": {"memory": "4Gi"}}}]},
-                "status": {"phase": "Running"}
+                "metadata": {
+                    "name": "backend-pod-5c8e7a1b-9p3k8",
+                    "namespace": "production",
+                    "creationTimestamp": "2026-05-20T12:00:00Z"
+                },
+                "spec": {"nodeName": "node-alpha", "containers": [{"name": "backend", "image": "node:18-alpine", "resources": {"requests": {"memory": "4Gi"}}}]},
+                "status": {
+                    "phase": "Running",
+                    "containerStatuses": [{"name": "backend", "restartCount": 0}]
+                }
             },
             {
-                "metadata": {"name": "cache-pod-9a3f2c7d-5m1q9", "namespace": "production"},
-                "spec": {"nodeName": "node-alpha", "containers": [{"resources": {"requests": {"memory": "4Gi"}}}]},
-                "status": {"phase": "CrashLoopBackOff"}
+                "metadata": {
+                    "name": "cache-pod-9a3f2c7d-5m1q9",
+                    "namespace": "production",
+                    "creationTimestamp": "2026-05-21T02:00:00Z"
+                },
+                "spec": {"nodeName": "node-alpha", "containers": [{"name": "cache", "image": "redis:7-alpine", "resources": {"requests": {"memory": "4Gi"}}}]},
+                "status": {
+                    "phase": "CrashLoopBackOff",
+                    "containerStatuses": [{"name": "cache", "restartCount": 9}]
+                }
             },
             {
-                "metadata": {"name": "db-pod-0-8b6d4c2e-4w8z7", "namespace": "database"},
-                "spec": {"nodeName": "node-bravo", "containers": [{"resources": {"requests": {"memory": "8Gi"}}}]},
-                "status": {"phase": "Running"}
+                "metadata": {
+                    "name": "db-pod-0-8b6d4c2e-4w8z7",
+                    "namespace": "database",
+                    "creationTimestamp": "2026-05-18T10:00:00Z"
+                },
+                "spec": {"nodeName": "node-bravo", "containers": [{"name": "db-postgres", "image": "postgres:15-alpine", "resources": {"requests": {"memory": "8Gi"}}}]},
+                "status": {
+                    "phase": "Running",
+                    "containerStatuses": [{"name": "db-postgres", "restartCount": 0}]
+                }
             },
             {
-                "metadata": {"name": "db-pod-1-8b6d4c2e-5x9a2", "namespace": "database"},
-                "spec": {"nodeName": "node-bravo", "containers": [{"resources": {"requests": {"memory": "8Gi"}}}]},
-                "status": {"phase": "Running"}
+                "metadata": {
+                    "name": "db-pod-1-8b6d4c2e-5x9a2",
+                    "namespace": "database",
+                    "creationTimestamp": "2026-05-18T11:00:00Z"
+                },
+                "spec": {"nodeName": "node-bravo", "containers": [{"name": "db-postgres", "image": "postgres:15-alpine", "resources": {"requests": {"memory": "8Gi"}}}]},
+                "status": {
+                    "phase": "Running",
+                    "containerStatuses": [{"name": "db-postgres", "restartCount": 0}]
+                }
             },
             {
-                "metadata": {"name": "analytics-worker-6f9e8d7c-8y2v4", "namespace": "analytics"},
-                "spec": {"nodeName": "node-charlie", "containers": [{"resources": {"requests": {"memory": "16Gi"}}}]},
-                "status": {"phase": "Running"}
+                "metadata": {
+                    "name": "analytics-worker-6f9e8d7c-8y2v4",
+                    "namespace": "analytics",
+                    "creationTimestamp": "2026-05-20T04:30:00Z"
+                },
+                "spec": {"nodeName": "node-charlie", "containers": [{"name": "worker", "image": "python:3.10-slim", "resources": {"requests": {"memory": "16Gi"}}}]},
+                "status": {
+                    "phase": "Running",
+                    "containerStatuses": [{"name": "worker", "restartCount": 3}]
+                }
             },
             {
-                "metadata": {"name": "logging-agent-3a5b7c9d-1r4q8", "namespace": "kube-system"},
-                "spec": {"nodeName": "node-charlie", "containers": [{"resources": {"requests": {"memory": "4Gi"}}}]},
-                "status": {"phase": "Running"}
+                "metadata": {
+                    "name": "logging-agent-3a5b7c9d-1r4q8",
+                    "namespace": "kube-system",
+                    "creationTimestamp": "2026-05-15T01:00:00Z"
+                },
+                "spec": {"nodeName": "node-charlie", "containers": [{"name": "fluentbit", "image": "fluent/fluent-bit:2-alpine", "resources": {"requests": {"memory": "4Gi"}}}]},
+                "status": {
+                    "phase": "Running",
+                    "containerStatuses": [{"name": "fluentbit", "restartCount": 1}]
+                }
             }
         ]
     }
@@ -397,6 +450,7 @@ def parse_cluster():
             "maxCPUCores": max_cpu_cores,
             "labels": labels,
             "conditions": conditions,
+            "creationTimestamp": metadata.get("creationTimestamp"),
             "pods": []
         }
 
@@ -455,6 +509,15 @@ def parse_cluster():
         # Dynamic HSL hash-based color matching for the pod namespace
         color_int = get_namespace_color(namespace)
 
+        # Sum container and init container restarts
+        restarts = 0
+        container_statuses = status.get("containerStatuses", [])
+        for cs in container_statuses:
+            restarts += cs.get("restartCount", 0)
+        init_container_statuses = status.get("initContainerStatuses", [])
+        for ics in init_container_statuses:
+            restarts += ics.get("restartCount", 0)
+
         pod_item = {
             "name": name,
             "memoryGB": total_pod_memory_gb,
@@ -462,6 +525,8 @@ def parse_cluster():
             "color": color_int,
             "status": phase,
             "namespace": namespace,
+            "restarts": restarts,
+            "creationTimestamp": metadata.get("creationTimestamp"),
             "raw": pod
         }
 
