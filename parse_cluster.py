@@ -5,6 +5,7 @@ import json
 import re
 import subprocess
 import hashlib
+import datetime
 
 # Configuration
 NODES_RAW_FILE = "raw-nodes.json"
@@ -169,6 +170,11 @@ def create_mock_files_if_missing():
         return
 
     print("▲ Local raw Kubernetes fixtures not found. Generating default mock files...")
+    
+    # Generate dynamic creation timestamps for stuck and normal init pods relative to current run time
+    now = datetime.datetime.now(datetime.timezone.utc)
+    stuck_time = (now - datetime.timedelta(minutes=45)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    normal_time = (now - datetime.timedelta(minutes=5)).strftime("%Y-%m-%dT%H:%M:%SZ")
     
     mock_nodes = {
         "apiVersion": "v1",
@@ -335,6 +341,30 @@ def create_mock_files_if_missing():
             },
             {
                 "metadata": {
+                    "name": "stuck-init-pod-5b4c3d2e-1s2a3",
+                    "namespace": "production",
+                    "creationTimestamp": stuck_time
+                },
+                "spec": {"nodeName": "node-bravo", "containers": [{"name": "app", "image": "nginx:stable-alpine", "resources": {"requests": {"memory": "2Gi"}}}]},
+                "status": {
+                    "phase": "Pending",
+                    "initContainerStatuses": [{"name": "init-clone", "ready": False, "state": {"waiting": {"reason": "PodInitializing"}}}]
+                }
+            },
+            {
+                "metadata": {
+                    "name": "normal-init-pod-4w8z7y6x-2x9v4",
+                    "namespace": "production",
+                    "creationTimestamp": normal_time
+                },
+                "spec": {"nodeName": "node-bravo", "containers": [{"name": "app", "image": "nginx:stable-alpine", "resources": {"requests": {"memory": "2Gi"}}}]},
+                "status": {
+                    "phase": "Pending",
+                    "initContainerStatuses": [{"name": "init-clone", "ready": False, "state": {"waiting": {"reason": "PodInitializing"}}}]
+                }
+            },
+            {
+                "metadata": {
                     "name": "analytics-worker-6f9e8d7c-8y2v4",
                     "namespace": "analytics",
                     "creationTimestamp": "2026-05-20T04:30:00Z"
@@ -369,6 +399,61 @@ def create_mock_files_if_missing():
         with open(PODS_RAW_FILE, "w", encoding="utf-8") as f:
             json.dump(mock_pods, f, indent=2)
         print(f"Generated standard mock {PODS_RAW_FILE}.")
+
+def get_detailed_pod_status(pod):
+    """
+    Computes a high-fidelity, user-friendly detailed status string for a pod,
+    matching kubectl's logic (e.g. ContainerCreating, Init:0/1, CrashLoopBackOff, Running).
+    """
+    status = pod.get("status", {})
+    phase = status.get("phase", "Unknown")
+    
+    # 1. Check if pod deletion is in progress
+    metadata = pod.get("metadata", {})
+    if metadata.get("deletionTimestamp"):
+        return "Terminating"
+        
+    # 2. Check Init Containers status
+    init_statuses = status.get("initContainerStatuses", [])
+    for i, cs in enumerate(init_statuses):
+        state = cs.get("state", {})
+        waiting = state.get("waiting", {})
+        terminated = state.get("terminated", {})
+        
+        if waiting:
+            reason = waiting.get("reason", "")
+            if reason == "PodInitializing":
+                return f"Init:{i}/{len(init_statuses)}"
+            return f"Init:{reason or 'Waiting'}"
+        elif terminated:
+            exit_code = terminated.get("exitCode", 0)
+            if exit_code != 0:
+                return f"Init:ExitCode:{exit_code}"
+            # if exitCode == 0, continue checking subsequent init containers
+            continue
+        else:
+            # Init container is running
+            return f"Init:{i}/{len(init_statuses)}"
+            
+    # 3. Check App Containers status
+    container_statuses = status.get("containerStatuses", [])
+    for cs in container_statuses:
+        state = cs.get("state", {})
+        waiting = state.get("waiting", {})
+        terminated = state.get("terminated", {})
+        
+        if waiting:
+            reason = waiting.get("reason", "")
+            return reason or "Waiting"
+        elif terminated:
+            reason = terminated.get("reason", "")
+            if reason:
+                return reason
+            exit_code = terminated.get("exitCode", 0)
+            if exit_code != 0:
+                return f"ExitCode:{exit_code}"
+            
+    return phase
 
 def parse_cluster():
     # 1. Gather data (live cluster pull)
@@ -523,7 +608,7 @@ def parse_cluster():
             "memoryGB": total_pod_memory_gb,
             "cpuCores": total_pod_cpu_cores,
             "color": color_int,
-            "status": phase,
+            "status": get_detailed_pod_status(pod),
             "namespace": namespace,
             "restarts": restarts,
             "creationTimestamp": metadata.get("creationTimestamp"),

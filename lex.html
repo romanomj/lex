@@ -346,7 +346,8 @@
         }
 
         .badge-pending,
-        .badge-containercreating {
+        .badge-containercreating,
+        [class*="badge-init"] {
             background: rgba(245, 158, 11, 0.15);
             color: #f59e0b;
             border: 1px solid rgba(245, 158, 11, 0.2);
@@ -828,6 +829,11 @@
         import * as THREE from 'three';
         import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
 
+        // Dynamic timestamps for stuck/normal init pods relative to load time
+        const nowMs = Date.now();
+        const stuckTimeStr = new Date(nowMs - 45 * 60 * 1000).toISOString();
+        const normalTimeStr = new Date(nowMs - 5 * 60 * 1000).toISOString();
+
         // 1. Mock Kubernetes Cluster Configuration Data (Normalized to GB)
         let clusterData = {
             clusterName: "ClusterNamePlaceHolder",
@@ -858,7 +864,7 @@
                 },
                 {
                     name: "node-bravo",
-                    maxMemoryGB: 16,
+                    maxMemoryGB: 20,
                     maxCPUCores: 4,
                     creationTimestamp: "2026-05-16T12:00:00Z",
                     labels: {
@@ -876,7 +882,9 @@
                     },
                     pods: [
                         { name: "db-pod-0-8b6d4c2e-4w8z7", memoryGB: 8, cpuCores: 2, color: 0xf59e0b, status: "Running", namespace: "database", restarts: 0, creationTimestamp: "2026-05-18T10:00:00Z" },
-                        { name: "db-pod-1-8b6d4c2e-5x9a2", memoryGB: 8, cpuCores: 2, color: 0x10b981, status: "Running", namespace: "database", restarts: 0, creationTimestamp: "2026-05-18T11:00:00Z" }
+                        { name: "db-pod-1-8b6d4c2e-5x9a2", memoryGB: 8, cpuCores: 2, color: 0x10b981, status: "Running", namespace: "database", restarts: 0, creationTimestamp: "2026-05-18T11:00:00Z" },
+                        { name: "stuck-init-pod-5b4c3d2e-1s2a3", memoryGB: 2, cpuCores: 0.5, color: 0xa855f7, status: "Init:0/1", namespace: "production", restarts: 0, creationTimestamp: stuckTimeStr },
+                        { name: "normal-init-pod-4w8z7y6x-2x9v4", memoryGB: 2, cpuCores: 0.5, color: 0x06b6d4, status: "Init:0/1", namespace: "production", restarts: 0, creationTimestamp: normalTimeStr }
                     ]
                 },
                 {
@@ -1220,14 +1228,42 @@ ${labels}`;
             return false;
         }
 
-        function isPodFailed(status) {
-            if (!status) return false;
-            const s = status.toLowerCase();
-            return s.includes('fail') || 
-                   s.includes('error') || 
-                   s.includes('backoff') || 
-                   s.includes('invalid') || 
-                   s === 'failed';
+        const PodProblemRules = [
+            {
+                name: "FailedStatus",
+                description: "Matches explicitly failed, error, backoff, or invalid states",
+                evaluate: function(pod) {
+                    if (!pod || !pod.status) return false;
+                    const s = pod.status.toLowerCase();
+                    return s.includes('fail') || 
+                           s.includes('error') || 
+                           s.includes('backoff') || 
+                           s.includes('invalid') || 
+                           s === 'failed';
+                }
+            },
+            {
+                name: "StuckInitializing",
+                description: "Matches pods in Init or ContainerCreating for more than 30 minutes",
+                evaluate: function(pod) {
+                    if (!pod || !pod.status) return false;
+                    const s = pod.status.toLowerCase();
+                    const isInitializing = s.includes('init') || s.includes('containercreating');
+                    if (!isInitializing) return false;
+
+                    if (!pod.creationTimestamp) return false;
+                    const createdTime = new Date(pod.creationTimestamp).getTime();
+                    if (isNaN(createdTime)) return false;
+
+                    const ageMinutes = (Date.now() - createdTime) / (1000 * 60);
+                    return ageMinutes > 30;
+                }
+            }
+        ];
+
+        function isPodFailed(pod) {
+            if (!pod) return false;
+            return PodProblemRules.some(rule => rule.evaluate(pod));
         }
 
         const partitionMaterial = new THREE.MeshStandardMaterial({
@@ -1888,7 +1924,7 @@ ${labels}`;
                 let nodeHasIssues = isNodeFailed(node);
                 if (node.pods) {
                     node.pods.forEach(pod => {
-                        if (isPodFailed(pod.status)) {
+                        if (isPodFailed(pod)) {
                             nodeHasIssues = true;
                         }
                     });
@@ -2005,7 +2041,7 @@ ${labels}`;
                         podHeight - marginY * 2,
                         buildingDepth - wallThickness - 0.2
                     );
-                    const isFailed = isPodFailed(pod.status);
+                    const isFailed = isPodFailed(pod);
                     const podColor = isFailed ? 0xef4444 : pod.color;
 
                     let podMat;
