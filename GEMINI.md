@@ -50,10 +50,16 @@ A unified Python pipeline (`parse_cluster.py`) has been added to extract and com
 [x] Static Asset Compilation:
   - Compiles the aligned structures into a standalone `cluster_state.json` file in the web folder.
 
-3. Front-End Ingestion (`lex.html`)
-- Fetches `cluster_state.json` dynamically on initialization.
-- Includes a CORS-safe catch-all block that falls back to embedded static demo data when opened directly via filesystem (`file://`) or when the compiled asset is missing.
-- Features a connection status indicator (`● Live Cluster` vs `▲ Demo Mode`) in the HUD.
+[x] Front-End Ingestion (`lex.html`):
+  - Fetches `cluster_state.json` dynamically on initialization.
+  - Includes a CORS-safe catch-all block that falls back to embedded static demo data when opened directly via filesystem (`file://`) or when the compiled asset is missing.
+  - Features a connection status indicator (`● Live Cluster` vs `▲ Demo Mode`) in the HUD.
+
+Phase 3: Live View & Interactive Commands Engine (K9s-like Experience)
+- [ ] **Lightweight Local API Server (`server.py`)**: Subclass `http.server.SimpleHTTPRequestHandler` to serve the web assets, run a background thread to poll the cluster context dynamically via `parse_cluster.py` every 30 seconds (configurable), and expose a modular REST API interface.
+- [ ] **Near-Real-Time Synchronization**: Set up a lightweight polling or SSE client loop in `lex.html` that receives the newest cluster state and implements a high-performance differential patcher in Three.js (adding, removing, or updating meshes smoothly with transitions rather than hard scene recreation).
+- [ ] **Interactive Pod Command Menu ("C" Hotkey)**: Integrate key triggers so that hitting the "C" key while looking at a pod unlocks pointer controls and displays a floating, modern glassmorphic action menu listing read-only operations.
+- [ ] **Modular Backend Command Handlers (Logs & Describe)**: Create reusable classes for invoking shell-level `kubectl` operations securely, sanitizing names and namespaces, and displaying output dynamically in a retro terminal-styled popup panel inside the browser canvas.
 
 Dev Logs & Next Targets
 - **Collision Spawning Bug Fix**: Resolved a critical issue where players would spawn inside the physical structure of a node and get trapped due to the AABB colliders. Implemented dynamic bounding box calculation in `generateClusterWorld()` to offset the player safely to the front-center of the entire cluster at `Z = -25`, rotated 180 degrees to face the nodes directly.
@@ -79,5 +85,60 @@ Dev Logs & Next Targets
 
 Potential Future Requests
 1. [x] **Fly Mode / Spectator Toggle**: Enabled flying up and down smoothly using `Space` and `Shift` keys, complete with dynamic spectator bounding physics. Fully integrated adjustable speed controls (default doubled, +/- 10% speed variations via UI buttons and hotkeys).
-2. **Minimap or HUD Radar**: Add a 2D canvas overlay in the HUD showing a bird's-eye schematic map of the cluster layout, highlighting the player's current coordinate and looking direction.
-3. **Collision Override Toggle**: Allow a debug key (e.g., `N` for noclip) to temporarily disable AABB collision detection, allowing rapid debugging or walking directly through walls.
+2. [ ] **Real-Time Live View & Command Execution System (Phase 3 Plan)**: Implement localhost server, real-time polling sync, and "C" command key popup overlays.
+3. [ ] **Minimap or HUD Radar**: Add a 2D canvas overlay in the HUD showing a bird's-eye schematic map of the cluster layout, highlighting the player's current coordinate and looking direction.
+4. [ ] **Collision Override Toggle**: Allow a debug key (e.g., `N` for noclip) to temporarily disable AABB collision detection, allowing rapid debugging or walking directly through walls.
+
+---
+
+## Phase 3 Architectural Plan of Execution
+
+To transition this application to a real-time cluster visualizer and introduce modular, interactive troubleshooting commands, we will construct a clean backend-bridge pattern. Below is the multi-step plan we will execute in subsequent sessions:
+
+### Step 1: Lightweight Local API Server (`server.py`)
+Create a zero-dependency Python server script `server.py` using Python's standard `http.server` library to serve files over `http://localhost:8000`.
+- **Background Worker Thread**: Spawn an asynchronous background thread that executes the core parsing loop of `parse_cluster.py` every 30 seconds (configurable, preventing cluster overhead from frequent subprocess execution). It will maintain the current state of the active cluster context securely in memory or update a hot `cluster_state.json` on disk.
+- **Local Loopback Bounding**: Hard-bind server listener to `127.0.0.1` only. This isolates K8s command execution strictly to local host users, preventing any external network entry.
+- **Modular REST Router**:
+  - Implement a regex-based API path router (`/api/v1/*`) to process custom endpoints.
+  - Route `/api/v1/state` -> Returns hot cluster state coordinates and metadata.
+  - Structure API handlers modularly (e.g., `PodActionHandler`, `NodeActionHandler`) to allow future expansions to `Deployments`, `Configs`, etc.
+
+### Step 2: Modular Subprocess Command Runners
+Implement secure, read-only K8s context interaction.
+- **Secure Parameter Validation**: Enforce strict regex parameters `^[a-z0-9.-]+$` on all queried Pod Names and Namespaces before passing them to subprocesses to eliminate any command-injection vector.
+- **Logs Endpoint (`GET /api/v1/pods/logs`)**:
+  - Parameterized extraction of `pod` and `namespace`.
+  - Executes: `kubectl logs <pod> -n <namespace> --tail=200`
+  - Returns output as a plain text response wrapped in standard HTTP codes.
+- **Describe Endpoint (`GET /api/v1/pods/describe`)**:
+  - Parameterized extraction of `pod` and `namespace`.
+  - Executes: `kubectl describe pod <pod> -n <namespace>`
+  - Returns raw command stdout.
+- **Extensible Commands Map**: Keep command registrations in a structured layout so that write/mutating actions (e.g. `delete`, `restart`) or resource types (e.g. `describe deployment`) can be integrated via simple dictionary entries later.
+
+### Step 3: High-Performance Three.js Differential Sync
+Upgrade `lex.html` to sync its environment seamlessly in real-time.
+- **Sync Loop**: Initiate a periodic fetch cycle (polling `/api/v1/state` every 10–15 seconds to align with the server's update cycle and conserve CPU).
+- **Three-Way Scene Diff Algorithm**: Avoid hard page refreshes or scene clearance. Keep track of current meshes in `activeNodeMeshes` and `activePodMeshes` maps:
+  - **Deletions**: If a node or pod is missing in the new API payload, trigger a beautiful visual fade-out, remove bounding collision objects from the movement Loop's `colliders` list, dispose of geometries/materials to prevent memory leaks, and remove the meshes from the scene.
+  - **Additions**: Build and transition-in meshes for new nodes/pods at their respective skyscraper floor offsets, generating side status cards and floating warning signs automatically.
+  - **Updates**: If a pod's status changes (e.g., healthy to failed), transition its color or trigger its pulsing alert state immediately. If resources change, dynamically adjust room height values and slide stacked floors above them seamlessly.
+- **HUD Retainment**: Preserve active HUD selection metrics and pointer lock camera vectors during synchronization updates.
+
+### Step 4: "C" Command Menu UI & Retro Terminal Overlay
+Implement interactive menus inside the 3D visual layer.
+- **Hotkey Registration**: Intercept keypresses of the `C` key inside `lex.html`.
+- **AABB Hover Validation**: If the crosshair raycaster detects a valid pod room, trigger the context overlay flow:
+  1. Capture pod name and namespace from the active mesh data storage.
+  2. Suspend standard Pointer Lock (`controls.unlock()`) to bring back the mouse cursor.
+  3. Render a floating glassmorphic `#pod-command-menu` option panel at the screen center showing button choices: `[📜 Get Logs]`, `[🔍 Describe Pod]`, `[⚙️ Restart Pod (Disabled)]`, `[❌ Delete Pod (Disabled)]`.
+- **Glassmorphic Terminal Popup (`#command-output-modal`)**:
+  - Clicking `Get Logs` or `Describe Pod` queries the local API server and pops open a modern terminal card overlay.
+  - Features:
+    - Glowing top bar with code-safe header detailing active command: `$ kubectl logs <pod> -n <namespace>`.
+    - Compact monospace text container displaying output with styled lines (coloring error messages red and status highlights amber).
+    - Custom slim scrollbars and quick-copy action buttons.
+    - Large glassmorphic `[X Close]` button (or ESC key binding) that safely closes the overlay and automatically requests permission to re-engage the FPS Pointer Lock.
+- **Modular Actions Array**:
+  - The menu buttons and callbacks are driven by a clean, declarative JS config array. Adding new endpoints or UI options in future sessions requires only a single addition to the config array.

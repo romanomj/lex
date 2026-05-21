@@ -470,6 +470,216 @@
         #ui-container button:active {
             transform: scale(0.9);
         }
+
+        /* Pod command action menu */
+        #pod-command-menu {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.9);
+            width: 320px;
+            background: rgba(13, 13, 18, 0.9);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 16px;
+            color: #f1f5f9;
+            padding: 24px;
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            z-index: 200;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        #pod-command-menu.visible {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+            pointer-events: auto;
+        }
+
+        .menu-title {
+            font-size: 14px;
+            font-weight: 800;
+            margin-bottom: 4px;
+            word-break: break-all;
+            font-family: 'JetBrains Mono', monospace;
+            color: #a78bfa;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            padding-bottom: 8px;
+        }
+
+        .menu-btn {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.04);
+            color: #f1f5f9;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 8px;
+            transition: all 0.2s ease;
+            user-select: none;
+        }
+
+        .menu-btn:hover {
+            background: rgba(139, 92, 246, 0.25);
+            border-color: #8b5cf6;
+            box-shadow: 0 0 12px rgba(139, 92, 246, 0.4);
+            color: #fff;
+        }
+
+        .menu-btn:active {
+            transform: scale(0.98);
+        }
+
+        .menu-btn.disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
+        /* Glassmorphic Retro Terminal Popup Modal */
+        #command-output-modal {
+            position: absolute;
+            top: 5%;
+            left: 5%;
+            width: 90%;
+            height: 90%;
+            background: rgba(10, 10, 14, 0.95);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(139, 92, 246, 0.25);
+            border-radius: 20px;
+            box-shadow: 0 40px 80px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            z-index: 300;
+            display: flex;
+            flex-direction: column;
+            opacity: 0;
+            pointer-events: none;
+            transform: scale(0.95);
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        #command-output-modal.visible {
+            opacity: 1;
+            transform: scale(1);
+            pointer-events: auto;
+        }
+
+        .terminal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 24px;
+            background: rgba(20, 20, 28, 0.6);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            border-top-left-radius: 20px;
+            border-top-right-radius: 20px;
+        }
+
+        .terminal-command {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            color: #38bdf8;
+            text-shadow: 0 0 8px rgba(56, 189, 248, 0.4);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .terminal-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .terminal-btn {
+            padding: 8px 16px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            background: rgba(255, 255, 255, 0.05);
+            color: #f1f5f9;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+            user-select: none;
+        }
+
+        .terminal-btn:hover {
+            background: rgba(139, 92, 246, 0.2);
+            border-color: #8b5cf6;
+            color: #fff;
+        }
+
+        .terminal-btn:active {
+            transform: scale(0.96);
+        }
+
+        .terminal-btn-close {
+            background: rgba(239, 68, 68, 0.15);
+            border-color: rgba(239, 68, 68, 0.3);
+            color: #ef4444;
+        }
+
+        .terminal-btn-close:hover {
+            background: rgba(239, 68, 68, 0.25);
+            border-color: #ef4444;
+            color: #fff;
+            box-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
+        }
+
+        .terminal-body {
+            flex: 1;
+            padding: 24px;
+            overflow-y: auto;
+            margin: 0;
+            background: #050508;
+            border-bottom-left-radius: 20px;
+            border-bottom-right-radius: 20px;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+        }
+
+        .terminal-body::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .terminal-body::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .terminal-body::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.12);
+            border-radius: 4px;
+        }
+
+        .terminal-body::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.25);
+        }
+
+        #terminal-text {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            line-height: 1.6;
+            color: #a7f3d0; /* Soft Matrix green by default for terminal logs */
+            white-space: pre-wrap;
+            word-break: break-all;
+            margin: 0;
+            text-shadow: 0 0 2px rgba(167, 243, 208, 0.15);
+        }
     </style>
     <!-- Import maps polyfill -->
     <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
@@ -491,6 +701,7 @@
             <strong>Click screen</strong> to lock mouse and look around.<br>
             <strong>WASD / Arrow Keys:</strong> Move around<br>
             <strong>Space / Shift:</strong> Fly Up / Down<br>
+            <strong>C Key:</strong> Actions Menu (on Pod)<br>
             <strong>ESC:</strong> Exit mouse lock
         </p>
         <div style="margin-top: 15px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: space-between;">
@@ -538,6 +749,33 @@
             <pre id="yaml-text"></pre>
         </div>
     </div>
+
+    <!-- Command Action Menu -->
+    <div id="pod-command-menu">
+        <div class="menu-title" id="menu-pod-name">Select Pod Action</div>
+        <button class="menu-btn" id="menu-btn-logs">📜 Get Logs</button>
+        <button class="menu-btn" id="menu-btn-describe">🔍 Describe Pod</button>
+        <button class="menu-btn disabled" id="menu-btn-restart" disabled>⚙️ Restart Pod (Disabled)</button>
+        <button class="menu-btn disabled" id="menu-btn-delete" disabled>❌ Delete Pod (Disabled)</button>
+        <button class="menu-btn terminal-btn-close" id="menu-btn-close" style="justify-content: center; margin-top: 8px;">✕ Close</button>
+    </div>
+
+    <!-- Retro Terminal Modal -->
+    <div id="command-output-modal">
+        <div class="terminal-header">
+            <div class="terminal-command" id="terminal-cmd-header">$ kubectl logs</div>
+            <div class="terminal-actions">
+                <button class="terminal-btn" id="terminal-btn-copy">📋 Copy Output</button>
+                <button class="terminal-btn" id="terminal-btn-scroll-up">▲ Up</button>
+                <button class="terminal-btn" id="terminal-btn-scroll-down">▼ Down</button>
+                <button class="terminal-btn terminal-btn-close" id="terminal-btn-close">✕ Close</button>
+            </div>
+        </div>
+        <div class="terminal-body" id="terminal-body-container">
+            <pre id="terminal-text">Fetching output...</pre>
+        </div>
+    </div>
+
     <div id="crosshair"></div>
     <div id="canvas-container"></div>
 
@@ -651,6 +889,12 @@
         let oceanGeometry, oceanMesh, sunGroup, sunMesh;
         const renderedPods = [];
         const warningSigns = [];
+
+        // Phase 3 State Mappers for high-performance differential sync
+        const activeNodeGroups = new Map(); // nodeName -> THREE.Group
+        const activePodMeshes = new Map();  // podName -> THREE.Mesh
+        const activeColliders = new Map();  // nodeName -> Array of THREE.Box3
+        let activeSelectedPodData = null;   // Real-time hovered or inside pod metadata
 
         // Recursive helper to format JSON into beautiful, syntactically styled YAML
         function jsonToYaml(val, indentNum = 0) {
@@ -906,49 +1150,14 @@
 
         init();
 
-        // Dynamically load live cluster data with local fallback
-        fetch('cluster_state.json')
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                console.log("Successfully loaded live cluster state:", data);
-                if (data && Array.isArray(data.nodes)) {
-                    clusterData = data;
-                }
-                ensureRawPods();
-                const nodeInfo = document.getElementById('node-info');
-                if (nodeInfo) {
-                    nodeInfo.innerHTML = `
-                        <span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 20px; background: rgba(16, 185, 129, 0.12); color: #10b981; font-size: 11px; font-weight: 700; border: 1px solid rgba(16, 185, 129, 0.2); text-transform: uppercase; letter-spacing: 0.5px;">
-                            <span style="width: 6px; height: 6px; border-radius: 50%; background: #10b981; display: inline-block; box-shadow: 0 0 8px #10b981;"></span>
-                            Live Cluster
-                        </span>
-                    `;
-                }
-                updateStatsPanel();
-                generateClusterWorld();
-                animate();
-            })
-            .catch(error => {
-                console.warn("Could not fetch cluster_state.json (falling back to static mock configuration). Reason:", error.message);
-                ensureRawPods();
-                const nodeInfo = document.getElementById('node-info');
-                if (nodeInfo) {
-                    nodeInfo.innerHTML = `
-                        <span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 20px; background: rgba(245, 158, 11, 0.12); color: #f59e0b; font-size: 11px; font-weight: 700; border: 1px solid rgba(245, 158, 11, 0.2); text-transform: uppercase; letter-spacing: 0.5px;">
-                            <span style="width: 6px; height: 6px; border-radius: 50%; background: #f59e0b; display: inline-block; box-shadow: 0 0 8px #f59e0b;"></span>
-                            Demo Mode
-                        </span>
-                    `;
-                }
-                updateStatsPanel();
-                generateClusterWorld();
-                animate();
-            });
+        // Setup Troubleshooting UI event handlers
+        setupTroubleshootingUI();
+
+        // Initial fetch and world generation
+        fetchClusterState();
+
+        // Start live cluster synchronization interval (every 10s)
+        setInterval(fetchClusterState, 10000);
 
         function init() {
             scene = new THREE.Scene();
@@ -1055,6 +1264,15 @@
 
             // Input Listeners
             const onKeyDown = (event) => {
+                if (event.code === 'KeyC') {
+                    const menuEl = document.getElementById('pod-command-menu');
+                    if (activeSelectedPodData && menuEl && !menuEl.classList.contains('visible')) {
+                        event.preventDefault();
+                        openPodCommandMenu(activeSelectedPodData);
+                        return;
+                    }
+                }
+
                 switch (event.code) {
                     case 'ArrowUp':
                     case 'KeyW': moveForward = true; break;
@@ -1321,171 +1539,161 @@
             warningSigns.push(signGroup);
         }
 
-        // 3. Procedural Map Generation Logic
-        function generateClusterWorld() {
-            renderedPods.length = 0;
-            warningSigns.length = 0;
-            const buildingWidth = 12;      // Fixed width for every node structure
-            const buildingDepth = 12;      // Fixed depth for every node structure
-            const heightScale = 0.8;       // Height scale: 1GB memory matches 0.8 units in height
-            const wallThickness = 0.4;     // Thickness of structural walls
-            const spacing = 10;            // Gap space between buildings
+        function clearNodeContents(nodeBuilding) {
+            nodeBuilding.traverse((child) => {
+                if (child.isMesh || child.isLine || child.isLineSegments) {
+                    if (child.geometry) {
+                        child.geometry.dispose();
+                    }
+                    if (child.material) {
+                        const mats = Array.isArray(child.material) ? child.material : [child.material];
+                        mats.forEach(mat => {
+                            const isShared = (
+                                mat === wallMaterial ||
+                                mat === failedWallMaterial ||
+                                mat === failedOutlineMaterial ||
+                                mat === failedPodMaterial ||
+                                mat === failedPodOutlineMaterial ||
+                                mat === partitionMaterial ||
+                                mat === unallocatedMaterial
+                            );
+                            if (!isShared) {
+                                if (mat.map) {
+                                    mat.map.dispose();
+                                }
+                                mat.dispose();
+                            }
+                        });
+                    }
+                }
+                if (child.userData && child.userData.type === 'pod') {
+                    activePodMeshes.delete(child.userData.podName);
+                    const rIdx = renderedPods.indexOf(child);
+                    if (rIdx !== -1) {
+                        renderedPods.splice(rIdx, 1);
+                    }
+                }
+            });
 
-            const usableBeachWidth = 200;  // Beach is 250x250, so 200 leaves a 25-unit border on all sides
-            const maxCols = Math.floor((usableBeachWidth + spacing) / (buildingWidth + spacing)); // Math.floor(210 / 22) = 9 cols
+            // Remove warning sign from visual animations tracker
+            warningSigns.forEach((sign, idx) => {
+                if (nodeBuilding.children.includes(sign)) {
+                    warningSigns.splice(idx, 1);
+                }
+            });
 
-            const N = clusterData.nodes.length;
-            const numCols = Math.min(N, maxCols);
-            const numRows = Math.ceil(N / maxCols);
+            while (nodeBuilding.children.length > 0) {
+                nodeBuilding.remove(nodeBuilding.children[0]);
+            }
+        }
 
-            const gridWidth = numCols * buildingWidth + (numCols - 1) * spacing;
-            const gridDepth = numRows * buildingDepth + (numRows - 1) * spacing;
+        function buildNodeContents(nodeBuilding, node, heightScale, buildingWidth, buildingDepth, wallThickness) {
+            clearNodeContents(nodeBuilding);
 
-            let minX = Infinity;
-            let maxX = -Infinity;
-            let minZ = Infinity;
-            let maxZ = -Infinity;
-
-            clusterData.nodes.forEach((node, index) => {
-                // Calculate position in the grid (filling columns first, then rows)
-                const row = Math.floor(index / maxCols);
-                const col = index % maxCols;
-
-                const x = col * (buildingWidth + spacing) - (gridWidth - buildingWidth) / 2;
-                // Center the Z rows around 0. The row 0 will be the front-most row.
-                // Building spans from z to z + buildingDepth.
-                const z = row * (buildingDepth + spacing) - gridDepth / 2;
-
-                // Calculate dynamic building height derived from maximum memory capacity
-                const nodeWallHeight = node.maxMemoryGB * heightScale;
-
-                // Track physical boundaries to spawn player safely outside
-                const halfW = buildingWidth / 2 + wallThickness;
-                const nodeMinX = x - halfW;
-                const nodeMaxX = x + halfW;
-                if (nodeMinX < minX) minX = nodeMinX;
-                if (nodeMaxX > maxX) maxX = nodeMaxX;
-                if (z < minZ) minZ = z;
-                if (z + buildingDepth > maxZ) maxZ = z + buildingDepth;
-
-                // Group representing our single structural node container
-                const nodeBuilding = new THREE.Group();
-                nodeBuilding.position.set(x, 0, z);
-
-                // Add warning sign if node has issues or contains a pod with issues
-                let nodeHasIssues = isNodeFailed(node);
+            const nodeWallHeight = node.maxMemoryGB * heightScale;
+            
+            let nodeHasIssues = isNodeFailed(node);
+            if (node.pods) {
                 node.pods.forEach(pod => {
                     if (isPodFailed(pod.status)) {
                         nodeHasIssues = true;
                     }
                 });
+            }
 
-                if (nodeHasIssues) {
-                    createNodeWarningSign(nodeBuilding, nodeWallHeight, buildingDepth);
-                }
+            if (nodeHasIssues) {
+                createNodeWarningSign(nodeBuilding, nodeWallHeight, buildingDepth);
+            }
 
-                // Calculate metadata for node interaction
-                const totalAllocatedMemory = node.pods.reduce((sum, p) => sum + p.memoryGB, 0);
-                const totalAllocatedCPU = node.pods.reduce((sum, p) => sum + (p.cpuCores || 0), 0);
-                const nodeMetadata = {
-                    type: "node",
-                    nodeName: node.name,
-                    maxMemoryGB: node.maxMemoryGB,
-                    maxCPUCores: node.maxCPUCores || null,
-                    allocatedMemory: Math.round(totalAllocatedMemory * 10) / 10,
-                    allocatedCPU: Math.round(totalAllocatedCPU * 10) / 10,
-                    podsCount: node.pods.length
-                };
+            const totalAllocatedMemory = node.pods ? node.pods.reduce((sum, p) => sum + p.memoryGB, 0) : 0;
+            const totalAllocatedCPU = node.pods ? node.pods.reduce((sum, p) => sum + (p.cpuCores || 0), 0) : 0;
+            const nodeMetadata = {
+                type: "node",
+                nodeName: node.name,
+                maxMemoryGB: node.maxMemoryGB,
+                maxCPUCores: node.maxCPUCores || null,
+                allocatedMemory: Math.round(totalAllocatedMemory * 10) / 10,
+                allocatedCPU: Math.round(totalAllocatedCPU * 10) / 10,
+                podsCount: node.pods ? node.pods.length : 0
+            };
 
-                // --- Outer Shell Construction (No Roof Box) ---
-                const isFailedNode = isNodeFailed(node);
-                const activeWallMaterial = isFailedNode ? failedWallMaterial : wallMaterial;
-                const activeOutlineColor = isFailedNode ? 0xef4444 : 0x3b82f6;
+            const isFailedNode = isNodeFailed(node);
+            const activeWallMaterial = isFailedNode ? failedWallMaterial : wallMaterial;
+            const activeOutlineColor = isFailedNode ? 0xef4444 : 0x3b82f6;
 
-                // Outer Left & Right Structural Walls
-                const sideWallGeo = new THREE.BoxGeometry(wallThickness, nodeWallHeight, buildingDepth);
+            const sideWallGeo = new THREE.BoxGeometry(wallThickness, nodeWallHeight, buildingDepth);
 
-                const leftWall = new THREE.Mesh(sideWallGeo, activeWallMaterial);
-                leftWall.position.set(-buildingWidth / 2, nodeWallHeight / 2, buildingDepth / 2);
-                leftWall.userData = nodeMetadata;
-                nodeBuilding.add(leftWall);
+            const leftWall = new THREE.Mesh(sideWallGeo, activeWallMaterial);
+            leftWall.position.set(-buildingWidth / 2, nodeWallHeight / 2, buildingDepth / 2);
+            leftWall.userData = nodeMetadata;
+            nodeBuilding.add(leftWall);
 
-                // Add glowing outline to left wall for premium wireframe styling
-                const leftWallEdges = new THREE.EdgesGeometry(sideWallGeo);
-                const leftWallLineMat = isFailedNode ? failedOutlineMaterial : new THREE.LineBasicMaterial({ color: activeOutlineColor, transparent: true, opacity: 0.35 });
-                const leftWallLine = new THREE.LineSegments(leftWallEdges, leftWallLineMat);
-                leftWallLine.position.copy(leftWall.position);
-                nodeBuilding.add(leftWallLine);
+            const leftWallEdges = new THREE.EdgesGeometry(sideWallGeo);
+            const leftWallLineMat = isFailedNode ? failedOutlineMaterial : new THREE.LineBasicMaterial({ color: activeOutlineColor, transparent: true, opacity: 0.35 });
+            const leftWallLine = new THREE.LineSegments(leftWallEdges, leftWallLineMat);
+            leftWallLine.position.copy(leftWall.position);
+            nodeBuilding.add(leftWallLine);
 
-                const rightWall = new THREE.Mesh(sideWallGeo, activeWallMaterial);
-                rightWall.position.set(buildingWidth / 2, nodeWallHeight / 2, buildingDepth / 2);
-                rightWall.userData = nodeMetadata;
-                nodeBuilding.add(rightWall);
+            const rightWall = new THREE.Mesh(sideWallGeo, activeWallMaterial);
+            rightWall.position.set(buildingWidth / 2, nodeWallHeight / 2, buildingDepth / 2);
+            rightWall.userData = nodeMetadata;
+            nodeBuilding.add(rightWall);
 
-                // Add glowing outline to right wall
-                const rightWallEdges = new THREE.EdgesGeometry(sideWallGeo);
-                const rightWallLineMat = isFailedNode ? failedOutlineMaterial : new THREE.LineBasicMaterial({ color: activeOutlineColor, transparent: true, opacity: 0.35 });
-                const rightWallLine = new THREE.LineSegments(rightWallEdges, rightWallLineMat);
-                rightWallLine.position.copy(rightWall.position);
-                nodeBuilding.add(rightWallLine);
+            const rightWallEdges = new THREE.EdgesGeometry(sideWallGeo);
+            const rightWallLineMat = isFailedNode ? failedOutlineMaterial : new THREE.LineBasicMaterial({ color: activeOutlineColor, transparent: true, opacity: 0.35 });
+            const rightWallLine = new THREE.LineSegments(rightWallEdges, rightWallLineMat);
+            rightWallLine.position.copy(rightWall.position);
+            nodeBuilding.add(rightWallLine);
 
-                // --- Text Billboard/Screen Panels on Sides ---
-                // Left text panel: Health Conditions
-                const leftTextTexture = createNodeTextTexture("CONDITIONS", node.conditions, true, nodeWallHeight, buildingDepth);
-                const textPanelGeo = new THREE.PlaneGeometry(buildingDepth, nodeWallHeight);
-                const leftTextMat = new THREE.MeshBasicMaterial({
-                    map: leftTextTexture,
-                    transparent: true,
-                    side: THREE.DoubleSide
-                });
-                const leftTextMesh = new THREE.Mesh(textPanelGeo, leftTextMat);
-                leftTextMesh.position.set(-buildingWidth / 2 - wallThickness / 2 - 0.02, nodeWallHeight / 2, buildingDepth / 2);
-                leftTextMesh.rotation.y = -Math.PI / 2;
-                leftTextMesh.userData = nodeMetadata; // Hovering triggers node HUD overlay
-                nodeBuilding.add(leftTextMesh);
+            const leftTextTexture = createNodeTextTexture("CONDITIONS", node.conditions, true, nodeWallHeight, buildingDepth);
+            const textPanelGeo = new THREE.PlaneGeometry(buildingDepth, nodeWallHeight);
+            const leftTextMat = new THREE.MeshBasicMaterial({
+                map: leftTextTexture,
+                transparent: true,
+                side: THREE.DoubleSide
+            });
+            const leftTextMesh = new THREE.Mesh(textPanelGeo, leftTextMat);
+            leftTextMesh.position.set(-buildingWidth / 2 - wallThickness / 2 - 0.02, nodeWallHeight / 2, buildingDepth / 2);
+            leftTextMesh.rotation.y = -Math.PI / 2;
+            leftTextMesh.userData = nodeMetadata;
+            nodeBuilding.add(leftTextMesh);
 
-                // Right text panel: Node Labels
-                const rightTextTexture = createNodeTextTexture("NODE LABELS", node.labels, false, nodeWallHeight, buildingDepth);
-                const rightTextMat = new THREE.MeshBasicMaterial({
-                    map: rightTextTexture,
-                    transparent: true,
-                    side: THREE.DoubleSide
-                });
-                const rightTextMesh = new THREE.Mesh(textPanelGeo, rightTextMat);
-                rightTextMesh.position.set(buildingWidth / 2 + wallThickness / 2 + 0.02, nodeWallHeight / 2, buildingDepth / 2);
-                rightTextMesh.rotation.y = Math.PI / 2;
-                rightTextMesh.userData = nodeMetadata; // Hovering triggers node HUD overlay
-                nodeBuilding.add(rightTextMesh);
+            const rightTextTexture = createNodeTextTexture("NODE LABELS", node.labels, false, nodeWallHeight, buildingDepth);
+            const rightTextMat = new THREE.MeshBasicMaterial({
+                map: rightTextTexture,
+                transparent: true,
+                side: THREE.DoubleSide
+            });
+            const rightTextMesh = new THREE.Mesh(textPanelGeo, rightTextMat);
+            rightTextMesh.position.set(buildingWidth / 2 + wallThickness / 2 + 0.02, nodeWallHeight / 2, buildingDepth / 2);
+            rightTextMesh.rotation.y = Math.PI / 2;
+            rightTextMesh.userData = nodeMetadata;
+            nodeBuilding.add(rightTextMesh);
 
-                // Back panel relative to player (at Z = buildingDepth)
-                const frontWallGeo = new THREE.BoxGeometry(buildingWidth + wallThickness, nodeWallHeight, wallThickness);
-                const frontWall = new THREE.Mesh(frontWallGeo, activeWallMaterial);
-                frontWall.position.set(0, nodeWallHeight / 2, buildingDepth);
-                frontWall.userData = nodeMetadata;
-                nodeBuilding.add(frontWall);
+            const frontWallGeo = new THREE.BoxGeometry(buildingWidth + wallThickness, nodeWallHeight, wallThickness);
+            const frontWall = new THREE.Mesh(frontWallGeo, activeWallMaterial);
+            frontWall.position.set(0, nodeWallHeight / 2, buildingDepth);
+            frontWall.userData = nodeMetadata;
+            nodeBuilding.add(frontWall);
 
-                // Add glowing outline to back panel
-                const frontWallEdges = new THREE.EdgesGeometry(frontWallGeo);
-                const frontWallLineMat = isFailedNode ? failedOutlineMaterial : new THREE.LineBasicMaterial({ color: activeOutlineColor, transparent: true, opacity: 0.35 });
-                const frontWallLine = new THREE.LineSegments(frontWallEdges, frontWallLineMat);
-                frontWallLine.position.copy(frontWall.position);
-                nodeBuilding.add(frontWallLine);
+            const frontWallEdges = new THREE.EdgesGeometry(frontWallGeo);
+            const frontWallLineMat = isFailedNode ? failedOutlineMaterial : new THREE.LineBasicMaterial({ color: activeOutlineColor, transparent: true, opacity: 0.35 });
+            const frontWallLine = new THREE.LineSegments(frontWallEdges, frontWallLineMat);
+            frontWallLine.position.copy(frontWall.position);
+            nodeBuilding.add(frontWallLine);
 
+            let currentYOffset = 0;
+            let allocatedMemory = 0;
 
-
-                // --- Room Segmentation (Pods Layout) ---
-                let currentYOffset = 0;
-                let allocatedMemory = 0;
-
+            if (node.pods) {
                 node.pods.forEach((pod, index) => {
                     const podHeight = pod.memoryGB * heightScale;
                     const marginY = Math.min(0.05, podHeight * 0.05);
 
-                    // Render individual pod unit as a glassmorphic 3D Box filling the room container floor/ceiling height
                     const podGeo = new THREE.BoxGeometry(
-                        buildingWidth - wallThickness - 0.2, // leave margin on sides to prevent outer wall intersection
-                        podHeight - marginY * 2,            // leave margin on top/bottom to prevent floor partition intersection
-                        buildingDepth - wallThickness - 0.2  // leave margin on depth to prevent front/back wall intersection
+                        buildingWidth - wallThickness - 0.2,
+                        podHeight - marginY * 2,
+                        buildingDepth - wallThickness - 0.2
                     );
                     const isFailed = isPodFailed(pod.status);
                     const podColor = isFailed ? 0xef4444 : pod.color;
@@ -1504,10 +1712,8 @@
                         });
                     }
                     const podBox = new THREE.Mesh(podGeo, podMat);
-                    // Position at the core center of this pod's allocated zone section, stacked vertically
                     podBox.position.set(0, currentYOffset + (podHeight / 2), buildingDepth / 2);
 
-                    // Attach pod metadata
                     podBox.userData = {
                         type: "pod",
                         podName: pod.name,
@@ -1523,21 +1729,17 @@
                     };
                     nodeBuilding.add(podBox);
                     renderedPods.push(podBox);
+                    activePodMeshes.set(pod.name, podBox);
 
-                    // Add high-tech holographic wireframe outlines to the glassmorphic pod box
                     const edges = new THREE.EdgesGeometry(podGeo);
                     const lineMat = isFailed ? failedPodOutlineMaterial : new THREE.LineBasicMaterial({ color: podColor, transparent: true, opacity: 0.8 });
                     const line = new THREE.LineSegments(edges, lineMat);
                     line.position.copy(podBox.position);
                     nodeBuilding.add(line);
 
-                    // Move offset up
                     currentYOffset += podHeight;
                     allocatedMemory += pod.memoryGB;
 
-                    // Slice Internal Partition Floor Slab (Placed between stacked pod rooms)
-                    // Scale partition thickness dynamically if either adjacent element is very small
-                    // to prevent thin pod layers from being swallowed/overlapped by the divider slab.
                     const nextPod = node.pods[index + 1];
                     let nextAdjacentHeight = Infinity;
                     if (nextPod) {
@@ -1555,64 +1757,195 @@
                     const partitionGeo = new THREE.BoxGeometry(buildingWidth - wallThickness, partitionThickness, buildingDepth - wallThickness);
                     const partition = new THREE.Mesh(partitionGeo, partitionMaterial);
                     partition.position.set(0, currentYOffset, buildingDepth / 2);
-                    // Partitions have custom type so they don't block vertical flying inside
                     partition.userData = {
                         type: "partition",
                         nodeName: node.name
                     };
                     nodeBuilding.add(partition);
 
-                    // Add glowing outline to partition floor slab
                     const partitionEdges = new THREE.EdgesGeometry(partitionGeo);
                     const partitionLineMat = new THREE.LineBasicMaterial({ color: 0x475569, transparent: true, opacity: 0.35 });
                     const partitionLine = new THREE.LineSegments(partitionEdges, partitionLineMat);
                     partitionLine.position.copy(partition.position);
                     nodeBuilding.add(partitionLine);
                 });
+            }
 
-                // --- Handle Leftover/Unallocated Cluster Node Resources ---
-                if (allocatedMemory < node.maxMemoryGB) {
-                    const leftoverMemory = node.maxMemoryGB - allocatedMemory;
-                    const leftoverHeight = leftoverMemory * heightScale;
-                    const leftoverMarginY = Math.min(0.05, leftoverHeight * 0.05);
+            if (allocatedMemory < node.maxMemoryGB) {
+                const leftoverMemory = node.maxMemoryGB - allocatedMemory;
+                const leftoverHeight = leftoverMemory * heightScale;
+                const leftoverMarginY = Math.min(0.05, leftoverHeight * 0.05);
 
-                    const unallocatedGeo = new THREE.BoxGeometry(
-                        buildingWidth - wallThickness - 0.2,
-                        leftoverHeight - leftoverMarginY * 2,
-                        buildingDepth - wallThickness - 0.2
-                    );
-                    const unallocatedBox = new THREE.Mesh(unallocatedGeo, unallocatedMaterial);
-                    unallocatedBox.position.set(0, currentYOffset + (leftoverHeight / 2), buildingDepth / 2);
+                const unallocatedGeo = new THREE.BoxGeometry(
+                    buildingWidth - wallThickness - 0.2,
+                    leftoverHeight - leftoverMarginY * 2,
+                    buildingDepth - wallThickness - 0.2
+                );
+                const unallocatedBox = new THREE.Mesh(unallocatedGeo, unallocatedMaterial);
+                unallocatedBox.position.set(0, currentYOffset + (leftoverHeight / 2), buildingDepth / 2);
 
-                    unallocatedBox.userData = {
-                        type: "unallocated",
-                        nodeName: node.name,
-                        memoryGB: leftoverMemory,
-                        nodeMaxMemory: node.maxMemoryGB
-                    };
-                    nodeBuilding.add(unallocatedBox);
+                unallocatedBox.userData = {
+                    type: "unallocated",
+                    nodeName: node.name,
+                    memoryGB: leftoverMemory,
+                    nodeMaxMemory: node.maxMemoryGB
+                };
+                nodeBuilding.add(unallocatedBox);
+            }
+        }
 
-                    currentYOffset += leftoverHeight;
-                }
+        function syncClusterState(newData) {
+            const buildingWidth = 12;
+            const buildingDepth = 12;
+            const heightScale = 0.8;
+            const wallThickness = 0.4;
+            const spacing = 10;
 
-                scene.add(nodeBuilding);
+            const usableBeachWidth = 200;
+            const maxCols = Math.floor((usableBeachWidth + spacing) / (buildingWidth + spacing));
 
-                // Construct World Colliders from AABB Walls (Structural outer walls only)
-                nodeBuilding.updateMatrixWorld(true);
-                nodeBuilding.children.forEach((child) => {
-                    if (child.geometry && child.geometry.type === 'BoxGeometry') {
-                        // Only add actual physical walls as colliders, not partition floor slabs or pod boxes
-                        if (child.userData && child.userData.type === 'node') {
-                            const box = new THREE.Box3().setFromObject(child);
-                            colliders.push(box);
-                        }
-                    }
+            const N = newData.nodes.length;
+            const numCols = Math.min(N, maxCols);
+            const numRows = Math.ceil(N / maxCols);
+
+            const gridWidth = numCols * buildingWidth + (numCols - 1) * spacing;
+            const gridDepth = numRows * buildingDepth + (numRows - 1) * spacing;
+
+            if (activeNodeGroups.size === 0) {
+                let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+                newData.nodes.forEach((node, index) => {
+                    const row = Math.floor(index / maxCols);
+                    const col = index % maxCols;
+                    const x = col * (buildingWidth + spacing) - (gridWidth - buildingWidth) / 2;
+                    const z = row * (buildingDepth + spacing) - gridDepth / 2;
+
+                    const halfW = buildingWidth / 2 + wallThickness;
+                    const nodeMinX = x - halfW;
+                    const nodeMaxX = x + halfW;
+                    if (nodeMinX < minX) minX = nodeMinX;
+                    if (nodeMaxX > maxX) maxX = nodeMaxX;
+                    if (z < minZ) minZ = z;
+                    if (z + buildingDepth > maxZ) maxZ = z + buildingDepth;
                 });
+
+                if (minX !== Infinity && minZ !== Infinity) {
+                    const centerX = (minX + maxX) / 2;
+                    const spawnZ = minZ - 25;
+                    camera.position.set(centerX, 2.5, spawnZ);
+                    camera.lookAt(new THREE.Vector3(centerX, 2.5, 0));
+                }
+            }
+
+            const newNodeNames = new Set(newData.nodes.map(n => n.name));
+
+            activeNodeGroups.forEach((nodeBuilding, nodeName) => {
+                if (!newNodeNames.has(nodeName)) {
+                    nodeBuilding.userData.isFadingOut = true;
+                }
             });
 
+            newData.nodes.forEach((node, index) => {
+                const row = Math.floor(index / maxCols);
+                const col = index % maxCols;
 
+                const x = col * (buildingWidth + spacing) - (gridWidth - buildingWidth) / 2;
+                const z = row * (buildingDepth + spacing) - gridDepth / 2;
 
-            // Dynamically position player camera outside the cluster looking at its center
+                if (activeNodeGroups.has(node.name)) {
+                    const nodeBuilding = activeNodeGroups.get(node.name);
+                    nodeBuilding.userData.targetPosition = { x, y: 0, z };
+
+                    if (nodeBuilding.userData.isFadingOut) {
+                        delete nodeBuilding.userData.isFadingOut;
+                        nodeBuilding.scale.y = 1.0;
+                    }
+
+                    const oldNode = clusterData.nodes ? clusterData.nodes.find(n => n.name === node.name) : null;
+                    const dataChanged = !oldNode || JSON.stringify(oldNode) !== JSON.stringify(node);
+
+                    if (dataChanged) {
+                        console.log(`Rebuilding stack in-place for node: ${node.name}`);
+                        buildNodeContents(nodeBuilding, node, heightScale, buildingWidth, buildingDepth, wallThickness);
+                    }
+                } else {
+                    const nodeBuilding = new THREE.Group();
+                    nodeBuilding.position.set(x, 0, z);
+                    nodeBuilding.scale.set(1, 0.001, 1);
+                    nodeBuilding.userData = {
+                        nodeName: node.name,
+                        targetPosition: { x, y: 0, z },
+                        isNew: true
+                    };
+
+                    buildNodeContents(nodeBuilding, node, heightScale, buildingWidth, buildingDepth, wallThickness);
+
+                    scene.add(nodeBuilding);
+                    activeNodeGroups.set(node.name, nodeBuilding);
+                }
+            });
+
+            clusterData = newData;
+            ensureRawPods();
+            updateStatsPanel();
+        }
+
+        function generateClusterWorld() {
+            renderedPods.length = 0;
+            warningSigns.length = 0;
+            activeNodeGroups.forEach((nodeBuilding) => {
+                scene.remove(nodeBuilding);
+                clearNodeContents(nodeBuilding);
+            });
+            activeNodeGroups.clear();
+            activePodMeshes.clear();
+            activeColliders.clear();
+
+            const buildingWidth = 12;
+            const buildingDepth = 12;
+            const heightScale = 0.8;
+            const wallThickness = 0.4;
+            const spacing = 10;
+
+            const usableBeachWidth = 200;
+            const maxCols = Math.floor((usableBeachWidth + spacing) / (buildingWidth + spacing));
+
+            const N = clusterData.nodes.length;
+            const numCols = Math.min(N, maxCols);
+            const numRows = Math.ceil(N / maxCols);
+
+            const gridWidth = numCols * buildingWidth + (numCols - 1) * spacing;
+            const gridDepth = numRows * buildingDepth + (numRows - 1) * spacing;
+
+            let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+
+            clusterData.nodes.forEach((node, index) => {
+                const row = Math.floor(index / maxCols);
+                const col = index % maxCols;
+
+                const x = col * (buildingWidth + spacing) - (gridWidth - buildingWidth) / 2;
+                const z = row * (buildingDepth + spacing) - gridDepth / 2;
+
+                const halfW = buildingWidth / 2 + wallThickness;
+                const nodeMinX = x - halfW;
+                const nodeMaxX = x + halfW;
+                if (nodeMinX < minX) minX = nodeMinX;
+                if (nodeMaxX > maxX) maxX = nodeMaxX;
+                if (z < minZ) minZ = z;
+                if (z + buildingDepth > maxZ) maxZ = z + buildingDepth;
+
+                const nodeBuilding = new THREE.Group();
+                nodeBuilding.position.set(x, 0, z);
+                nodeBuilding.userData = {
+                    nodeName: node.name,
+                    targetPosition: { x, y: 0, z }
+                };
+
+                buildNodeContents(nodeBuilding, node, heightScale, buildingWidth, buildingDepth, wallThickness);
+
+                scene.add(nodeBuilding);
+                activeNodeGroups.set(node.name, nodeBuilding);
+            });
+
             if (minX !== Infinity && minZ !== Infinity) {
                 const centerX = (minX + maxX) / 2;
                 const spawnZ = minZ - 25;
@@ -1622,6 +1955,261 @@
                 camera.position.set(0, 2.5, -25);
                 camera.lookAt(new THREE.Vector3(0, 2.5, 0));
             }
+        }
+
+        function fetchClusterState() {
+            fetch('/api/v1/state')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log("Successfully synced with live API server:", data);
+                    if (data && Array.isArray(data.nodes)) {
+                        syncClusterState(data);
+                        updateConnectionStatus(true, false);
+                    }
+                })
+                .catch(error => {
+                    console.warn("Could not query local API. Polling static fallback. Reason:", error.message);
+                    
+                    fetch('cluster_state.json')
+                        .then(res => {
+                            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                            return res.json();
+                        })
+                        .then(data => {
+                            if (data && Array.isArray(data.nodes)) {
+                                syncClusterState(data);
+                                updateConnectionStatus(false, false);
+                            }
+                        })
+                        .catch(err => {
+                            console.warn("Static file missing. Falling back to built-in Demo database.");
+                            ensureRawPods();
+                            syncClusterState(clusterData);
+                            updateConnectionStatus(false, true);
+                        });
+                });
+        }
+
+        function updateConnectionStatus(isLive, isDemo) {
+            const nodeInfo = document.getElementById('node-info');
+            if (!nodeInfo) return;
+            
+            if (isLive) {
+                nodeInfo.innerHTML = `
+                    <span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 20px; background: rgba(16, 185, 129, 0.12); color: #10b981; font-size: 11px; font-weight: 700; border: 1px solid rgba(16, 185, 129, 0.2); text-transform: uppercase; letter-spacing: 0.5px;">
+                        <span style="width: 6px; height: 6px; border-radius: 50%; background: #10b981; display: inline-block; box-shadow: 0 0 8px #10b981;"></span>
+                        Live Cluster
+                    </span>
+                `;
+            } else if (!isDemo) {
+                nodeInfo.innerHTML = `
+                    <span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 20px; background: rgba(59, 130, 246, 0.12); color: #3b82f6; font-size: 11px; font-weight: 700; border: 1px solid rgba(59, 130, 246, 0.2); text-transform: uppercase; letter-spacing: 0.5px;">
+                        <span style="width: 6px; height: 6px; border-radius: 50%; background: #3b82f6; display: inline-block; box-shadow: 0 0 8px #3b82f6;"></span>
+                        Static File
+                    </span>
+                `;
+            } else {
+                nodeInfo.innerHTML = `
+                    <span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 20px; background: rgba(245, 158, 11, 0.12); color: #f59e0b; font-size: 11px; font-weight: 700; border: 1px solid rgba(245, 158, 11, 0.2); text-transform: uppercase; letter-spacing: 0.5px;">
+                        <span style="width: 6px; height: 6px; border-radius: 50%; background: #f59e0b; display: inline-block; box-shadow: 0 0 8px #f59e0b;"></span>
+                        Demo Mode
+                    </span>
+                `;
+            }
+        }
+
+        function openPodCommandMenu(podData) {
+            controls.unlock();
+            
+            const menuTitleEl = document.getElementById('menu-pod-name');
+            if (menuTitleEl) {
+                menuTitleEl.textContent = `Pod: ${podData.podName}`;
+            }
+
+            const menuEl = document.getElementById('pod-command-menu');
+            if (menuEl) {
+                menuEl.classList.add('visible');
+                menuEl.dataset.podName = podData.podName;
+                menuEl.dataset.namespace = podData.namespace;
+            }
+        }
+
+        function closePodCommandMenu() {
+            const menuEl = document.getElementById('pod-command-menu');
+            if (menuEl) {
+                menuEl.classList.remove('visible');
+            }
+            controls.lock();
+        }
+
+        function escapeHtml(text) {
+            if (!text) return "";
+            return text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        function highlightDescribeOutput(text) {
+            let escaped = escapeHtml(text);
+            escaped = escaped.replace(/(Ready:\s+)(True|False)/gi, (match, p1, p2) => {
+                const color = p2.toLowerCase() === 'true' ? '#10b981' : '#ef4444';
+                return `${p1}<span style="color: ${color}; font-weight: bold; text-shadow: 0 0 6px ${color};">${p2}</span>`;
+            });
+            escaped = escaped.replace(/(Status:\s+)(Running|Failed|Pending|Success|CrashLoopBackOff|Error)/gi, (match, p1, p2) => {
+                const color = p2.toLowerCase() === 'running' ? '#10b981' : '#ef4444';
+                return `${p1}<span style="color: ${color}; font-weight: bold; text-shadow: 0 0 6px ${color};">${p2}</span>`;
+            });
+            escaped = escaped.replace(/(Namespace|Node|Start Time|Labels|Annotations|Status|IP|IPs|Containers|State|Reason|Exit Code|Ready|Limits|Requests|Node-Selectors|Tolerations|Events):/gi, (match) => {
+                return `<span style="color: #a78bfa; font-weight: bold;">${match}</span>`;
+            });
+            escaped = escaped.replace(/(Normal|Warning)\s+(\w+)\s+(\d+\w*)\s+(\w+)/gi, (match, type, reason, age, source) => {
+                const color = type.toLowerCase() === 'normal' ? '#10b981' : '#ef4444';
+                return `<span style="color: ${color}; font-weight: bold;">${type}</span> <span style="color: #f59e0b;">${reason}</span> ${age} ${source}`;
+            });
+            return escaped;
+        }
+
+        function fetchPodTroubleshooting(action, podName, namespace) {
+            const modalEl = document.getElementById('command-output-modal');
+            const terminalTextEl = document.getElementById('terminal-text');
+            const cmdHeaderEl = document.getElementById('terminal-cmd-header');
+            
+            const cmdStr = action === 'logs' ? 
+                `$ kubectl logs ${podName} -n ${namespace} --tail=200` :
+                `$ kubectl describe pod ${podName} -n ${namespace}`;
+            cmdHeaderEl.textContent = cmdStr;
+            
+            terminalTextEl.textContent = "Connecting to localhost API server...\n";
+            modalEl.classList.add('visible');
+            
+            const endpoint = action === 'logs' ? '/api/v1/pods/logs' : '/api/v1/pods/describe';
+            const url = `${endpoint}?pod=${encodeURIComponent(podName)}&namespace=${encodeURIComponent(namespace)}`;
+            
+            fetch(url)
+                .then(res => {
+                    if (!res.ok) {
+                        return res.text().then(errText => {
+                            throw new Error(errText || `HTTP ${res.status}`);
+                        });
+                    }
+                    return res.text();
+                })
+                .then(text => {
+                    if (action === 'describe') {
+                        terminalTextEl.innerHTML = highlightDescribeOutput(text);
+                    } else {
+                        terminalTextEl.textContent = text || "(Logs are empty)";
+                    }
+                })
+                .catch(err => {
+                    terminalTextEl.innerHTML = `<span style="color: #ef4444; font-weight: bold;">▲ Server Error:</span>\n${escapeHtml(err.message)}`;
+                });
+        }
+
+        function setupTroubleshootingUI() {
+            const menuLogsBtn = document.getElementById('menu-btn-logs');
+            const menuDescribeBtn = document.getElementById('menu-btn-describe');
+            const menuCloseBtn = document.getElementById('menu-btn-close');
+            
+            if (menuLogsBtn && menuDescribeBtn && menuCloseBtn) {
+                menuLogsBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const menuEl = document.getElementById('pod-command-menu');
+                    const pod = menuEl.dataset.podName;
+                    const namespace = menuEl.dataset.namespace;
+                    
+                    menuEl.classList.remove('visible');
+                    fetchPodTroubleshooting('logs', pod, namespace);
+                });
+
+                menuDescribeBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const menuEl = document.getElementById('pod-command-menu');
+                    const pod = menuEl.dataset.podName;
+                    const namespace = menuEl.dataset.namespace;
+                    
+                    menuEl.classList.remove('visible');
+                    fetchPodTroubleshooting('describe', pod, namespace);
+                });
+
+                menuCloseBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    closePodCommandMenu();
+                });
+            }
+
+            const copyBtn = document.getElementById('terminal-btn-copy');
+            const terminalTextEl = document.getElementById('terminal-text');
+            if (copyBtn && terminalTextEl) {
+                copyBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const textToCopy = terminalTextEl.textContent || terminalTextEl.innerText;
+                    navigator.clipboard.writeText(textToCopy).then(() => {
+                        const originalText = copyBtn.textContent;
+                        copyBtn.textContent = "✓ Copied!";
+                        copyBtn.style.borderColor = "#10b981";
+                        copyBtn.style.color = "#10b981";
+                        setTimeout(() => {
+                            copyBtn.textContent = originalText;
+                            copyBtn.style.borderColor = "";
+                            copyBtn.style.color = "";
+                        }, 2000);
+                    });
+                });
+            }
+
+            const terminalBody = document.getElementById('terminal-body-container');
+            const terminalScrollUp = document.getElementById('terminal-btn-scroll-up');
+            const terminalScrollDown = document.getElementById('terminal-btn-scroll-down');
+            if (terminalScrollUp && terminalScrollDown && terminalBody) {
+                terminalScrollUp.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    terminalBody.scrollTop -= 150;
+                });
+                terminalScrollDown.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    terminalBody.scrollTop += 150;
+                });
+            }
+
+            const terminalCloseBtn = document.getElementById('terminal-btn-close');
+            if (terminalCloseBtn) {
+                terminalCloseBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const modalEl = document.getElementById('command-output-modal');
+                    modalEl.classList.remove('visible');
+                    controls.lock();
+                });
+            }
+
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape') {
+                    const modalEl = document.getElementById('command-output-modal');
+                    const menuEl = document.getElementById('pod-command-menu');
+                    let didClose = false;
+                    if (modalEl && modalEl.classList.contains('visible')) {
+                        modalEl.classList.remove('visible');
+                        didClose = true;
+                    }
+                    if (menuEl && menuEl.classList.contains('visible')) {
+                        menuEl.classList.remove('visible');
+                        didClose = true;
+                    }
+                    if (didClose) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        controls.lock();
+                    }
+                }
+            });
         }
 
         function onWindowResize() {
@@ -1640,9 +2228,20 @@
                 new THREE.Vector3(camera.position.x, camera.position.y, camera.position.z),
                 new THREE.Vector3(playerRadius * 2, 2.0, playerRadius * 2)
             );
-            for (let i = 0; i < colliders.length; i++) {
-                if (playerBox.intersectsBox(colliders[i])) {
-                    return true;
+
+            // Dynamically evaluate colliders on active groups to support smooth sliding/scaling!
+            for (const [name, group] of activeNodeGroups) {
+                if (group.userData.isFadingOut) continue; // Skip sinking nodes
+                for (let i = 0; i < group.children.length; i++) {
+                    const child = group.children[i];
+                    if (child.geometry && child.geometry.type === 'BoxGeometry') {
+                        if (child.userData && child.userData.type === 'node') {
+                            const box = new THREE.Box3().setFromObject(child);
+                            if (playerBox.intersectsBox(box)) {
+                                return true;
+                            }
+                        }
+                    }
                 }
             }
             return false;
@@ -1651,10 +2250,36 @@
         // 4. Game Animation & Camera Movement Loops
         function animate() {
             requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+
+            // Slide and scale dynamic nodes
+            activeNodeGroups.forEach((nodeBuilding) => {
+                if (nodeBuilding.userData.targetPosition) {
+                    nodeBuilding.position.x += (nodeBuilding.userData.targetPosition.x - nodeBuilding.position.x) * 0.1;
+                    nodeBuilding.position.y += (nodeBuilding.userData.targetPosition.y - nodeBuilding.position.y) * 0.1;
+                    nodeBuilding.position.z += (nodeBuilding.userData.targetPosition.z - nodeBuilding.position.z) * 0.1;
+                }
+
+                if (nodeBuilding.userData.isNew) {
+                    nodeBuilding.scale.y += (1.0 - nodeBuilding.scale.y) * 0.08;
+                    if (Math.abs(1.0 - nodeBuilding.scale.y) < 0.01) {
+                        nodeBuilding.scale.y = 1.0;
+                        delete nodeBuilding.userData.isNew;
+                    }
+                }
+
+                if (nodeBuilding.userData.isFadingOut) {
+                    nodeBuilding.scale.y += (0.001 - nodeBuilding.scale.y) * 0.1;
+                    if (nodeBuilding.scale.y <= 0.01) {
+                        scene.remove(nodeBuilding);
+                        clearNodeContents(nodeBuilding);
+                        activeNodeGroups.delete(nodeBuilding.userData.nodeName);
+                        activeColliders.delete(nodeBuilding.userData.nodeName);
+                    }
+                }
+            });
 
             if (controls.isLocked === true) {
-                const delta = clock.getDelta();
-
                 // Damping friction simulation loops to make movement feel clean
                 velocity.x -= velocity.x * 10.0 * delta;
                 velocity.y -= velocity.y * 10.0 * delta;
@@ -1730,6 +2355,8 @@
                 yamlPanel.classList.add('visible');
 
                 const data = insidePod.userData;
+                activeSelectedPodData = data; // Keep active selection reference updated
+
                 const memoryPercentage = Math.round((data.memoryGB / data.nodeMaxMemory) * 100);
                 const formattedMemory = Math.round(data.memoryGB * 10) / 10;
                 const formattedCPU = data.cpuCores ? Math.round(data.cpuCores * 10) / 10 : null;
@@ -1798,6 +2425,8 @@
 
                     const data = hoveredObj.userData;
                     if (data.type === 'pod') {
+                        activeSelectedPodData = data; // Keep active selection reference updated
+                        
                         const memoryPercentage = Math.round((data.memoryGB / data.nodeMaxMemory) * 100);
                         const formattedMemory = Math.round(data.memoryGB * 10) / 10;
                         const formattedCPU = data.cpuCores ? Math.round(data.cpuCores * 10) / 10 : null;
@@ -1848,9 +2477,12 @@
                             if (containerEl) containerEl.scrollTop = 0;
                         }
                     } else {
-                        // Hovered node or unallocated space: hide YAML panel
-                        yamlPanel.classList.remove('visible');
-                        delete yamlPanel.dataset.activePod;
+                        // Hovered node or unallocated space
+                        if (controls.isLocked) {
+                            yamlPanel.classList.remove('visible');
+                            delete yamlPanel.dataset.activePod;
+                            activeSelectedPodData = null; // Clear if pointer is locked
+                        }
 
                         if (data.type === 'node') {
                             const allocationPercentage = Math.round((data.allocatedMemory / data.maxMemoryGB) * 100);
@@ -1928,11 +2560,14 @@
                         }
                     }
                 } else {
-                    crosshair.classList.remove('active');
-                    hud.classList.remove('visible');
-                    // Hide YAML panel when nothing is hovered
-                    yamlPanel.classList.remove('visible');
-                    delete yamlPanel.dataset.activePod;
+                    if (controls.isLocked) {
+                        crosshair.classList.remove('active');
+                        hud.classList.remove('visible');
+                        // Hide YAML panel when nothing is hovered
+                        yamlPanel.classList.remove('visible');
+                        delete yamlPanel.dataset.activePod;
+                        activeSelectedPodData = null; // Clear if pointer is locked
+                    }
                 }
             }
 
