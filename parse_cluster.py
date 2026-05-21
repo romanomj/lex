@@ -239,6 +239,28 @@ def create_mock_files_if_missing():
                         {"type": "PIDPressure", "status": "False"}
                     ]
                 }
+            },
+            {
+                "metadata": {
+                    "name": "node-delta",
+                    "labels": {
+                        "kubernetes.io/hostname": "node-delta",
+                        "kubernetes.io/os": "linux",
+                        "kubernetes.io/arch": "amd64",
+                        "node.kubernetes.io/instance-type": "t3.medium",
+                        "environment": "staging"
+                    }
+                },
+                "status": {
+                    "allocatable": {"memory": "16Gi", "cpu": "4"},
+                    "capacity": {"memory": "16Gi", "cpu": "4"},
+                    "conditions": [
+                        {"type": "Ready", "status": "Unknown", "reason": "NodeInitializing", "message": "Kubelet is initializing"},
+                        {"type": "MemoryPressure", "status": "False"},
+                        {"type": "DiskPressure", "status": "False"},
+                        {"type": "PIDPressure", "status": "False"}
+                    ]
+                }
             }
         ]
     }
@@ -361,6 +383,13 @@ def parse_cluster():
             c_status = cond.get("status")
             if c_type and c_status:
                 conditions[c_type] = c_status
+                # Record reason and message to allow detailed frontend state logic
+                c_reason = cond.get("reason")
+                c_message = cond.get("message")
+                if c_reason:
+                    conditions[c_type + "Reason"] = c_reason
+                if c_message:
+                    conditions[c_type + "Message"] = c_message
 
         node_map[name] = {
             "name": name,

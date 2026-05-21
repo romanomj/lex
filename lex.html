@@ -854,6 +854,27 @@
                         { name: "analytics-worker-6f9e8d7c-8y2v4", memoryGB: 16, cpuCores: 8, color: 0x8b5cf6, status: "Running", namespace: "analytics" },
                         { name: "logging-agent-3a5b7c9d-1r4q8", memoryGB: 4, cpuCores: 1, color: 0x6b7280, status: "Running", namespace: "kube-system" }
                     ]
+                },
+                {
+                    name: "node-delta",
+                    maxMemoryGB: 16,
+                    maxCPUCores: 4,
+                    labels: {
+                        "kubernetes.io/hostname": "node-delta",
+                        "kubernetes.io/os": "linux",
+                        "kubernetes.io/arch": "amd64",
+                        "node.kubernetes.io/instance-type": "t3.medium",
+                        "environment": "staging"
+                    },
+                    conditions: {
+                        "Ready": "Unknown",
+                        "ReadyReason": "NodeInitializing",
+                        "ReadyMessage": "Kubelet is initializing",
+                        "MemoryPressure": "False",
+                        "DiskPressure": "False",
+                        "PIDPressure": "False"
+                    },
+                    pods: []
                 }
             ]
         };
@@ -890,6 +911,7 @@
         let oceanGeometry, oceanMesh, sunGroup, sunMesh;
         const renderedPods = [];
         const warningSigns = [];
+        const loadingSigns = [];
 
         // Phase 3 State Mappers for high-performance differential sync
         const activeNodeGroups = new Map(); // nodeName -> THREE.Group
@@ -1043,8 +1065,56 @@ ${labels}`;
             opacity: 0.8
         });
 
+        const comingOnlineWallMaterial = new THREE.MeshStandardMaterial({
+            color: 0x3b82f6, // Cyber blue base
+            roughness: 0.4,
+            metalness: 0.1,
+            transparent: false,
+            opacity: 1.0,
+            side: THREE.DoubleSide
+        });
+        const comingOnlineOutlineMaterial = new THREE.LineBasicMaterial({
+            color: 0x3b82f6,
+            transparent: true,
+            opacity: 0.65
+        });
+
+        function isNodeComingOnline(node) {
+            if (!node) return false;
+            // 1. Explicit flag or status
+            if (node.comingOnline === true || node.status === "ComingOnline") return true;
+
+            const conditions = node.conditions || {};
+            // 2. K8s Ready is Unknown and no other pressures are active
+            if (conditions.Ready === "Unknown") {
+                if (conditions.MemoryPressure !== "True" && 
+                    conditions.DiskPressure !== "True" && 
+                    conditions.PIDPressure !== "True") {
+                    return true;
+                }
+            }
+
+            // 3. Ready is False but with initialization-specific reasons
+            if (conditions.Ready === "False") {
+                const reason = conditions.ReadyReason || "";
+                if (reason === "KubeletNotReady" || 
+                    reason === "NodeInitializing" || 
+                    reason === "NodeStatusNeverUpdated") {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         function isNodeFailed(node) {
             if (!node || !node.conditions) return false;
+
+            // A node coming online is not considered "failed" in terms of blinking red
+            if (isNodeComingOnline(node)) {
+                return false;
+            }
+
             const conditions = node.conditions;
             if (conditions.Ready !== undefined && conditions.Ready !== "True") {
                 return true;
@@ -1600,6 +1670,50 @@ ${labels}`;
             warningSigns.push(signGroup);
         }
 
+        // Beautiful gyroscopic 3D holographic loading sign floating above coming online nodes
+        function createNodeLoadingSign(nodeBuilding, nodeWallHeight, buildingDepth) {
+            const signGroup = new THREE.Group();
+            
+            const localX = 0;
+            const localY = nodeWallHeight + 3.0; // 3 units above node roof
+            const localZ = buildingDepth / 2;
+            
+            signGroup.position.set(localX, localY, localZ);
+            
+            signGroup.userData = {
+                baseHeight: localY,
+                type: 'loading'
+            };
+
+            // Glowing cyber blue/cyan holographic material
+            const loaderGlowMat = new THREE.MeshBasicMaterial({
+                color: 0x00f0ff,
+                transparent: true,
+                opacity: 0.8,
+                side: THREE.DoubleSide
+            });
+
+            // 1. Central glowing sphere
+            const coreGeo = new THREE.SphereGeometry(0.5, 16, 16);
+            const coreMesh = new THREE.Mesh(coreGeo, loaderGlowMat);
+            signGroup.add(coreMesh);
+
+            // 2. Outer ring (torus rotating one way)
+            const ringGeo1 = new THREE.TorusGeometry(1.8, 0.08, 8, 24);
+            const ringMesh1 = new THREE.Mesh(ringGeo1, loaderGlowMat);
+            ringMesh1.rotation.x = Math.PI / 2;
+            signGroup.add(ringMesh1);
+
+            // 3. Inner ring (torus tilted, rotating another way)
+            const ringGeo2 = new THREE.TorusGeometry(1.2, 0.06, 8, 24);
+            const ringMesh2 = new THREE.Mesh(ringGeo2, loaderGlowMat);
+            ringMesh2.rotation.y = Math.PI / 4;
+            signGroup.add(ringMesh2);
+
+            nodeBuilding.add(signGroup);
+            loadingSigns.push(signGroup);
+        }
+
         function clearNodeContents(nodeBuilding) {
             nodeBuilding.traverse((child) => {
                 if (child.isMesh || child.isLine || child.isLineSegments) {
@@ -1637,11 +1751,20 @@ ${labels}`;
             });
 
             // Remove warning sign from visual animations tracker
-            warningSigns.forEach((sign, idx) => {
+            for (let i = warningSigns.length - 1; i >= 0; i--) {
+                const sign = warningSigns[i];
                 if (nodeBuilding.children.includes(sign)) {
-                    warningSigns.splice(idx, 1);
+                    warningSigns.splice(i, 1);
                 }
-            });
+            }
+
+            // Remove loading sign from visual animations tracker
+            for (let i = loadingSigns.length - 1; i >= 0; i--) {
+                const sign = loadingSigns[i];
+                if (nodeBuilding.children.includes(sign)) {
+                    loadingSigns.splice(i, 1);
+                }
+            }
 
             while (nodeBuilding.children.length > 0) {
                 nodeBuilding.remove(nodeBuilding.children[0]);
@@ -1653,17 +1776,23 @@ ${labels}`;
 
             const nodeWallHeight = node.maxMemoryGB * heightScale;
             
-            let nodeHasIssues = isNodeFailed(node);
-            if (node.pods) {
-                node.pods.forEach(pod => {
-                    if (isPodFailed(pod.status)) {
-                        nodeHasIssues = true;
-                    }
-                });
-            }
+            const isOnline = isNodeComingOnline(node);
+            
+            if (isOnline) {
+                createNodeLoadingSign(nodeBuilding, nodeWallHeight, buildingDepth);
+            } else {
+                let nodeHasIssues = isNodeFailed(node);
+                if (node.pods) {
+                    node.pods.forEach(pod => {
+                        if (isPodFailed(pod.status)) {
+                            nodeHasIssues = true;
+                        }
+                    });
+                }
 
-            if (nodeHasIssues) {
-                createNodeWarningSign(nodeBuilding, nodeWallHeight, buildingDepth);
+                if (nodeHasIssues) {
+                    createNodeWarningSign(nodeBuilding, nodeWallHeight, buildingDepth);
+                }
             }
 
             const totalAllocatedMemory = node.pods ? node.pods.reduce((sum, p) => sum + p.memoryGB, 0) : 0;
@@ -1679,8 +1808,23 @@ ${labels}`;
             };
 
             const isFailedNode = isNodeFailed(node);
-            const activeWallMaterial = isFailedNode ? failedWallMaterial : wallMaterial;
-            const activeOutlineColor = isFailedNode ? 0xef4444 : 0x3b82f6;
+            
+            let activeWallMaterial = wallMaterial;
+            if (isFailedNode) {
+                activeWallMaterial = failedWallMaterial;
+            } else if (isOnline) {
+                activeWallMaterial = comingOnlineWallMaterial;
+            }
+
+            let activeOutlineColor = 0x3b82f6;
+            let activeOutlineMaterial = null;
+            if (isFailedNode) {
+                activeOutlineColor = 0xef4444;
+                activeOutlineMaterial = failedOutlineMaterial;
+            } else if (isOnline) {
+                activeOutlineColor = 0x3b82f6;
+                activeOutlineMaterial = comingOnlineOutlineMaterial;
+            }
 
             const sideWallGeo = new THREE.BoxGeometry(wallThickness, nodeWallHeight, buildingDepth);
 
@@ -1690,7 +1834,7 @@ ${labels}`;
             nodeBuilding.add(leftWall);
 
             const leftWallEdges = new THREE.EdgesGeometry(sideWallGeo);
-            const leftWallLineMat = isFailedNode ? failedOutlineMaterial : new THREE.LineBasicMaterial({ color: activeOutlineColor, transparent: true, opacity: 0.35 });
+            const leftWallLineMat = activeOutlineMaterial || new THREE.LineBasicMaterial({ color: activeOutlineColor, transparent: true, opacity: 0.35 });
             const leftWallLine = new THREE.LineSegments(leftWallEdges, leftWallLineMat);
             leftWallLine.position.copy(leftWall.position);
             nodeBuilding.add(leftWallLine);
@@ -1701,7 +1845,7 @@ ${labels}`;
             nodeBuilding.add(rightWall);
 
             const rightWallEdges = new THREE.EdgesGeometry(sideWallGeo);
-            const rightWallLineMat = isFailedNode ? failedOutlineMaterial : new THREE.LineBasicMaterial({ color: activeOutlineColor, transparent: true, opacity: 0.35 });
+            const rightWallLineMat = activeOutlineMaterial || new THREE.LineBasicMaterial({ color: activeOutlineColor, transparent: true, opacity: 0.35 });
             const rightWallLine = new THREE.LineSegments(rightWallEdges, rightWallLineMat);
             rightWallLine.position.copy(rightWall.position);
             nodeBuilding.add(rightWallLine);
@@ -1738,7 +1882,7 @@ ${labels}`;
             nodeBuilding.add(frontWall);
 
             const frontWallEdges = new THREE.EdgesGeometry(frontWallGeo);
-            const frontWallLineMat = isFailedNode ? failedOutlineMaterial : new THREE.LineBasicMaterial({ color: activeOutlineColor, transparent: true, opacity: 0.35 });
+            const frontWallLineMat = activeOutlineMaterial || new THREE.LineBasicMaterial({ color: activeOutlineColor, transparent: true, opacity: 0.35 });
             const frontWallLine = new THREE.LineSegments(frontWallEdges, frontWallLineMat);
             frontWallLine.position.copy(frontWall.position);
             nodeBuilding.add(frontWallLine);
@@ -1953,6 +2097,7 @@ ${labels}`;
         function generateClusterWorld() {
             renderedPods.length = 0;
             warningSigns.length = 0;
+            loadingSigns.length = 0;
             activeNodeGroups.forEach((nodeBuilding) => {
                 scene.remove(nodeBuilding);
                 clearNodeContents(nodeBuilding);
@@ -2749,6 +2894,16 @@ ${labels}`;
             const podOutlineBright = new THREE.Color(0xff4444);
             failedPodOutlineMaterial.color.copy(podOutlineDark).lerp(podOutlineBright, blinkFactor);
 
+            // High-fidelity synchronized blinking blue animation for coming online nodes
+            const blueDark = new THREE.Color(0x0f172a); // Premium dark slate blue
+            const blueBright = new THREE.Color(0x00f0ff); // Glowing cyber cyan/blue
+            comingOnlineWallMaterial.color.copy(blueDark).lerp(blueBright, blinkFactor);
+
+            // Pulse coming online node outlines
+            const blueOutlineDark = new THREE.Color(0x0a192f);
+            const blueOutlineBright = new THREE.Color(0x00f0ff);
+            comingOnlineOutlineMaterial.color.copy(blueOutlineDark).lerp(blueOutlineBright, blinkFactor);
+
             // High-fidelity animation and pulse loops for node-level warning signs
             if (warningSigns.length > 0) {
                 const time = clock.getElapsedTime();
@@ -2767,6 +2922,38 @@ ${labels}`;
                             child.material.opacity = warningBlink;
                         } else if (child.geometry.type === 'TorusGeometry') {
                             child.material.opacity = 0.2 + (Math.sin(time * 3.0) + 1.0) * 0.1;
+                        }
+                    });
+                });
+            }
+
+            // High-fidelity animation and spin loops for node-level loading signs
+            if (loadingSigns.length > 0) {
+                const time = clock.getElapsedTime();
+                loadingSigns.forEach(sign => {
+                    // Bob it up and down gently using its stored base local Y
+                    const baseHeight = sign.userData.baseHeight;
+                    sign.position.y = baseHeight + Math.sin(time * 3.0) * 0.4;
+
+                    // Spin the entire loader group slowly
+                    sign.rotation.y = time * 0.5;
+
+                    // Spin the internal gyroscopic toruses and pulse the central core
+                    sign.children.forEach((child, idx) => {
+                        if (child.geometry.type === 'TorusGeometry') {
+                            if (idx === 1) {
+                                // Outer torus
+                                child.rotation.z = time * 1.5;
+                                child.rotation.x = time * 0.5;
+                            } else if (idx === 2) {
+                                // Inner torus
+                                child.rotation.z = -time * 2.0;
+                                child.rotation.y = time * 0.8;
+                            }
+                        } else if (child.geometry.type === 'SphereGeometry') {
+                            // Pulsate the core sphere scale
+                            const pulseScale = 1.0 + Math.sin(time * 6.0) * 0.2;
+                            child.scale.set(pulseScale, pulseScale, pulseScale);
                         }
                     });
                 });
