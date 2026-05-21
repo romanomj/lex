@@ -39,6 +39,9 @@ class LocalAPIServer(http.server.SimpleHTTPRequestHandler):
         # Route: API pod describe
         elif path == '/api/v1/pods/describe':
             self.handle_pod_describe(parsed_url.query)
+        # Route: API pod spec
+        elif path == '/api/v1/pods/spec':
+            self.handle_pod_spec(parsed_url.query)
         else:
             # Fallback to serving static files (lex.html, etc.) from the workspace directory
             super().do_GET()
@@ -129,6 +132,39 @@ class LocalAPIServer(http.server.SimpleHTTPRequestHandler):
             self.send_text_response(504, "▲ Command timeout expired while connecting to cluster.")
         except Exception as e:
             self.send_text_response(500, f"▲ Server error executing kubectl describe: {str(e)}")
+
+    def handle_pod_spec(self, query_string):
+        params = parse_qs(query_string)
+        pod = params.get('pod', [None])[0]
+        namespace = params.get('namespace', [None])[0]
+
+        if not pod or not namespace:
+            self.send_error_json(400, "Missing required query parameters: 'pod' and 'namespace'")
+            return
+
+        # Secure parameters: strictly match Kubernetes DNS label rules
+        if not re.match(r"^[a-z0-9.-]+$", pod) or not re.match(r"^[a-z0-9.-]+$", namespace):
+            self.send_error_json(400, "Invalid characters in pod or namespace parameter")
+            return
+
+        # Execute get pod -o yaml command securely using argument lists (no shell=True)
+        try:
+            print(f"Running secure command: kubectl get pod {pod} -n {namespace} -o yaml")
+            res = subprocess.run(
+                ["kubectl", "get", "pod", pod, "-n", namespace, "-o", "yaml"],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            if res.returncode == 0:
+                self.send_text_response(200, res.stdout)
+            else:
+                error_msg = res.stderr or "Unknown error fetching pod spec"
+                self.send_text_response(500, f"▲ kubectl failed:\n{error_msg}")
+        except subprocess.TimeoutExpired:
+            self.send_text_response(504, "▲ Command timeout expired while connecting to cluster.")
+        except Exception as e:
+            self.send_text_response(500, f"▲ Server error executing kubectl get pod: {str(e)}")
 
     def send_json_response(self, code, data):
         self.send_response(code)

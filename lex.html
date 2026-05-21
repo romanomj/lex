@@ -739,7 +739,7 @@
     <div id="hud-tooltip"></div>
     <div id="pod-yaml-panel">
         <div class="yaml-header">
-            <span class="yaml-title">Pod Specification (YAML)</span>
+            <span class="yaml-title" id="yaml-panel-title">Pod Summary</span>
             <div class="yaml-scroll-controls">
                 <button class="yaml-scroll-btn" id="yaml-scroll-up" title="Scroll Up">▲</button>
                 <button class="yaml-scroll-btn" id="yaml-scroll-down" title="Scroll Down">▼</button>
@@ -753,6 +753,7 @@
     <!-- Command Action Menu -->
     <div id="pod-command-menu">
         <div class="menu-title" id="menu-pod-name">Select Pod Action</div>
+        <button class="menu-btn" id="menu-btn-spec">📋 Get Pod Specification</button>
         <button class="menu-btn" id="menu-btn-logs">📜 Get Logs</button>
         <button class="menu-btn" id="menu-btn-describe">🔍 Describe Pod</button>
         <button class="menu-btn disabled" id="menu-btn-restart" disabled>⚙️ Restart Pod (Disabled)</button>
@@ -952,6 +953,54 @@
                 }
             });
             return res;
+        }
+
+        function generatePodSummary(data) {
+            if (!data) return "No data available";
+            const raw = data.raw || {};
+            const metadata = raw.metadata || {};
+            const spec = raw.spec || {};
+            const status = raw.status || {};
+            
+            // Extract containers
+            const containers = spec.containers || [];
+            const containerLines = containers.map(c => {
+                const name = c.name || "unknown";
+                const image = c.image || "unknown";
+                
+                // Get resource requests if any
+                let reqMem = "N/A";
+                let reqCPU = "N/A";
+                if (c.resources && c.resources.requests) {
+                    if (c.resources.requests.memory) reqMem = c.resources.requests.memory;
+                    if (c.resources.requests.cpu) reqCPU = c.resources.requests.cpu;
+                }
+                
+                return `  - <span class="yaml-key">Name:</span> <span class="yaml-string">${name}</span>\n    <span class="yaml-key">Image:</span> <span class="yaml-value">${image}</span>\n    <span class="yaml-key">Requests:</span> <span class="yaml-value">CPU: ${reqCPU} / Mem: ${reqMem}</span>`;
+            }).join('\n');
+
+            const creationTime = metadata.creationTimestamp ? new Date(metadata.creationTimestamp).toLocaleString() : "Unknown";
+            const podIP = status.podIP || "Unknown";
+            const hostIP = status.hostIP || "Unknown";
+            const phase = status.phase || data.status || "Unknown";
+
+            const labels = metadata.labels ? Object.entries(metadata.labels).map(([k, v]) => `    <span class="yaml-key">${k}:</span> <span class="yaml-string">${v}</span>`).join('\n') : '    None';
+
+            return `<span class="yaml-key">POD METRICS & SUMMARY</span>
+=========================================
+<span class="yaml-key">Name:</span>       <span class="yaml-value">${data.podName}</span>
+<span class="yaml-key">Namespace:</span>  <span class="yaml-value">${data.namespace}</span>
+<span class="yaml-key">Node Host:</span>  <span class="yaml-value">${data.nodeName}</span>
+<span class="yaml-key">Status:</span>     <span class="yaml-value">${phase}</span>
+<span class="yaml-key">Created:</span>    <span class="yaml-value">${creationTime}</span>
+<span class="yaml-key">IP Addr:</span>    <span class="yaml-value">${podIP}</span> (Pod)
+            <span class="yaml-value">${hostIP}</span> (Node)
+
+<span class="yaml-key">Containers (${containers.length}):</span>
+${containerLines || "  (None)"}
+
+<span class="yaml-key">Labels:</span>
+${labels}`;
         }
 
         const clock = new THREE.Clock();
@@ -2098,19 +2147,68 @@
             return escaped;
         }
 
+        function highlightYamlOutput(text) {
+            let escaped = escapeHtml(text);
+            
+            // Format keys in YAML (e.g. "apiVersion:" -> span key)
+            // Match keys at the beginning of a line or after spaces, followed by a colon
+            escaped = escaped.replace(/^(\s*)([a-zA-Z0-9_-]+)(:)/gm, (match, indent, key, colon) => {
+                return `${indent}<span class="yaml-key">${key}</span>${colon}`;
+            });
+            
+            // Format strings in double or single quotes
+            escaped = escaped.replace(/(:\s+)("[^"]*"|'[^']*')/g, (match, p1, p2) => {
+                return `${p1}<span class="yaml-string">${p2}</span>`;
+            });
+            
+            // Format numbers, booleans, and nulls
+            escaped = escaped.replace(/(:\s+)(true|false|null|[0-9]+(?:\.[0-9]+)?)/gi, (match, p1, p2) => {
+                return `${p1}<span class="yaml-value">${p2}</span>`;
+            });
+            
+            return escaped;
+        }
+
         function fetchPodTroubleshooting(action, podName, namespace) {
             const modalEl = document.getElementById('command-output-modal');
             const terminalTextEl = document.getElementById('terminal-text');
             const cmdHeaderEl = document.getElementById('terminal-cmd-header');
             
-            const cmdStr = action === 'logs' ? 
-                `$ kubectl logs ${podName} -n ${namespace} --tail=200` :
-                `$ kubectl describe pod ${podName} -n ${namespace}`;
+            let cmdStr = "";
+            if (action === 'logs') {
+                cmdStr = `$ kubectl logs ${podName} -n ${namespace} --tail=200`;
+            } else if (action === 'describe') {
+                cmdStr = `$ kubectl describe pod ${podName} -n ${namespace}`;
+            } else if (action === 'spec') {
+                cmdStr = `$ kubectl get pod ${podName} -n ${namespace} -o yaml`;
+            }
             cmdHeaderEl.textContent = cmdStr;
             
             terminalTextEl.textContent = "Connecting to localhost API server...\n";
             modalEl.classList.add('visible');
             
+            if (action === 'spec') {
+                // If live endpoint is queried, try fetching first, fall back to high-fidelity client-side JSON-to-YAML compiler
+                fetch(`/api/v1/pods/spec?pod=${encodeURIComponent(podName)}&namespace=${encodeURIComponent(namespace)}`)
+                    .then(res => {
+                        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                        return res.text();
+                    })
+                    .then(text => {
+                        terminalTextEl.innerHTML = highlightYamlOutput(text);
+                    })
+                    .catch(err => {
+                        console.warn("Could not fetch spec from live API server, using high-fidelity local cache:", err.message);
+                        const podMesh = activePodMeshes.get(podName);
+                        if (podMesh && podMesh.userData && podMesh.userData.raw) {
+                            terminalTextEl.innerHTML = jsonToYaml(podMesh.userData.raw);
+                        } else {
+                            terminalTextEl.innerHTML = `<span style="color: #ef4444; font-weight: bold;">▲ Error:</span> Specification data not found in cache.`;
+                        }
+                    });
+                return;
+            }
+
             const endpoint = action === 'logs' ? '/api/v1/pods/logs' : '/api/v1/pods/describe';
             const url = `${endpoint}?pod=${encodeURIComponent(podName)}&namespace=${encodeURIComponent(namespace)}`;
             
@@ -2136,11 +2234,22 @@
         }
 
         function setupTroubleshootingUI() {
+            const menuSpecBtn = document.getElementById('menu-btn-spec');
             const menuLogsBtn = document.getElementById('menu-btn-logs');
             const menuDescribeBtn = document.getElementById('menu-btn-describe');
             const menuCloseBtn = document.getElementById('menu-btn-close');
             
-            if (menuLogsBtn && menuDescribeBtn && menuCloseBtn) {
+            if (menuSpecBtn && menuLogsBtn && menuDescribeBtn && menuCloseBtn) {
+                menuSpecBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const menuEl = document.getElementById('pod-command-menu');
+                    const pod = menuEl.dataset.podName;
+                    const namespace = menuEl.dataset.namespace;
+                    
+                    menuEl.classList.remove('visible');
+                    fetchPodTroubleshooting('spec', pod, namespace);
+                });
+
                 menuLogsBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
                     const menuEl = document.getElementById('pod-command-menu');
@@ -2421,7 +2530,7 @@
 
                 if (yamlPanel.dataset.activePod !== data.podName) {
                     yamlPanel.dataset.activePod = data.podName;
-                    yamlText.innerHTML = jsonToYaml(data.raw);
+                    yamlText.innerHTML = generatePodSummary(data);
                     // Reset scroll to top for fresh pod view
                     const containerEl = document.getElementById('yaml-container');
                     if (containerEl) containerEl.scrollTop = 0;
@@ -2492,7 +2601,7 @@
                         yamlPanel.classList.add('visible');
                         if (yamlPanel.dataset.activePod !== data.podName) {
                             yamlPanel.dataset.activePod = data.podName;
-                            yamlText.innerHTML = jsonToYaml(data.raw);
+                            yamlText.innerHTML = generatePodSummary(data);
                             // Reset scroll to top for fresh pod view
                             const containerEl = document.getElementById('yaml-container');
                             if (containerEl) containerEl.scrollTop = 0;
