@@ -3016,6 +3016,10 @@ ${labels}`;
                     }
                     if (searchPanel && searchPanel.classList.contains('visible')) {
                         searchPanel.classList.remove('visible');
+                        const searchInput = document.getElementById('search-input');
+                        if (searchInput) {
+                            searchInput.blur();
+                        }
                         didClose = true;
                     }
                     if (didClose) {
@@ -3027,13 +3031,24 @@ ${labels}`;
             });
         }
 
+        function closeSearchPanel() {
+            const searchPanel = document.getElementById('search-panel');
+            if (searchPanel && searchPanel.classList.contains('visible')) {
+                searchPanel.classList.remove('visible');
+                const searchInput = document.getElementById('search-input');
+                if (searchInput) {
+                    searchInput.blur();
+                }
+                controls.lock();
+            }
+        }
+
         function toggleSearchPanel() {
             const searchPanel = document.getElementById('search-panel');
             if (!searchPanel) return;
 
             if (searchPanel.classList.contains('visible')) {
-                searchPanel.classList.remove('visible');
-                controls.lock();
+                closeSearchPanel();
             } else {
                 controls.unlock();
                 
@@ -3314,7 +3329,30 @@ ${labels}`;
                     const targetY = nodeWallHeight / 2;
                     const targetZ = group.position.z;
                     
-                    camera.position.set(targetX, Math.max(3, targetY), targetZ - 18);
+                    // Check if there is another node physically in front of this one (same horizontal column, smaller Z)
+                    let nodeInFront = null;
+                    activeNodeGroups.forEach((otherGroup, otherName) => {
+                        if (otherName !== name && !otherGroup.userData.isFadingOut) {
+                            const diffX = Math.abs(otherGroup.position.x - targetX);
+                            const diffZ = targetZ - otherGroup.position.z;
+                            // Same column (diffX < 2) and physically in front (diffZ > 0)
+                            if (diffX < 2 && diffZ > 0 && diffZ < 25) {
+                                if (!nodeInFront || otherGroup.position.z > nodeInFront.position.z) {
+                                    nodeInFront = otherGroup;
+                                }
+                            }
+                        }
+                    });
+
+                    let cameraZ = targetZ - 18;
+                    if (nodeInFront) {
+                        // Place player exactly in the middle of the street space between the two nodes
+                        const streetStart = nodeInFront.position.z + 12; // back of front node
+                        const streetEnd = targetZ;                      // front edge of matched node
+                        cameraZ = (streetStart + streetEnd) / 2;
+                    }
+                    
+                    camera.position.set(targetX, Math.max(3, targetY), cameraZ);
                     camera.lookAt(new THREE.Vector3(targetX, targetY, targetZ + 6));
                     
                     if (controls) {
@@ -3355,6 +3393,7 @@ ${labels}`;
                     e.stopPropagation(); // Stop navigation keys while typing!
                     if (e.key === 'Enter') {
                         executeSearch(searchInput.value);
+                        closeSearchPanel();
                     }
                 });
 
@@ -3373,11 +3412,7 @@ ${labels}`;
             if (searchPanelCloseBtn) {
                 searchPanelCloseBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    const searchPanel = document.getElementById('search-panel');
-                    if (searchPanel) {
-                        searchPanel.classList.remove('visible');
-                        controls.lock();
-                    }
+                    closeSearchPanel();
                 });
             }
         }
@@ -3786,6 +3821,9 @@ ${labels}`;
 
             // Billboard effect: Make sun glow rings face the player camera
             if (sunGroup && camera) {
+                // Keep sun at a constant offset from the camera (infinitely far away, no parallax)
+                sunGroup.position.set(camera.position.x + 50, camera.position.y + 100, camera.position.z + 400);
+
                 sunGroup.children.forEach((child) => {
                     if (child !== sunMesh) {
                         child.lookAt(camera.position);
