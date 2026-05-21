@@ -725,7 +725,7 @@
         /* Search Panel Styling */
         #search-panel {
             position: absolute;
-            top: 210px;
+            top: 280px;
             left: 20px;
             width: 320px;
             bottom: 20px;
@@ -1500,38 +1500,179 @@ ${labels}`;
         const raycaster = new THREE.Raycaster();
         const mouse = new THREE.Vector2(0, 0); // Raycast from center of screen
 
-        // Procedural Sand Texture Generator using an HTML5 Canvas
+        // Procedural Sand Texture Generator using an HTML5 Canvas (Minecraft-inspired)
         function createSandTexture() {
             const canvas = document.createElement('canvas');
-            canvas.width = 256;
-            canvas.height = 256;
+            canvas.width = 128;
+            canvas.height = 128;
             const ctx = canvas.getContext('2d');
-
-            // Base sand color
-            ctx.fillStyle = '#e8d3a7';
-            ctx.fillRect(0, 0, 256, 256);
-
-            // Add subtle sand grain noise
-            for (let i = 0; i < 6000; i++) {
-                const x = Math.random() * 256;
-                const y = Math.random() * 256;
-                const size = Math.random() * 1.2 + 0.4;
-                const r = Math.random();
-                if (r < 0.3) {
-                    ctx.fillStyle = '#eed9b3'; // lighter grain
-                } else if (r < 0.6) {
-                    ctx.fillStyle = '#dfc193'; // darker grain
-                } else {
-                    ctx.fillStyle = '#e0c79b'; // midtone grain
+            
+            const pixelSize = 8; // 16x16 pixelated grid
+            const cols = 128 / pixelSize;
+            const rows = 128 / pixelSize;
+            
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    const rng = Math.random();
+                    let color;
+                    if (rng < 0.60) {
+                        color = '#e1c699'; // Dominant cozy beach sand base
+                    } else if (rng < 0.80) {
+                        color = '#dfbe8a'; // Medium warm sandy tone
+                    } else if (rng < 0.93) {
+                        color = '#d2b48c'; // Darker sandy accent/shadow
+                    } else {
+                        color = '#ebd5b3'; // Light warm sandy highlight
+                    }
+                    ctx.fillStyle = color;
+                    ctx.fillRect(c * pixelSize, r * pixelSize, pixelSize, pixelSize);
                 }
-                ctx.fillRect(x, y, size, size);
             }
-
+            
             const texture = new THREE.CanvasTexture(canvas);
             texture.wrapS = THREE.RepeatWrapping;
             texture.wrapT = THREE.RepeatWrapping;
-            texture.repeat.set(16, 16);
+            // 37.5 repetitions across the 300x300 platform matches the ocean's 0.5 units/pixel resolution perfectly!
+            texture.repeat.set(37.5, 37.5);
+            texture.minFilter = THREE.NearestFilter;
+            texture.magFilter = THREE.NearestFilter; // Crisp Nearest-Neighbor scaling for pixel art!
             return texture;
+        }
+
+        // Procedural Water Texture Generator using an HTML5 Canvas (Minecraft-inspired)
+        function createWaterTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 128;
+            canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            
+            const pixelSize = 8; // 16x16 pixelated grid
+            const cols = 128 / pixelSize;
+            const rows = 128 / pixelSize;
+            
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    const rng = Math.random();
+                    let color;
+                    if (rng < 0.55) {
+                        color = '#1d4ed8'; // Medium blue
+                    } else if (rng < 0.8) {
+                        color = '#1e3a8a'; // Deep blue
+                    } else if (rng < 0.93) {
+                        color = '#3b82f6'; // Lighter cyan-blue
+                    } else {
+                        color = '#60a5fa'; // Highlight/sparkle pixel
+                    }
+                    ctx.fillStyle = color;
+                    ctx.fillRect(c * pixelSize, r * pixelSize, pixelSize, pixelSize);
+                }
+            }
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            // 250 repetitions across the 2000x2000 ocean plane makes the pixel art look perfect (blocky but detailed)
+            texture.repeat.set(250, 250);
+            texture.minFilter = THREE.NearestFilter;
+            texture.magFilter = THREE.NearestFilter; // Crisp Nearest-Neighbor scaling for pixel art!
+            return texture;
+        }
+
+        // Procedural Voxel-Style Palm Tree Generator
+        function createPalmTree() {
+            const treeGroup = new THREE.Group();
+
+            const trunkMaterial = new THREE.MeshStandardMaterial({
+                color: 0x6e473b, // Palm bark brown
+                roughness: 0.9,
+                metalness: 0.05
+            });
+
+            const leafMaterial = new THREE.MeshStandardMaterial({
+                color: 0x2e7d32, // Lush palm leaf green
+                roughness: 0.75,
+                metalness: 0.05,
+                side: THREE.DoubleSide
+            });
+
+            const coconutMaterial = new THREE.MeshStandardMaterial({
+                color: 0x3e2723, // Coconut dark brown
+                roughness: 0.9,
+                metalness: 0.05
+            });
+
+            // 1. Curved Blocky Trunk Setup
+            let currentY = 0;
+            let currentX = 0;
+            let currentZ = 0;
+            const segmentsCount = 7;
+            const segHeight = 1.3;
+
+            // Randomize curves slightly so that every palm tree looks a tiny bit unique
+            const curveX = (Math.random() - 0.5) * 0.1 + 0.18; // lean direction X
+            const curveZ = (Math.random() - 0.5) * 0.1 + 0.05; // lean direction Z
+
+            for (let i = 0; i < segmentsCount; i++) {
+                // Taper the trunk slightly as we go up
+                const size = 0.9 - (i * 0.05);
+                const trunkSegGeo = new THREE.BoxGeometry(size, segHeight, size);
+                const trunkSeg = new THREE.Mesh(trunkSegGeo, trunkMaterial);
+
+                // Offset position to create an organic voxel lean curve
+                currentX += curveX;
+                currentZ += curveZ;
+                trunkSeg.position.set(currentX, currentY + segHeight / 2, currentZ);
+
+                // Rotate slightly to emphasize the curve
+                trunkSeg.rotation.z = -curveX * 0.5;
+                trunkSeg.rotation.x = curveZ * 0.5;
+
+                treeGroup.add(trunkSeg);
+                currentY += segHeight;
+            }
+
+            // 2. Add Coconuts at the trunk top
+            const coconutGeo = new THREE.BoxGeometry(0.5, 0.5, 0.5); // blocky coconuts
+            const cocoCoords = [
+                { x: currentX - 0.35, y: currentY - 0.2, z: currentZ },
+                { x: currentX + 0.15, y: currentY - 0.2, z: currentZ + 0.3 },
+                { x: currentX + 0.1, y: currentY - 0.2, z: currentZ - 0.35 }
+            ];
+
+            cocoCoords.forEach(coord => {
+                const coco = new THREE.Mesh(coconutGeo, coconutMaterial);
+                coco.position.set(coord.x, coord.y, coord.z);
+                treeGroup.add(coco);
+            });
+
+            // 3. Drooping Voxel Fronds (Leaves)
+            const leavesGroup = new THREE.Group();
+            leavesGroup.position.set(currentX, currentY, currentZ);
+
+            const leavesCount = 8;
+            for (let i = 0; i < leavesCount; i++) {
+                const leafFrondGroup = new THREE.Group();
+                // Rotate leaves radially around the Y axis
+                leafFrondGroup.rotation.y = i * (Math.PI * 2 / leavesCount);
+
+                // Inner leaf section (extends outwards straight)
+                const innerLeafGeo = new THREE.BoxGeometry(0.8, 0.08, 2.0);
+                const innerLeaf = new THREE.Mesh(innerLeafGeo, leafMaterial);
+                innerLeaf.position.set(0, 0, 1.0); // Offset origin to pivot point
+                leafFrondGroup.add(innerLeaf);
+
+                // Outer leaf section (tilted down to droop)
+                const outerLeafGeo = new THREE.BoxGeometry(0.6, 0.06, 2.5);
+                const outerLeaf = new THREE.Mesh(outerLeafGeo, leafMaterial);
+                outerLeaf.position.set(0, -0.4, 3.0); // Shift out and down
+                outerLeaf.rotation.x = -0.25; // Droop rotation
+                leafFrondGroup.add(outerLeaf);
+
+                leavesGroup.add(leafFrondGroup);
+            }
+
+            treeGroup.add(leavesGroup);
+            return treeGroup;
         }
 
         function updateStatsPanel() {
@@ -1655,7 +1796,7 @@ ${labels}`;
 
             // Ground - Sandy Beach Platform Island
             const sandTexture = createSandTexture();
-            const beachGeo = new THREE.BoxGeometry(250, 4, 250);
+            const beachGeo = new THREE.BoxGeometry(300, 4, 300);
             const beachMat = new THREE.MeshStandardMaterial({
                 map: sandTexture,
                 roughness: 0.95,
@@ -1665,13 +1806,32 @@ ${labels}`;
             beach.position.set(0, -2, 0); // Top surface is at y = 0
             scene.add(beach);
 
+            // Spawn Tropical Palm Trees along the shorelines of the island (scaled 1.2x outwards for 300x300 size)
+            const palmTreePositions = [
+                { x: -114, z: -114, scale: 1.1, rotY: 0.5 },
+                { x: 114, z: -114, scale: 0.95, rotY: 1.2 },
+                { x: -114, z: 114, scale: 1.0, rotY: 2.1 },
+                { x: 114, z: 114, scale: 1.2, rotY: 3.4 },
+                { x: -132, z: -42, scale: 1.05, rotY: 4.5 },
+                { x: 132, z: 42, scale: 0.9, rotY: 5.6 },
+                { x: -60, z: -126, scale: 1.15, rotY: 1.8 },
+                { x: 60, z: 126, scale: 1.0, rotY: 0.2 }
+            ];
 
+            palmTreePositions.forEach(pos => {
+                const palmTree = createPalmTree();
+                palmTree.position.set(pos.x, 0, pos.z);
+                palmTree.rotation.y = pos.rotY;
+                palmTree.scale.set(pos.scale, pos.scale, pos.scale);
+                scene.add(palmTree);
+            });
 
-            // Large surrounding Animated Ocean
+            // Large surrounding Animated Ocean (Minecraft-inspired)
+            const waterTexture = createWaterTexture();
             const oceanMat = new THREE.MeshStandardMaterial({
-                color: 0x0077be,
-                roughness: 0.1,
-                metalness: 0.8,
+                map: waterTexture,
+                roughness: 0.15,
+                metalness: 0.1,
                 transparent: true,
                 opacity: 0.85,
                 side: THREE.DoubleSide
@@ -2375,7 +2535,7 @@ ${labels}`;
             const wallThickness = 0.4;
             const spacing = 10;
 
-            const usableBeachWidth = 200;
+            const usableBeachWidth = 240;
             const maxCols = Math.floor((usableBeachWidth + spacing) / (buildingWidth + spacing));
 
             const N = newData.nodes.length;
@@ -2484,7 +2644,7 @@ ${labels}`;
             const wallThickness = 0.4;
             const spacing = 10;
 
-            const usableBeachWidth = 200;
+            const usableBeachWidth = 240;
             const maxCols = Math.floor((usableBeachWidth + spacing) / (buildingWidth + spacing));
 
             const N = clusterData.nodes.length;
@@ -3614,6 +3774,14 @@ ${labels}`;
                 }
                 position.needsUpdate = true;
                 oceanGeometry.computeVertexNormals();
+            }
+
+            // Animate ocean texture offset to simulate flowing/shifting water
+            if (oceanMesh && oceanMesh.material.map) {
+                const time = clock.getElapsedTime();
+                // Slowly scroll texture in a diagonal wave direction
+                oceanMesh.material.map.offset.x = (time * 0.03) % 1.0;
+                oceanMesh.material.map.offset.y = (time * 0.02) % 1.0;
             }
 
             // Billboard effect: Make sun glow rings face the player camera
