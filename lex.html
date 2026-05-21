@@ -721,6 +721,185 @@
             margin: 0;
             text-shadow: 0 0 2px rgba(167, 243, 208, 0.15);
         }
+
+        /* Search Panel Styling */
+        #search-panel {
+            position: absolute;
+            top: 210px;
+            left: 20px;
+            width: 320px;
+            bottom: 20px;
+            background: rgba(13, 13, 18, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 16px;
+            color: #e2e8f0;
+            padding: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            z-index: 150;
+            display: flex;
+            flex-direction: column;
+            opacity: 0;
+            transform: translateX(-20px);
+            pointer-events: none;
+            transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1), transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        #search-panel.visible {
+            opacity: 1;
+            transform: translateX(0);
+            pointer-events: auto;
+        }
+
+        .search-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            padding-bottom: 10px;
+            flex-shrink: 0;
+        }
+
+        .search-panel-title {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            font-weight: 800;
+            color: #10b981; /* Emerald/Green search theme */
+            background: rgba(16, 185, 129, 0.15);
+            padding: 4px 8px;
+            border-radius: 6px;
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .search-panel-close-x {
+            background: transparent;
+            border: none;
+            color: #94a3b8;
+            font-size: 16px;
+            cursor: pointer;
+            transition: color 0.2s ease;
+        }
+
+        .search-panel-close-x:hover {
+            color: #fff;
+        }
+
+        .search-panel-body {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        #search-input {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 8px;
+            padding: 8px 12px;
+            color: #f1f5f9;
+            font-family: 'Outfit', sans-serif;
+            font-size: 13px;
+            transition: all 0.2s ease;
+        }
+
+        #search-input:focus {
+            outline: none;
+            border-color: #10b981;
+            background: rgba(255, 255, 255, 0.08);
+            box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+        }
+
+        #search-action-btn {
+            padding: 8px 16px;
+            border-radius: 8px;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            background: rgba(16, 185, 129, 0.15);
+            color: #10b981;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        #search-action-btn:hover {
+            background: rgba(16, 185, 129, 0.25);
+            border-color: #10b981;
+            color: #fff;
+            box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+        }
+
+        #search-clear-btn {
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            background: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        #search-clear-btn:hover:not(.disabled) {
+            background: rgba(239, 68, 68, 0.25);
+            border-color: #ef4444;
+            color: #fff;
+            box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+        }
+
+        #search-clear-btn.disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
+        .search-results-scroll {
+            flex: 1;
+            overflow-y: auto;
+            margin-top: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+            padding-right: 4px;
+        }
+
+        .search-results-scroll::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .search-results-scroll::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .search-results-scroll::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.12);
+            border-radius: 2px;
+        }
+
+        .search-result-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .search-result-row:hover {
+            background: rgba(16, 185, 129, 0.08);
+            border-color: rgba(16, 185, 129, 0.3);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.1);
+        }
     </style>
     <!-- Import maps polyfill -->
     <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
@@ -742,6 +921,7 @@
             <strong>WASD / Arrow Keys:</strong> Move around<br>
             <strong>Space / Shift:</strong> Fly Up / Down<br>
             <strong>C Key:</strong> Actions Menu (on Pod)<br>
+            <strong>F Key:</strong> Search Cluster Panel<br>
             <strong>ESC:</strong> Exit mouse lock
         </p>
         <div style="margin-top: 15px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: space-between;">
@@ -814,6 +994,25 @@
         </div>
         <div class="terminal-body" id="terminal-body-container">
             <pre id="terminal-text">Fetching output...</pre>
+        </div>
+    </div>
+
+    <!-- Glassmorphic Search Panel -->
+    <div id="search-panel">
+        <div class="search-panel-header">
+            <span class="search-panel-title">🔍 Search Cluster</span>
+            <button id="search-panel-close-btn" class="search-panel-close-x" title="Close Panel (ESC)">✕</button>
+        </div>
+        <div class="search-panel-body">
+            <div style="display: flex; gap: 8px;">
+                <input type="text" id="search-input" placeholder="Type name, label, or IP..." autocomplete="off" />
+                <button id="search-action-btn">Find</button>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; flex-shrink: 0;">
+                <button id="search-clear-btn" class="disabled" disabled>✕ Clear Highlight</button>
+                <span id="search-status-label" style="font-size: 11px; color: #94a3b8; font-weight: 600;"></span>
+            </div>
+            <div id="search-results-list" class="search-results-scroll"></div>
         </div>
     </div>
 
@@ -974,6 +1173,20 @@
         const activePodMeshes = new Map();  // podName -> THREE.Mesh
         const activeColliders = new Map();  // nodeName -> Array of THREE.Box3
         let activeSelectedPodData = null;   // Real-time hovered or inside pod metadata
+
+        // Search variables & blinking green material
+        let activeSearchQuery = "";
+        let searchHighlightActive = false;
+        let searchHighlightedMeshes = []; // Array of meshes currently highlighted
+        
+        const searchBlinkingMaterial = new THREE.MeshStandardMaterial({
+            color: 0x22c55e, // Bright green base
+            roughness: 0.3,
+            metalness: 0.1,
+            transparent: false,
+            opacity: 1.0,
+            side: THREE.DoubleSide
+        });
 
         // Recursive helper to format JSON into beautiful, syntactically styled YAML
         function jsonToYaml(val, indentNum = 0) {
@@ -1406,6 +1619,9 @@ ${labels}`;
         // Setup Troubleshooting UI event handlers
         setupTroubleshootingUI();
 
+        // Setup Cluster Search UI handlers
+        setupSearchUI();
+
         // Initial fetch and world generation
         fetchClusterState();
 
@@ -1529,6 +1745,16 @@ ${labels}`;
 
             // Input Listeners
             const onKeyDown = (event) => {
+                if (event.code === 'KeyF') {
+                    // Check if focused in input/textarea to let normal typing work
+                    if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
+                        return;
+                    }
+                    event.preventDefault();
+                    toggleSearchPanel();
+                    return;
+                }
+
                 if (event.code === 'KeyC') {
                     const menuEl = document.getElementById('pod-command-menu');
                     if (menuEl) {
@@ -1971,7 +2197,7 @@ ${labels}`;
 
             const leftWall = new THREE.Mesh(sideWallGeo, activeWallMaterial);
             leftWall.position.set(-buildingWidth / 2, nodeWallHeight / 2, buildingDepth / 2);
-            leftWall.userData = nodeMetadata;
+            leftWall.userData = { ...nodeMetadata };
             nodeBuilding.add(leftWall);
 
             const leftWallEdges = new THREE.EdgesGeometry(sideWallGeo);
@@ -1982,7 +2208,7 @@ ${labels}`;
 
             const rightWall = new THREE.Mesh(sideWallGeo, activeWallMaterial);
             rightWall.position.set(buildingWidth / 2, nodeWallHeight / 2, buildingDepth / 2);
-            rightWall.userData = nodeMetadata;
+            rightWall.userData = { ...nodeMetadata };
             nodeBuilding.add(rightWall);
 
             const rightWallEdges = new THREE.EdgesGeometry(sideWallGeo);
@@ -2001,7 +2227,7 @@ ${labels}`;
             const leftTextMesh = new THREE.Mesh(textPanelGeo, leftTextMat);
             leftTextMesh.position.set(-buildingWidth / 2 - wallThickness / 2 - 0.02, nodeWallHeight / 2, buildingDepth / 2);
             leftTextMesh.rotation.y = -Math.PI / 2;
-            leftTextMesh.userData = nodeMetadata;
+            leftTextMesh.userData = { ...nodeMetadata };
             nodeBuilding.add(leftTextMesh);
 
             const rightTextTexture = createNodeTextTexture("NODE LABELS", node.labels, false, nodeWallHeight, buildingDepth);
@@ -2013,13 +2239,13 @@ ${labels}`;
             const rightTextMesh = new THREE.Mesh(textPanelGeo, rightTextMat);
             rightTextMesh.position.set(buildingWidth / 2 + wallThickness / 2 + 0.02, nodeWallHeight / 2, buildingDepth / 2);
             rightTextMesh.rotation.y = Math.PI / 2;
-            rightTextMesh.userData = nodeMetadata;
+            rightTextMesh.userData = { ...nodeMetadata };
             nodeBuilding.add(rightTextMesh);
 
             const frontWallGeo = new THREE.BoxGeometry(buildingWidth + wallThickness, nodeWallHeight, wallThickness);
             const frontWall = new THREE.Mesh(frontWallGeo, activeWallMaterial);
             frontWall.position.set(0, nodeWallHeight / 2, buildingDepth);
-            frontWall.userData = nodeMetadata;
+            frontWall.userData = { ...nodeMetadata };
             nodeBuilding.add(frontWall);
 
             const frontWallEdges = new THREE.EdgesGeometry(frontWallGeo);
@@ -2235,6 +2461,9 @@ ${labels}`;
             clusterData = newData;
             ensureRawPods();
             updateStatsPanel();
+            if (searchHighlightActive && activeSearchQuery) {
+                executeSearch(activeSearchQuery);
+            }
         }
 
         function generateClusterWorld() {
@@ -2303,6 +2532,9 @@ ${labels}`;
             } else {
                 camera.position.set(0, 2.5, -25);
                 camera.lookAt(new THREE.Vector3(0, 2.5, 0));
+            }
+            if (searchHighlightActive && activeSearchQuery) {
+                executeSearch(activeSearchQuery);
             }
         }
 
@@ -2612,6 +2844,7 @@ ${labels}`;
                 if (event.key === 'Escape') {
                     const modalEl = document.getElementById('command-output-modal');
                     const menuEl = document.getElementById('pod-command-menu');
+                    const searchPanel = document.getElementById('search-panel');
                     let didClose = false;
                     if (modalEl && modalEl.classList.contains('visible')) {
                         modalEl.classList.remove('visible');
@@ -2621,6 +2854,10 @@ ${labels}`;
                         menuEl.classList.remove('visible');
                         didClose = true;
                     }
+                    if (searchPanel && searchPanel.classList.contains('visible')) {
+                        searchPanel.classList.remove('visible');
+                        didClose = true;
+                    }
                     if (didClose) {
                         event.preventDefault();
                         event.stopPropagation();
@@ -2628,6 +2865,361 @@ ${labels}`;
                     }
                 }
             });
+        }
+
+        function toggleSearchPanel() {
+            const searchPanel = document.getElementById('search-panel');
+            if (!searchPanel) return;
+
+            if (searchPanel.classList.contains('visible')) {
+                searchPanel.classList.remove('visible');
+                controls.lock();
+            } else {
+                controls.unlock();
+                
+                // Reset movement states to prevent sliding
+                moveForward = false;
+                moveBackward = false;
+                moveLeft = false;
+                moveRight = false;
+                moveUp = false;
+                moveDown = false;
+                velocity.set(0, 0, 0);
+
+                searchPanel.classList.add('visible');
+                const searchInput = document.getElementById('search-input');
+                if (searchInput) {
+                    searchInput.focus();
+                    searchInput.select();
+                }
+            }
+        }
+
+        function executeSearch(query) {
+            // Clear prior highlights
+            clearSearchHighlight(true); // pass true to preserve query text
+
+            query = query.trim().toLowerCase();
+            if (query.length < 4) {
+                const statusLabel = document.getElementById('search-status-label');
+                if (statusLabel) {
+                    statusLabel.textContent = "Min 4 characters required";
+                    statusLabel.style.color = "#ef4444";
+                }
+                renderSearchResults([], []);
+                return;
+            }
+
+            activeSearchQuery = query;
+            searchHighlightActive = true;
+
+            const matchedNodes = [];
+            const matchedPods = [];
+
+            clusterData.nodes.forEach(node => {
+                let nodeMatches = false;
+
+                // 1. Match Node Name
+                if (node.name.toLowerCase().includes(query)) {
+                    nodeMatches = true;
+                }
+
+                // 2. Match Node Labels
+                if (node.labels) {
+                    for (const [k, v] of Object.entries(node.labels)) {
+                        if (k.toLowerCase().includes(query) || String(v).toLowerCase().includes(query)) {
+                            nodeMatches = true;
+                            break;
+                        }
+                    }
+                }
+
+                // 3. Match Node IP (via any pod's hostIP on this node)
+                if (node.pods) {
+                    node.pods.forEach(pod => {
+                        const hostIP = (pod.raw && pod.raw.status && pod.raw.status.hostIP) || "";
+                        if (hostIP.toLowerCase().includes(query)) {
+                            nodeMatches = true;
+                        }
+                    });
+                }
+
+                if (nodeMatches) {
+                    matchedNodes.push(node);
+                }
+
+                // 4. Match Pods
+                if (node.pods) {
+                    node.pods.forEach(pod => {
+                        let podMatches = false;
+
+                        // Match Pod Name
+                        if (pod.name.toLowerCase().includes(query)) {
+                            podMatches = true;
+                        }
+
+                        // Match Pod Namespace
+                        if (pod.namespace && pod.namespace.toLowerCase().includes(query)) {
+                            podMatches = true;
+                        }
+
+                        // Match Pod Labels
+                        if (pod.raw && pod.raw.metadata && pod.raw.metadata.labels) {
+                            for (const [k, v] of Object.entries(pod.raw.metadata.labels)) {
+                                if (k.toLowerCase().includes(query) || String(v).toLowerCase().includes(query)) {
+                                    podMatches = true;
+                                    break;
+                                }
+                            }
+                        }
+
+                        // Match Pod IPs
+                        const podIP = (pod.raw && pod.raw.status && pod.raw.status.podIP) || "";
+                        const hostIP = (pod.raw && pod.raw.status && pod.raw.status.hostIP) || "";
+                        if (podIP.toLowerCase().includes(query) || hostIP.toLowerCase().includes(query)) {
+                            podMatches = true;
+                        }
+
+                        if (podMatches) {
+                            matchedPods.push({ pod, node });
+                        }
+                    });
+                }
+            });
+
+            // Highlight in 3D
+            highlightMatches(matchedNodes, matchedPods);
+
+            // Display in Search results row
+            renderSearchResults(matchedNodes, matchedPods);
+        }
+
+        function highlightMatches(nodes, pods) {
+            const matchedNodeNames = new Set(nodes.map(n => n.name));
+            const matchedPodNames = new Set(pods.map(p => p.pod.name));
+
+            searchHighlightedMeshes = [];
+
+            // Match pods
+            matchedPodNames.forEach(podName => {
+                const mesh = activePodMeshes.get(podName);
+                if (mesh && mesh.isMesh) {
+                    if (!mesh.userData.originalMaterial) {
+                        mesh.userData.originalMaterial = mesh.material;
+                    }
+                    mesh.material = searchBlinkingMaterial;
+                    searchHighlightedMeshes.push(mesh);
+                }
+            });
+
+            // Match nodes (structural walls only)
+            matchedNodeNames.forEach(nodeName => {
+                const group = activeNodeGroups.get(nodeName);
+                if (group) {
+                    group.children.forEach(child => {
+                        if (child.isMesh && child.userData && child.userData.type === "node") {
+                            if (!child.userData.originalMaterial) {
+                                child.userData.originalMaterial = child.material;
+                            }
+                            child.material = searchBlinkingMaterial;
+                            searchHighlightedMeshes.push(child);
+                        }
+                    });
+                }
+            });
+
+            // Update status and Clear button
+            const statusLabel = document.getElementById('search-status-label');
+            const clearBtn = document.getElementById('search-clear-btn');
+            
+            const totalMatches = searchHighlightedMeshes.length;
+            if (statusLabel) {
+                if (totalMatches > 0) {
+                    statusLabel.textContent = `Found ${totalMatches} match${totalMatches !== 1 ? 'es' : ''}`;
+                    statusLabel.style.color = "#10b981";
+                } else {
+                    statusLabel.textContent = "No matches found";
+                    statusLabel.style.color = "#94a3b8";
+                }
+            }
+
+            if (clearBtn) {
+                if (totalMatches > 0) {
+                    clearBtn.classList.remove('disabled');
+                    clearBtn.disabled = false;
+                } else {
+                    clearBtn.classList.add('disabled');
+                    clearBtn.disabled = true;
+                }
+            }
+        }
+
+        function clearSearchHighlight(preserveQueryText = false) {
+            searchHighlightActive = false;
+            if (!preserveQueryText) {
+                activeSearchQuery = "";
+                const searchInput = document.getElementById('search-input');
+                if (searchInput) searchInput.value = "";
+                
+                const resultsList = document.getElementById('search-results-list');
+                if (resultsList) resultsList.innerHTML = "";
+            }
+
+            searchHighlightedMeshes.forEach(mesh => {
+                if (mesh.userData.originalMaterial) {
+                    mesh.material = mesh.userData.originalMaterial;
+                    delete mesh.userData.originalMaterial;
+                }
+            });
+            searchHighlightedMeshes = [];
+
+            const clearBtn = document.getElementById('search-clear-btn');
+            if (clearBtn) {
+                clearBtn.classList.add('disabled');
+                clearBtn.disabled = true;
+            }
+
+            const statusLabel = document.getElementById('search-status-label');
+            if (statusLabel && !preserveQueryText) {
+                statusLabel.textContent = "";
+            }
+        }
+
+        function renderSearchResults(nodes, pods) {
+            const resultsList = document.getElementById('search-results-list');
+            if (!resultsList) return;
+
+            resultsList.innerHTML = "";
+
+            if (nodes.length === 0 && pods.length === 0) {
+                if (activeSearchQuery.length >= 4) {
+                    const noResults = document.createElement('div');
+                    noResults.style.textAlign = "center";
+                    noResults.style.color = "#64748b";
+                    noResults.style.fontSize = "12px";
+                    noResults.style.marginTop = "20px";
+                    noResults.style.fontStyle = "italic";
+                    noResults.textContent = "No matching items found";
+                    resultsList.appendChild(noResults);
+                }
+                return;
+            }
+
+            // Render Node matches
+            nodes.forEach(node => {
+                const row = document.createElement('div');
+                row.className = "search-result-row";
+                row.style.background = "rgba(16, 185, 129, 0.03)";
+                row.style.borderColor = "rgba(16, 185, 129, 0.15)";
+                row.innerHTML = `
+                    <div style="display: flex; flex-direction: column; gap: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 80%;">
+                        <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: bold; color: #f8fafc; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${node.name}</span>
+                        <span style="font-size: 9px; color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Mem: ${node.maxMemoryGB}GB / CPU: ${node.maxCPUCores} Cores</span>
+                    </div>
+                    <span class="badge" style="font-size: 9px; padding: 2px 6px; background: rgba(16, 185, 129, 0.15); color: #10b981; border-color: rgba(16, 185, 129, 0.2);">Node</span>
+                `;
+                row.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    focusOnTarget('node', node.name);
+                });
+                resultsList.appendChild(row);
+            });
+
+            // Render Pod matches
+            pods.forEach(({ pod, node }) => {
+                const row = document.createElement('div');
+                row.className = "search-result-row";
+                row.innerHTML = `
+                    <div style="display: flex; flex-direction: column; gap: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 80%;">
+                        <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: bold; color: #f8fafc; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${pod.name}</span>
+                        <span style="font-size: 9px; color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Namespace: ${pod.namespace}</span>
+                    </div>
+                    <span class="badge" style="font-size: 9px; padding: 2px 6px; background: rgba(139, 92, 246, 0.15); color: #a78bfa; border-color: rgba(139, 92, 246, 0.2);">Pod</span>
+                `;
+                row.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    focusOnTarget('pod', pod.name);
+                });
+                resultsList.appendChild(row);
+            });
+        }
+
+        function focusOnTarget(type, name) {
+            if (type === 'node') {
+                const group = activeNodeGroups.get(name);
+                const node = clusterData.nodes.find(n => n.name === name);
+                if (group && node) {
+                    const nodeWallHeight = node.maxMemoryGB * 0.8;
+                    const targetX = group.position.x;
+                    const targetY = nodeWallHeight / 2;
+                    const targetZ = group.position.z;
+                    
+                    camera.position.set(targetX, Math.max(3, targetY), targetZ - 18);
+                    camera.lookAt(new THREE.Vector3(targetX, targetY, targetZ + 6));
+                    
+                    if (controls) {
+                        controls.getObject().position.copy(camera.position);
+                    }
+                }
+            } else if (type === 'pod') {
+                const mesh = activePodMeshes.get(name);
+                if (mesh && mesh.userData && mesh.userData.nodeName) {
+                    focusOnTarget('node', mesh.userData.nodeName);
+                } else if (mesh) {
+                    const worldPos = new THREE.Vector3();
+                    mesh.getWorldPosition(worldPos);
+                    
+                    camera.position.set(worldPos.x, worldPos.y, worldPos.z - 8);
+                    camera.lookAt(new THREE.Vector3(worldPos.x, worldPos.y, worldPos.z));
+                    
+                    if (controls) {
+                        controls.getObject().position.copy(camera.position);
+                    }
+                }
+            }
+        }
+
+        function setupSearchUI() {
+            const searchActionBtn = document.getElementById('search-action-btn');
+            const searchInput = document.getElementById('search-input');
+            const searchClearBtn = document.getElementById('search-clear-btn');
+            const searchPanelCloseBtn = document.getElementById('search-panel-close-btn');
+
+            if (searchActionBtn && searchInput) {
+                searchActionBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    executeSearch(searchInput.value);
+                });
+
+                searchInput.addEventListener('keydown', (e) => {
+                    e.stopPropagation(); // Stop navigation keys while typing!
+                    if (e.key === 'Enter') {
+                        executeSearch(searchInput.value);
+                    }
+                });
+
+                searchInput.addEventListener('keyup', (e) => {
+                    e.stopPropagation();
+                });
+            }
+
+            if (searchClearBtn) {
+                searchClearBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    clearSearchHighlight(false);
+                });
+            }
+
+            if (searchPanelCloseBtn) {
+                searchPanelCloseBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const searchPanel = document.getElementById('search-panel');
+                    if (searchPanel) {
+                        searchPanel.classList.remove('visible');
+                        controls.lock();
+                    }
+                });
+            }
         }
 
         function onWindowResize() {
@@ -3066,6 +3658,14 @@ ${labels}`;
             const blueOutlineDark = new THREE.Color(0x0a192f);
             const blueOutlineBright = new THREE.Color(0x00f0ff);
             comingOnlineOutlineMaterial.color.copy(blueOutlineDark).lerp(blueOutlineBright, blinkFactor);
+
+            // High-fidelity synchronized blinking green animation for search matches
+            if (searchHighlightActive) {
+                const searchBlinkFactor = (Math.sin(animTime * 8.0) + 1.0) / 2.0; // Rapid energetic pulse
+                const greenDark = new THREE.Color(0x052e16); // Deep forest green
+                const greenBright = new THREE.Color(0x22c55e); // Neon green
+                searchBlinkingMaterial.color.copy(greenDark).lerp(greenBright, searchBlinkFactor);
+            }
 
             // High-fidelity animation and pulse loops for node-level warning signs
             if (warningSigns.length > 0) {
