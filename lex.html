@@ -650,6 +650,7 @@
 
         let oceanGeometry, oceanMesh, sunGroup, sunMesh;
         const renderedPods = [];
+        const warningSigns = [];
 
         // Recursive helper to format JSON into beautiful, syntactically styled YAML
         function jsonToYaml(val, indentNum = 0) {
@@ -1257,9 +1258,73 @@
             return texture;
         }
 
+        // Tapered 3D Exclamation Mark warning sign floating directly above a specific node
+        function createNodeWarningSign(nodeBuilding, nodeWallHeight, buildingDepth) {
+            const signGroup = new THREE.Group();
+            
+            // Local position of the warning sign: center of the building roof, slightly above
+            const localX = 0;
+            const localY = nodeWallHeight + 3.0; // 3 units above the node wall top
+            const localZ = buildingDepth / 2;
+            
+            signGroup.position.set(localX, localY, localZ);
+            
+            // Store base Y position for bobbing animation
+            signGroup.userData = {
+                baseHeight: localY
+            };
+
+            // Material for glowing warning red exclamation mark
+            const warningGlowMat = new THREE.MeshBasicMaterial({
+                color: 0xef4444,
+                transparent: true,
+                opacity: 0.9,
+                side: THREE.DoubleSide
+            });
+
+            // 1. Exclamation mark top: tapered cylinder
+            const topGeo = new THREE.CylinderGeometry(0.8, 0.4, 3.5, 12);
+            const topMesh = new THREE.Mesh(topGeo, warningGlowMat);
+            topMesh.position.set(0, 1.0, 0);
+            signGroup.add(topMesh);
+
+            // 2. Exclamation mark bottom dot
+            const dotGeo = new THREE.SphereGeometry(0.5, 12, 12);
+            const dotMesh = new THREE.Mesh(dotGeo, warningGlowMat);
+            dotMesh.position.set(0, -1.5, 0);
+            signGroup.add(dotMesh);
+
+            // 3. Holographic rotating rings (gyroscope beacon)
+            const ringGeo1 = new THREE.TorusGeometry(3.0, 0.12, 8, 24);
+            const ringMat1 = new THREE.MeshBasicMaterial({
+                color: 0xef4444,
+                transparent: true,
+                opacity: 0.35,
+                side: THREE.DoubleSide
+            });
+            const ring1 = new THREE.Mesh(ringGeo1, ringMat1);
+            ring1.rotation.x = Math.PI / 2;
+            signGroup.add(ring1);
+
+            const ringGeo2 = new THREE.TorusGeometry(4.0, 0.08, 8, 24);
+            const ringMat2 = new THREE.MeshBasicMaterial({
+                color: 0xef4444,
+                transparent: true,
+                opacity: 0.2,
+                side: THREE.DoubleSide
+            });
+            const ring2 = new THREE.Mesh(ringGeo2, ringMat2);
+            ring2.rotation.x = Math.PI / 2;
+            signGroup.add(ring2);
+
+            nodeBuilding.add(signGroup);
+            warningSigns.push(signGroup);
+        }
+
         // 3. Procedural Map Generation Logic
         function generateClusterWorld() {
             renderedPods.length = 0;
+            warningSigns.length = 0;
             const buildingWidth = 12;      // Fixed width for every node structure
             const buildingDepth = 12;      // Fixed depth for every node structure
             const heightScale = 0.8;       // Height scale: 1GB memory matches 0.8 units in height
@@ -1279,6 +1344,7 @@
             let minX = Infinity;
             let maxX = -Infinity;
             let minZ = Infinity;
+            let maxZ = -Infinity;
 
             clusterData.nodes.forEach((node, index) => {
                 // Calculate position in the grid (filling columns first, then rows)
@@ -1300,10 +1366,23 @@
                 if (nodeMinX < minX) minX = nodeMinX;
                 if (nodeMaxX > maxX) maxX = nodeMaxX;
                 if (z < minZ) minZ = z;
+                if (z + buildingDepth > maxZ) maxZ = z + buildingDepth;
 
                 // Group representing our single structural node container
                 const nodeBuilding = new THREE.Group();
                 nodeBuilding.position.set(x, 0, z);
+
+                // Add warning sign if node has issues or contains a pod with issues
+                let nodeHasIssues = isNodeFailed(node);
+                node.pods.forEach(pod => {
+                    if (isPodFailed(pod.status)) {
+                        nodeHasIssues = true;
+                    }
+                });
+
+                if (nodeHasIssues) {
+                    createNodeWarningSign(nodeBuilding, nodeWallHeight, buildingDepth);
+                }
 
                 // Calculate metadata for node interaction
                 const totalAllocatedMemory = node.pods.reduce((sum, p) => sum + p.memoryGB, 0);
@@ -1531,6 +1610,8 @@
                 });
             });
 
+
+
             // Dynamically position player camera outside the cluster looking at its center
             if (minX !== Infinity && minZ !== Infinity) {
                 const centerX = (minX + maxX) / 2;
@@ -1711,7 +1792,7 @@
                     }
                 }
 
-                if (hoveredObj && controls.isLocked) {
+                if (hoveredObj) {
                     crosshair.classList.add('active');
                     hud.classList.add('visible');
 
@@ -1902,6 +1983,29 @@
             const podOutlineDark = new THREE.Color(0x400505);
             const podOutlineBright = new THREE.Color(0xff4444);
             failedPodOutlineMaterial.color.copy(podOutlineDark).lerp(podOutlineBright, blinkFactor);
+
+            // High-fidelity animation and pulse loops for node-level warning signs
+            if (warningSigns.length > 0) {
+                const time = clock.getElapsedTime();
+                const warningBlink = 0.75 + (Math.sin(time * 5.5) + 1.0) * 0.125;
+
+                warningSigns.forEach(sign => {
+                    // Spin exclamation mark and horizontal rings
+                    sign.rotation.y = time * 0.8;
+                    // Bob it up and down gently using its stored base local Y
+                    const baseHeight = sign.userData.baseHeight;
+                    sign.position.y = baseHeight + Math.sin(time * 2.0) * 0.5;
+
+                    // Pulse material opacities in synchrony
+                    sign.children.forEach(child => {
+                        if (child.geometry.type === 'CylinderGeometry' || child.geometry.type === 'SphereGeometry') {
+                            child.material.opacity = warningBlink;
+                        } else if (child.geometry.type === 'TorusGeometry') {
+                            child.material.opacity = 0.2 + (Math.sin(time * 3.0) + 1.0) * 0.1;
+                        }
+                    });
+                });
+            }
 
             renderer.render(scene, camera);
         }
