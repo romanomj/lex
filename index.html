@@ -900,6 +900,196 @@
             transform: translateY(-1px);
             box-shadow: 0 4px 12px rgba(16, 185, 129, 0.1);
         }
+
+        /* Context Switcher Styles */
+        .context-switcher-container {
+            position: relative;
+            display: inline-block;
+        }
+
+        .context-select-btn {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            padding: 4px 12px;
+            color: #f1f5f9;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            user-select: none;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+
+        .context-select-btn:hover {
+            background: rgba(59, 130, 246, 0.15);
+            border-color: rgba(59, 130, 246, 0.4);
+            box-shadow: 0 0 12px rgba(59, 130, 246, 0.25);
+        }
+
+        .context-select-btn:active {
+            transform: scale(0.98);
+        }
+
+        .dropdown-chevron {
+            font-size: 10px;
+            color: #94a3b8;
+            transition: transform 0.2s ease;
+        }
+
+        .context-switcher-container.open .dropdown-chevron {
+            transform: rotate(180deg);
+        }
+
+        .context-dropdown-list {
+            position: absolute;
+            top: calc(100% + 6px);
+            left: 50%;
+            transform: translateX(-50%) translateY(-10px);
+            background: rgba(13, 13, 18, 0.95);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 12px;
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            z-index: 1000;
+            min-width: 200px;
+            opacity: 0;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            padding: 6px;
+            gap: 4px;
+            transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .context-dropdown-list.visible {
+            opacity: 1;
+            pointer-events: auto;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .context-item {
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            color: #cbd5e1;
+            transition: all 0.15s ease;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            white-space: nowrap;
+        }
+
+        .context-item:hover {
+            background: rgba(255, 255, 255, 0.06);
+            color: #f8fafc;
+        }
+
+        .context-item.active {
+            background: rgba(59, 130, 246, 0.2);
+            color: #60a5fa;
+            border: 1px solid rgba(59, 130, 246, 0.25);
+            font-weight: 700;
+        }
+
+        .context-item-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background-color: transparent;
+        }
+
+        .context-item.active .context-item-dot {
+            background-color: #60a5fa;
+            box-shadow: 0 0 8px #60a5fa;
+        }
+
+        .context-select-btn.loading {
+            opacity: 0.7;
+            pointer-events: none;
+        }
+
+        /* Spinner for loading state */
+        .switcher-spinner {
+            width: 12px;
+            height: 12px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #3b82f6;
+            animation: spin 0.8s linear infinite;
+            display: inline-block;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Toast Notification Styles */
+        #toast-container {
+            position: absolute;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: none;
+        }
+
+        .toast-card {
+            background: rgba(20, 20, 25, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 12px;
+            padding: 12px 20px;
+            color: #f1f5f9;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            pointer-events: auto;
+            transform: translateY(20px);
+            opacity: 0;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .toast-card.visible {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .toast-success {
+            border-color: rgba(16, 185, 129, 0.3);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5), 0 0 12px rgba(16, 185, 129, 0.15);
+        }
+
+        .toast-success .toast-icon {
+            color: #10b981;
+            text-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
+        }
+
+        .toast-error {
+            border-color: rgba(239, 68, 68, 0.3);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5), 0 0 12px rgba(239, 68, 68, 0.15);
+        }
+
+        .toast-error .toast-icon {
+            color: #ef4444;
+            text-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+        }
     </style>
     <!-- Import maps polyfill -->
     <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
@@ -938,7 +1128,13 @@
     <div id="stats-panel">
         <div class="stats-header">
             <span class="stats-cluster-icon">⎈</span>
-            <span class="stats-cluster-name" id="stats-cluster-name">ClusterNamePlaceHolder</span>
+            <div class="context-switcher-container">
+                <button class="context-select-btn" id="context-select-btn">
+                    <span id="active-context-name" class="stats-cluster-name">Loading...</span>
+                    <span class="dropdown-chevron">▼</span>
+                </button>
+                <div class="context-dropdown-list" id="context-dropdown-list"></div>
+            </div>
         </div>
         <div class="stats-grid">
             <div class="stats-item">
@@ -1027,6 +1223,7 @@
     </div>
 
     <div id="crosshair"></div>
+    <div id="toast-container"></div>
     <div id="canvas-container"></div>
 
     <script type="module">
@@ -1187,6 +1384,10 @@
         const activeColliders = new Map();  // nodeName -> Array of THREE.Box3
         let activeSelectedPodData = null;   // Real-time hovered or inside pod metadata
         let activeSelectedNodeData = null;  // Real-time hovered node metadata
+
+        // Phase 3 Multi-Cluster Context Switching globals
+        let availableContexts = [];
+        let activeContext = "demo";
 
         // Search variables & blinking green material
         let activeSearchQuery = "";
@@ -1768,7 +1969,9 @@ ${labels}`;
             // Format memory to 1 decimal place
             const formattedMemory = Math.round(totalMemory * 10) / 10;
             
-            document.getElementById('stats-cluster-name').textContent = clusterName;
+            const activeLabel = document.getElementById('active-context-name');
+            if (activeLabel) activeLabel.textContent = clusterName;
+            
             document.getElementById('stats-nodes').textContent = totalNodes;
             document.getElementById('stats-pods').textContent = totalPods;
             document.getElementById('stats-memory').textContent = `${formattedMemory} GB`;
@@ -1830,7 +2033,162 @@ ${labels}`;
             });
         }
 
+        // Show premium glassmorphic toast notification
+        function showToast(message, type = "success") {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+            const toast = document.createElement('div');
+            toast.className = `toast-card toast-${type}`;
+            toast.innerHTML = `
+                <span class="toast-icon">${type === 'success' ? '✓' : '▲'}</span>
+                <span class="toast-message">${escapeHtml(message)}</span>
+            `;
+            container.appendChild(toast);
+            setTimeout(() => toast.classList.add('visible'), 50);
+            setTimeout(() => {
+                toast.classList.remove('visible');
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+
+        // Fetch discovered Kubernetes contexts from server
+        function fetchAvailableContexts() {
+            fetch('/api/v1/contexts')
+                .then(response => {
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    return response.json();
+                })
+                .then(data => {
+                    availableContexts = data.contexts || ["demo"];
+                    activeContext = data.activeContext || "demo";
+                    
+                    const activeLabel = document.getElementById('active-context-name');
+                    if (activeLabel) {
+                        activeLabel.textContent = activeContext;
+                    }
+                    
+                    renderContextDropdown();
+                })
+                .catch(error => {
+                    console.warn("Could not retrieve contexts from API server. Defaulting to demo mode.", error.message);
+                    availableContexts = ["demo"];
+                    activeContext = "demo";
+                    
+                    const activeLabel = document.getElementById('active-context-name');
+                    if (activeLabel) {
+                        activeLabel.textContent = "demo";
+                    }
+                    
+                    renderContextDropdown();
+                });
+        }
+
+        // Render context dropdown options dynamically
+        function renderContextDropdown() {
+            const list = document.getElementById('context-dropdown-list');
+            if (!list) return;
+            
+            list.innerHTML = "";
+            availableContexts.forEach(ctx => {
+                const isActive = (ctx === activeContext);
+                const item = document.createElement('div');
+                item.className = `context-item ${isActive ? 'active' : ''}`;
+                item.innerHTML = `
+                    <span>${ctx}</span>
+                    <span class="context-item-dot"></span>
+                `;
+                item.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    switchContext(ctx);
+                });
+                list.appendChild(item);
+            });
+        }
+
+        // Switch to selected context
+        function switchContext(newCtx) {
+            if (newCtx === activeContext) return;
+            
+            const selectBtn = document.getElementById('context-select-btn');
+            const activeLabel = document.getElementById('active-context-name');
+            
+            // Add loader state and spinner
+            selectBtn.classList.add('loading');
+            
+            // Remove existing spinner if any
+            const existingSpinner = selectBtn.querySelector('.switcher-spinner');
+            if (existingSpinner) existingSpinner.remove();
+            
+            const spinner = document.createElement('span');
+            spinner.className = 'switcher-spinner';
+            spinner.style.marginRight = '8px';
+            selectBtn.insertBefore(spinner, activeLabel);
+            
+            fetch('/api/v1/contexts/switch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ context: newCtx })
+            })
+            .then(response => {
+                spinner.remove();
+                selectBtn.classList.remove('loading');
+                if (!response.ok) {
+                    return response.json().then(data => {
+                        throw new Error(data.error || `HTTP ${response.status}`);
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                showToast(`Switched context to "${newCtx}" successfully.`, 'success');
+                activeContext = newCtx;
+                renderContextDropdown();
+                // Update label
+                activeLabel.textContent = newCtx;
+                
+                // Hide dropdown
+                const container = document.querySelector('.context-switcher-container');
+                const list = document.getElementById('context-dropdown-list');
+                if (container) container.classList.remove('open');
+                if (list) list.classList.remove('visible');
+                
+                // Instantly trigger sync
+                fetchClusterState();
+            })
+            .catch(error => {
+                spinner.remove();
+                selectBtn.classList.remove('loading');
+                showToast(`Failed to switch to "${newCtx}": ${error.message}`, 'error');
+                renderContextDropdown(); // Re-render to restore active visual state
+            });
+        }
+
+        // Toggle context dropdown list
+        function toggleContextDropdown() {
+            const container = document.querySelector('.context-switcher-container');
+            const list = document.getElementById('context-dropdown-list');
+            if (!container || !list) return;
+            
+            const isOpen = container.classList.toggle('open');
+            list.classList.toggle('visible', isOpen);
+            
+            if (isOpen) {
+                controls.unlock();
+                // Reset key movements to prevent drift
+                moveForward = false;
+                moveBackward = false;
+                moveLeft = false;
+                moveRight = false;
+                moveUp = false;
+                moveDown = false;
+                velocity.set(0, 0, 0);
+            }
+        }
+
         init();
+
+        // Discover and load available Kubernetes contexts
+        fetchAvailableContexts();
 
         // Setup Troubleshooting UI event handlers
         setupTroubleshootingUI();
@@ -2080,6 +2438,25 @@ ${labels}`;
                     yamlContainer.scrollTop += 50;
                 });
             }
+
+            // Wire up Context Selector
+            const contextSelectBtn = document.getElementById('context-select-btn');
+            if (contextSelectBtn) {
+                contextSelectBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    toggleContextDropdown();
+                });
+            }
+
+            // Close context dropdown on outside click
+            document.addEventListener('click', (event) => {
+                const container = document.querySelector('.context-switcher-container');
+                const list = document.getElementById('context-dropdown-list');
+                if (container && !container.contains(event.target)) {
+                    container.classList.remove('open');
+                    if (list) list.classList.remove('visible');
+                }
+            });
 
             window.addEventListener('resize', onWindowResize);
         }
@@ -3362,6 +3739,8 @@ ${labels}`;
                     const modalEl = document.getElementById('command-output-modal');
                     const menuEl = document.getElementById('pod-command-menu');
                     const searchPanel = document.getElementById('search-panel');
+                    const dropdownContainer = document.querySelector('.context-switcher-container');
+                    const dropdownList = document.getElementById('context-dropdown-list');
                     let didClose = false;
                     if (modalEl && modalEl.classList.contains('visible')) {
                         modalEl.classList.remove('visible');
@@ -3377,6 +3756,11 @@ ${labels}`;
                         if (searchInput) {
                             searchInput.blur();
                         }
+                        didClose = true;
+                    }
+                    if (dropdownContainer && dropdownContainer.classList.contains('open')) {
+                        dropdownContainer.classList.remove('open');
+                        if (dropdownList) dropdownList.classList.remove('visible');
                         didClose = true;
                     }
                     if (didClose) {
