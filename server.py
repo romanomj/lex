@@ -42,6 +42,9 @@ class LocalAPIServer(http.server.SimpleHTTPRequestHandler):
         # Route: API pod spec
         elif path == '/api/v1/pods/spec':
             self.handle_pod_spec(parsed_url.query)
+        # Route: API events fetch
+        elif path == '/api/v1/events':
+            self.handle_get_events(parsed_url.query)
         else:
             # Fallback to serving static files (lex.html, etc.) from the workspace directory
             super().do_GET()
@@ -165,6 +168,51 @@ class LocalAPIServer(http.server.SimpleHTTPRequestHandler):
             self.send_text_response(504, "▲ Command timeout expired while connecting to cluster.")
         except Exception as e:
             self.send_text_response(500, f"▲ Server error executing kubectl get pod: {str(e)}")
+
+    def handle_get_events(self, query_string):
+        params = parse_qs(query_string)
+        name = params.get('name', [None])[0]
+        kind = params.get('kind', [None])[0]
+        namespace = params.get('namespace', [None])[0]
+
+        if not name or not kind:
+            self.send_error_json(400, "Missing required query parameters: 'name' and 'kind'")
+            return
+
+        # Secure parameters: strictly match Kubernetes DNS label / namespace rules
+        if not re.match(r"^[a-z0-9.-]+$", name) or (namespace and not re.match(r"^[a-z0-9.-]+$", namespace)):
+            self.send_error_json(400, "Invalid characters in name or namespace parameter")
+            return
+
+        kind = kind.lower()
+        if kind not in ['pod', 'node']:
+            self.send_error_json(400, "Invalid kind. Must be 'pod' or 'node'")
+            return
+
+        # Execute read-only command securely using argument lists (no shell=True)
+        try:
+            if kind == 'pod':
+                ns = namespace if namespace else 'default'
+                cmd = ["kubectl", "get", "events", "-n", ns, "--field-selector", f"involvedObject.name={name}"]
+            else: # node
+                cmd = ["kubectl", "get", "events", "--all-namespaces", "--field-selector", f"involvedObject.name={name}"]
+
+            print(f"Running secure command: {' '.join(cmd)}")
+            res = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            if res.returncode == 0:
+                self.send_text_response(200, res.stdout or "No events found for this object.")
+            else:
+                error_msg = res.stderr or "Unknown error fetching events"
+                self.send_text_response(500, f"▲ kubectl failed:\n{error_msg}")
+        except subprocess.TimeoutExpired:
+            self.send_text_response(504, "▲ Command timeout expired while connecting to cluster.")
+        except Exception as e:
+            self.send_text_response(500, f"▲ Server error executing kubectl events: {str(e)}")
 
     def send_json_response(self, code, data):
         self.send_response(code)

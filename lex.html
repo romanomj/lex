@@ -976,6 +976,7 @@
         <button class="menu-btn" id="menu-btn-spec">📋 Get Pod Specification</button>
         <button class="menu-btn" id="menu-btn-logs">📜 Get Logs</button>
         <button class="menu-btn" id="menu-btn-describe">🔍 Describe Pod</button>
+        <button class="menu-btn" id="menu-btn-events">🔔 Get Events</button>
         <button class="menu-btn disabled" id="menu-btn-restart" disabled>⚙️ Restart Pod (Disabled)</button>
         <button class="menu-btn disabled" id="menu-btn-delete" disabled>❌ Delete Pod (Disabled)</button>
         <button class="menu-btn terminal-btn-close" id="menu-btn-close" style="justify-content: center; margin-top: 8px;">✕ Close</button>
@@ -1173,6 +1174,7 @@
         const activePodMeshes = new Map();  // podName -> THREE.Mesh
         const activeColliders = new Map();  // nodeName -> Array of THREE.Box3
         let activeSelectedPodData = null;   // Real-time hovered or inside pod metadata
+        let activeSelectedNodeData = null;  // Real-time hovered node metadata
 
         // Search variables & blinking green material
         let activeSearchQuery = "";
@@ -1924,7 +1926,11 @@ ${labels}`;
                             return;
                         } else if (activeSelectedPodData && !menuEl.classList.contains('visible')) {
                             event.preventDefault();
-                            openPodCommandMenu(activeSelectedPodData);
+                            openCommandMenu('pod', activeSelectedPodData);
+                            return;
+                        } else if (activeSelectedNodeData && !menuEl.classList.contains('visible')) {
+                            event.preventDefault();
+                            openCommandMenu('node', activeSelectedNodeData);
                             return;
                         }
                     }
@@ -2764,7 +2770,7 @@ ${labels}`;
             }
         }
 
-        function openPodCommandMenu(podData) {
+        function openCommandMenu(type, data) {
             controls.unlock();
             
             // Clear movement keys and zero out velocity to prevent sliding
@@ -2777,16 +2783,56 @@ ${labels}`;
             velocity.set(0, 0, 0);
             
             const menuTitleEl = document.getElementById('menu-pod-name');
-            if (menuTitleEl) {
-                menuTitleEl.textContent = `Pod: ${podData.podName}`;
-            }
-
             const menuEl = document.getElementById('pod-command-menu');
+            
+            const specBtn = document.getElementById('menu-btn-spec');
+            const logsBtn = document.getElementById('menu-btn-logs');
+            const describeBtn = document.getElementById('menu-btn-describe');
+            const restartBtn = document.getElementById('menu-btn-restart');
+            const deleteBtn = document.getElementById('menu-btn-delete');
+            const eventsBtn = document.getElementById('menu-btn-events');
+
             if (menuEl) {
                 menuEl.classList.add('visible');
-                menuEl.dataset.podName = podData.podName;
-                menuEl.dataset.namespace = podData.namespace;
+                menuEl.dataset.menuType = type;
+                
+                if (type === 'pod') {
+                    if (menuTitleEl) menuTitleEl.textContent = `Pod: ${data.podName}`;
+                    menuEl.dataset.podName = data.podName;
+                    menuEl.dataset.namespace = data.namespace;
+                    
+                    // Show pod buttons
+                    if (specBtn) specBtn.style.display = 'flex';
+                    if (logsBtn) logsBtn.style.display = 'flex';
+                    if (describeBtn) describeBtn.style.display = 'flex';
+                    if (restartBtn) restartBtn.style.display = 'flex';
+                    if (deleteBtn) deleteBtn.style.display = 'flex';
+                    
+                    if (eventsBtn) {
+                        eventsBtn.style.display = 'flex';
+                        eventsBtn.textContent = '🔔 Get Pod Events';
+                    }
+                } else if (type === 'node') {
+                    if (menuTitleEl) menuTitleEl.textContent = `Node: ${data.nodeName}`;
+                    menuEl.dataset.nodeName = data.nodeName;
+                    
+                    // Hide pod-specific buttons
+                    if (specBtn) specBtn.style.display = 'none';
+                    if (logsBtn) logsBtn.style.display = 'none';
+                    if (describeBtn) describeBtn.style.display = 'none';
+                    if (restartBtn) restartBtn.style.display = 'none';
+                    if (deleteBtn) deleteBtn.style.display = 'none';
+                    
+                    if (eventsBtn) {
+                        eventsBtn.style.display = 'flex';
+                        eventsBtn.textContent = '🔔 Get Node Events';
+                    }
+                }
             }
+        }
+
+        function openPodCommandMenu(podData) {
+            openCommandMenu('pod', podData);
         }
 
         function closePodCommandMenu() {
@@ -2795,6 +2841,28 @@ ${labels}`;
                 menuEl.classList.remove('visible');
             }
             controls.lock();
+        }
+
+        function getMockPodEvents(podName, namespace, nodeName, status) {
+            const now = new Date();
+            let events = `LAST SEEN   TYPE      REASON      OBJECT      MESSAGE\n15m         Normal    Scheduled   pod/${podName}   Successfully assigned ${namespace}/${podName} to ${nodeName}\n14m         Normal    Pulling     pod/${podName}   Pulling image "nginx:stable-alpine"\n14m         Normal    Pulled      pod/${podName}   Successfully pulled image "nginx:stable-alpine" in 2.15s\n14m         Normal    Created     pod/${podName}   Created container ${podName.split('-')[0]}\n14m         Normal    Started     pod/${podName}   Started container ${podName.split('-')[0]}`;
+
+            if (status && (status.includes("CrashLoopBackOff") || status.includes("Failed") || status.includes("Error") || status.includes("Init"))) {
+                events += `\n8m          Warning   BackOff     pod/${podName}   Back-off restarting failed container ${podName.split('-')[0]} in namespace ${namespace}`;
+            }
+            return events;
+        }
+
+        function getMockNodeEvents(nodeName, conditions) {
+            let events = `LAST SEEN   TYPE      REASON          OBJECT      MESSAGE\n20m         Normal    Starting        node/${nodeName}   Starting kubelet.\n19m         Normal    NodeAllocatable node/${nodeName}   Node Allocatable resources updated.\n18m         Normal    NodeReady       node/${nodeName}   Node ${nodeName} is now Ready`;
+
+            if (conditions && conditions.MemoryPressure === "True") {
+                events += `\n5m          Warning   SystemOOM       node/${nodeName}   System OOM encountered under severe memory pressure`;
+            }
+            if (conditions && conditions.Ready === "Unknown") {
+                events += `\n2m          Warning   NodeNotReady    node/${nodeName}   Node status is unknown. Kubelet stopped posting node status.`;
+            }
+            return events;
         }
 
         function escapeHtml(text) {
@@ -2849,6 +2917,31 @@ ${labels}`;
             return escaped;
         }
 
+        function highlightEventsOutput(text) {
+            let escaped = escapeHtml(text);
+            
+            // Highlight headers
+            escaped = escaped.replace(/^(LAST SEEN\s+TYPE\s+REASON\s+OBJECT\s+MESSAGE)/gi, (match) => {
+                return `<span style="color: #38bdf8; font-weight: bold; text-shadow: 0 0 6px rgba(56, 189, 248, 0.4);">${match}</span>`;
+            });
+            
+            // Highlight Normal events green
+            escaped = escaped.replace(/^([^\n]*\s+)(Normal)(\s+[^\n]*)$/gim, (match, before, type, after) => {
+                const typeSpan = `<span style="color: #10b981; font-weight: bold; text-shadow: 0 0 6px rgba(16, 185, 129, 0.3);">${type}</span>`;
+                let highlightedAfter = after.replace(/(\b[a-zA-Z]+ed\b|\bScheduled\b|\bCreated\b|\bStarted\b|\bPulled\b)/g, `<span style="color: #60a5fa;">$1</span>`);
+                return `${before}${typeSpan}${highlightedAfter}`;
+            });
+
+            // Highlight Warning events red/orange
+            escaped = escaped.replace(/^([^\n]*\s+)(Warning)(\s+[^\n]*)$/gim, (match, before, type, after) => {
+                const typeSpan = `<span style="color: #ef4444; font-weight: bold; text-shadow: 0 0 6px rgba(239, 68, 68, 0.4);">${type}</span>`;
+                let highlightedAfter = after.replace(/(\bFailed\b|\bBackOff\b|\bUnhealthy\b|\bError\b|\bKilling\b)/gi, `<span style="color: #f59e0b; font-weight: bold;">$1</span>`);
+                return `${before}${typeSpan}${highlightedAfter}`;
+            });
+            
+            return escaped;
+        }
+
         function fetchPodTroubleshooting(action, podName, namespace) {
             const modalEl = document.getElementById('command-output-modal');
             const terminalTextEl = document.getElementById('terminal-text');
@@ -2861,6 +2954,8 @@ ${labels}`;
                 cmdStr = `$ kubectl describe pod ${podName} -n ${namespace}`;
             } else if (action === 'spec') {
                 cmdStr = `$ kubectl get pod ${podName} -n ${namespace} -o yaml`;
+            } else if (action === 'events') {
+                cmdStr = `$ kubectl get events -n ${namespace} --field-selector involvedObject.name=${podName}`;
             }
             cmdHeaderEl.textContent = cmdStr;
             
@@ -2889,8 +2984,18 @@ ${labels}`;
                 return;
             }
 
-            const endpoint = action === 'logs' ? '/api/v1/pods/logs' : '/api/v1/pods/describe';
-            const url = `${endpoint}?pod=${encodeURIComponent(podName)}&namespace=${encodeURIComponent(namespace)}`;
+            let endpoint = '';
+            let url = '';
+            if (action === 'logs') {
+                endpoint = '/api/v1/pods/logs';
+                url = `${endpoint}?pod=${encodeURIComponent(podName)}&namespace=${encodeURIComponent(namespace)}`;
+            } else if (action === 'describe') {
+                endpoint = '/api/v1/pods/describe';
+                url = `${endpoint}?pod=${encodeURIComponent(podName)}&namespace=${encodeURIComponent(namespace)}`;
+            } else if (action === 'events') {
+                endpoint = '/api/v1/events';
+                url = `${endpoint}?name=${encodeURIComponent(podName)}&kind=pod&namespace=${encodeURIComponent(namespace)}`;
+            }
             
             fetch(url)
                 .then(res => {
@@ -2904,12 +3009,60 @@ ${labels}`;
                 .then(text => {
                     if (action === 'describe') {
                         terminalTextEl.innerHTML = highlightDescribeOutput(text);
+                    } else if (action === 'events') {
+                        terminalTextEl.innerHTML = highlightEventsOutput(text);
                     } else {
                         terminalTextEl.textContent = text || "(Logs are empty)";
                     }
                 })
                 .catch(err => {
-                    terminalTextEl.innerHTML = `<span style="color: #ef4444; font-weight: bold;">▲ Server Error:</span>\n${escapeHtml(err.message)}`;
+                    if (action === 'events') {
+                        const podMesh = activePodMeshes.get(podName);
+                        const status = (podMesh && podMesh.userData && podMesh.userData.status) || "Running";
+                        const nodeName = (podMesh && podMesh.userData && podMesh.userData.nodeName) || "unknown-node";
+                        const mockText = getMockPodEvents(podName, namespace, nodeName, status);
+                        terminalTextEl.innerHTML = highlightEventsOutput(mockText);
+                    } else {
+                        terminalTextEl.innerHTML = `<span style="color: #ef4444; font-weight: bold;">▲ Server Error:</span>\n${escapeHtml(err.message)}`;
+                    }
+                });
+        }
+
+        function fetchNodeTroubleshooting(action, nodeName) {
+            const modalEl = document.getElementById('command-output-modal');
+            const terminalTextEl = document.getElementById('terminal-text');
+            const cmdHeaderEl = document.getElementById('terminal-cmd-header');
+            
+            let cmdStr = "";
+            if (action === 'events') {
+                cmdStr = `$ kubectl get events --all-namespaces --field-selector involvedObject.name=${nodeName}`;
+            }
+            cmdHeaderEl.textContent = cmdStr;
+            
+            terminalTextEl.textContent = "Connecting to localhost API server...\n";
+            modalEl.classList.add('visible');
+            
+            const endpoint = '/api/v1/events';
+            const url = `${endpoint}?name=${encodeURIComponent(nodeName)}&kind=node`;
+            
+            fetch(url)
+                .then(res => {
+                    if (!res.ok) {
+                        return res.text().then(errText => {
+                            throw new Error(errText || `HTTP ${res.status}`);
+                        });
+                    }
+                    return res.text();
+                })
+                .then(text => {
+                    terminalTextEl.innerHTML = highlightEventsOutput(text);
+                })
+                .catch(err => {
+                    console.warn("Could not query live node events, using mock events:", err.message);
+                    const node = clusterData.nodes.find(n => n.name === nodeName);
+                    const conditions = node ? node.conditions : {};
+                    const mockText = getMockNodeEvents(nodeName, conditions);
+                    terminalTextEl.innerHTML = highlightEventsOutput(mockText);
                 });
         }
 
@@ -2917,6 +3070,7 @@ ${labels}`;
             const menuSpecBtn = document.getElementById('menu-btn-spec');
             const menuLogsBtn = document.getElementById('menu-btn-logs');
             const menuDescribeBtn = document.getElementById('menu-btn-describe');
+            const menuEventsBtn = document.getElementById('menu-btn-events');
             const menuCloseBtn = document.getElementById('menu-btn-close');
             
             if (menuSpecBtn && menuLogsBtn && menuDescribeBtn && menuCloseBtn) {
@@ -2949,6 +3103,24 @@ ${labels}`;
                     menuEl.classList.remove('visible');
                     fetchPodTroubleshooting('describe', pod, namespace);
                 });
+
+                if (menuEventsBtn) {
+                    menuEventsBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const menuEl = document.getElementById('pod-command-menu');
+                        const menuType = menuEl.dataset.menuType;
+                        
+                        menuEl.classList.remove('visible');
+                        if (menuType === 'pod') {
+                            const pod = menuEl.dataset.podName;
+                            const namespace = menuEl.dataset.namespace;
+                            fetchPodTroubleshooting('events', pod, namespace);
+                        } else if (menuType === 'node') {
+                            const node = menuEl.dataset.nodeName;
+                            fetchNodeTroubleshooting('events', node);
+                        }
+                    });
+                }
 
                 menuCloseBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
@@ -3703,9 +3875,12 @@ ${labels}`;
                             yamlPanel.classList.remove('visible');
                             delete yamlPanel.dataset.activePod;
                             activeSelectedPodData = null; // Clear if pointer is locked
+                            activeSelectedNodeData = null;
                         }
 
                         if (data.type === 'node') {
+                            activeSelectedNodeData = data;
+                            activeSelectedPodData = null;
                             const allocationPercentage = Math.round((data.allocatedMemory / data.maxMemoryGB) * 100);
                             const formattedMaxMemory = Math.round(data.maxMemoryGB * 10) / 10;
                             const formattedAllocatedMemory = Math.round(data.allocatedMemory * 10) / 10;
@@ -3755,6 +3930,8 @@ ${labels}`;
                                 </div>
                             `;
                         } else if (data.type === 'unallocated') {
+                            activeSelectedNodeData = null;
+                            activeSelectedPodData = null;
                             const unallocatedPercentage = Math.round((data.memoryGB / data.nodeMaxMemory) * 100);
                             const formattedMemory = Math.round(data.memoryGB * 10) / 10;
                             hud.innerHTML = `
@@ -3792,6 +3969,7 @@ ${labels}`;
                         yamlPanel.classList.remove('visible');
                         delete yamlPanel.dataset.activePod;
                         activeSelectedPodData = null; // Clear if pointer is locked
+                        activeSelectedNodeData = null;
                     }
                 }
             }
