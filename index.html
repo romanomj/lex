@@ -2847,7 +2847,8 @@ ${labels}`;
                 allocatedMemory: Math.round(totalAllocatedMemory * 10) / 10,
                 allocatedCPU: Math.round(totalAllocatedCPU * 10) / 10,
                 podsCount: node.pods ? node.pods.length : 0,
-                creationTimestamp: node.creationTimestamp || null
+                creationTimestamp: node.creationTimestamp || null,
+                raw: node.raw || null
             };
 
             const isFailedNode = isNodeFailed(node);
@@ -3364,7 +3365,10 @@ ${labels}`;
                     menuEl.dataset.namespace = data.namespace;
                     
                     // Show pod buttons
-                    if (specBtn) specBtn.style.display = 'flex';
+                    if (specBtn) {
+                        specBtn.style.display = 'flex';
+                        specBtn.textContent = '📋 Get Pod Specification';
+                    }
                     if (logsBtn) logsBtn.style.display = 'flex';
                     if (describeBtn) describeBtn.style.display = 'flex';
                     if (restartBtn) restartBtn.style.display = 'flex';
@@ -3378,8 +3382,12 @@ ${labels}`;
                     if (menuTitleEl) menuTitleEl.textContent = `Node: ${data.nodeName}`;
                     menuEl.dataset.nodeName = data.nodeName;
                     
+                    // Show node spec button
+                    if (specBtn) {
+                        specBtn.style.display = 'flex';
+                        specBtn.textContent = '📋 Get Node Specification';
+                    }
                     // Hide pod-specific buttons
-                    if (specBtn) specBtn.style.display = 'none';
                     if (logsBtn) logsBtn.style.display = 'none';
                     if (describeBtn) describeBtn.style.display = 'none';
                     if (restartBtn) restartBtn.style.display = 'none';
@@ -3598,11 +3606,34 @@ ${labels}`;
             let cmdStr = "";
             if (action === 'events') {
                 cmdStr = `$ kubectl get events --all-namespaces --field-selector involvedObject.name=${nodeName}`;
+            } else if (action === 'spec') {
+                cmdStr = `$ kubectl get node ${nodeName} -o yaml`;
             }
             cmdHeaderEl.textContent = cmdStr;
             
             terminalTextEl.textContent = "Connecting to localhost API server...\n";
             modalEl.classList.add('visible');
+            
+            if (action === 'spec') {
+                fetch(`/api/v1/nodes/spec?node=${encodeURIComponent(nodeName)}`)
+                    .then(res => {
+                        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                        return res.text();
+                    })
+                    .then(text => {
+                        terminalTextEl.innerHTML = highlightYamlOutput(text);
+                    })
+                    .catch(err => {
+                        console.warn("Could not fetch node spec from live API server, using local cache fallback:", err.message);
+                        const node = clusterData && clusterData.nodes ? clusterData.nodes.find(n => n.name === nodeName) : null;
+                        if (node && node.raw) {
+                            terminalTextEl.innerHTML = jsonToYaml(node.raw);
+                        } else {
+                            terminalTextEl.innerHTML = `<span style="color: #ef4444; font-weight: bold;">▲ Error:</span> Specification data not found in cache.`;
+                        }
+                    });
+                return;
+            }
             
             const endpoint = '/api/v1/events';
             const url = `${endpoint}?name=${encodeURIComponent(nodeName)}&kind=node`;
@@ -3621,7 +3652,7 @@ ${labels}`;
                 })
                 .catch(err => {
                     console.warn("Could not query live node events, using mock events:", err.message);
-                    const node = clusterData.nodes.find(n => n.name === nodeName);
+                    const node = clusterData && clusterData.nodes ? clusterData.nodes.find(n => n.name === nodeName) : null;
                     const conditions = node ? node.conditions : {};
                     const mockText = getMockNodeEvents(nodeName, conditions);
                     terminalTextEl.innerHTML = highlightEventsOutput(mockText);
@@ -3639,11 +3670,17 @@ ${labels}`;
                 menuSpecBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
                     const menuEl = document.getElementById('pod-command-menu');
-                    const pod = menuEl.dataset.podName;
-                    const namespace = menuEl.dataset.namespace;
+                    const menuType = menuEl.dataset.menuType;
                     
                     menuEl.classList.remove('visible');
-                    fetchPodTroubleshooting('spec', pod, namespace);
+                    if (menuType === 'pod') {
+                        const pod = menuEl.dataset.podName;
+                        const namespace = menuEl.dataset.namespace;
+                        fetchPodTroubleshooting('spec', pod, namespace);
+                    } else if (menuType === 'node') {
+                        const node = menuEl.dataset.nodeName;
+                        fetchNodeTroubleshooting('spec', node);
+                    }
                 });
 
                 menuLogsBtn.addEventListener('click', (e) => {

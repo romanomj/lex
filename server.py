@@ -49,6 +49,9 @@ class LocalAPIServer(http.server.SimpleHTTPRequestHandler):
         # Route: API pod spec
         elif path == '/api/v1/pods/spec':
             self.handle_pod_spec(parsed_url.query)
+        # Route: API node spec
+        elif path == '/api/v1/nodes/spec':
+            self.handle_node_spec(parsed_url.query)
         # Route: API events fetch
         elif path == '/api/v1/events':
             self.handle_get_events(parsed_url.query)
@@ -359,6 +362,97 @@ spec:
             self.send_text_response(504, "▲ Command timeout expired while connecting to cluster.")
         except Exception as e:
             self.send_text_response(500, f"▲ Server error executing kubectl get pod: {str(e)}")
+
+    def handle_node_spec(self, query_string):
+        params = parse_qs(query_string)
+        node_name = params.get('node', [None])[0]
+
+        if not node_name:
+            self.send_error_json(400, "Missing required query parameter: 'node'")
+            return
+
+        if not re.match(r"^[a-z0-9.-]+$", node_name):
+            self.send_error_json(400, "Invalid characters in node parameter")
+            return
+
+        with active_context_lock:
+            ctx = active_context
+
+        if ctx == "demo":
+            try:
+                state_file = parse_cluster.OUTPUT_FILE
+                if os.path.exists(state_file):
+                    with open(state_file, 'r', encoding='utf-8') as f:
+                        state = json.load(f)
+                    found_node = None
+                    for n in state.get("nodes", []):
+                        if n.get("name") == node_name:
+                            found_node = n.get("raw")
+                            break
+                    if found_node:
+                        def dict_to_yaml(d, indent=0):
+                            lines = []
+                            spacer = " " * indent
+                            if isinstance(d, dict):
+                                keys = list(d.keys())
+                                preferred = ["apiVersion", "kind", "metadata", "spec", "status"]
+                                sorted_keys = [k for k in preferred if k in keys] + [k for k in keys if k not in preferred]
+                                for k in sorted_keys:
+                                    v = d[k]
+                                    if isinstance(v, (dict, list)):
+                                        lines.append(f"{spacer}{k}:")
+                                        lines.append(dict_to_yaml(v, indent + 2))
+                                    else:
+                                        lines.append(f"{spacer}{k}: {v}")
+                            elif isinstance(d, list):
+                                for item in d:
+                                    if isinstance(item, (dict, list)):
+                                        yaml_item = dict_to_yaml(item, indent + 2).lstrip()
+                                        lines.append(f"{spacer}- {yaml_item}")
+                                    else:
+                                        lines.append(f"{spacer}- {item}")
+                            else:
+                                lines.append(f"{spacer}{d}")
+                            return "\n".join(lines)
+                        
+                        yaml_text = dict_to_yaml(found_node)
+                        self.send_text_response(200, yaml_text)
+                        return
+            except Exception as e:
+                print(f"Error serving mock node spec: {e}")
+
+            mock_spec = f"""apiVersion: v1
+kind: Node
+metadata:
+  name: {node_name}
+  labels:
+    kubernetes.io/hostname: {node_name}
+    kubernetes.io/os: linux
+spec:
+  providerID: aws:///us-east-1a/i-001c08c4cd51462ec
+status:
+  capacity:
+    cpu: "8"
+    memory: 24Gi
+  allocatable:
+    cpu: "8"
+    memory: 24Gi"""
+            self.send_text_response(200, mock_spec)
+            return
+
+        try:
+            print(f"Running secure command: kubectl get node {node_name} -o yaml (context: {ctx})")
+            cmd = ["kubectl", "--context", ctx, "get", "node", node_name, "-o", "yaml"]
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            if res.returncode == 0:
+                self.send_text_response(200, res.stdout)
+            else:
+                error_msg = res.stderr or "Unknown error fetching node spec"
+                self.send_text_response(500, f"▲ kubectl failed:\n{error_msg}")
+        except subprocess.TimeoutExpired:
+            self.send_text_response(504, "▲ Command timeout expired while connecting to cluster.")
+        except Exception as e:
+            self.send_text_response(500, f"▲ Server error executing kubectl get node: {str(e)}")
 
     def handle_get_events(self, query_string):
         params = parse_qs(query_string)

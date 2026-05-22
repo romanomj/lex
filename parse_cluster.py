@@ -666,7 +666,8 @@ def parse_cluster(context=None, force_mock=False):
             "conditions": conditions,
             "creationTimestamp": creation_ts,
             "costDetails": cost_details,
-            "pods": []
+            "pods": [],
+            "raw": node
         }
 
     # Process pods
@@ -765,7 +766,35 @@ def parse_cluster(context=None, force_mock=False):
                     "DiskPressure": "False",
                     "PIDPressure": "False"
                 },
-                "pods": []
+                "pods": [],
+                "raw": {
+                    "apiVersion": "v1",
+                    "kind": "Node",
+                    "metadata": {
+                        "name": node_name,
+                        "labels": {
+                            "kubernetes.io/hostname": node_name,
+                            "kubernetes.io/os": "linux",
+                            "note": "auto-created-placeholder"
+                        }
+                    },
+                    "status": {
+                        "allocatable": {
+                            "memory": f"{placeholder_capacity}Gi",
+                            "cpu": f"{placeholder_cpu}"
+                        },
+                        "capacity": {
+                            "memory": f"{placeholder_capacity}Gi",
+                            "cpu": f"{placeholder_cpu}"
+                        },
+                        "conditions": [
+                            {"type": "Ready", "status": "True"},
+                            {"type": "MemoryPressure", "status": "False"},
+                            {"type": "DiskPressure", "status": "False"},
+                            {"type": "PIDPressure", "status": "False"}
+                        ]
+                    }
+                }
             }
 
         node_map[node_name]["pods"].append(pod_item)
