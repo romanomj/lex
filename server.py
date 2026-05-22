@@ -133,7 +133,7 @@ class LocalAPIServer(http.server.SimpleHTTPRequestHandler):
             self.send_error_json(400, "Missing 'context' field in payload")
             return
 
-        if target_context != "demo" and not re.match(r"^[a-zA-Z0-9_./:-@]+$", target_context):
+        if target_context != "demo" and not re.match(r"^[a-zA-Z0-9_./:@-]+$", target_context):
             self.send_error_json(400, "Invalid context name format")
             return
 
