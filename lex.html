@@ -411,7 +411,7 @@
             gap: 8px;
             pointer-events: auto;
             transition: all 0.3s ease;
-            min-width: 380px;
+            min-width: 520px;
         }
 
         #stats-panel:hover {
@@ -952,6 +952,10 @@
             <div class="stats-item">
                 <span class="stats-label">Total Memory</span>
                 <span class="stats-val" id="stats-memory">-</span>
+            </div>
+            <div class="stats-item">
+                <span class="stats-label">Estimated cost</span>
+                <span class="stats-val" id="stats-cost">-</span>
             </div>
         </div>
     </div>
@@ -1725,6 +1729,7 @@ ${labels}`;
             
             let totalPods = 0;
             let totalMemory = 0;
+            let totalCost = 0.0;
             
             if (clusterData.nodes) {
                 clusterData.nodes.forEach(node => {
@@ -1732,6 +1737,31 @@ ${labels}`;
                         totalPods += node.pods.length;
                     }
                     totalMemory += node.maxMemoryGB || 0;
+                    
+                    // Aggregate node cost
+                    let nodeCost = 0.0;
+                    if (node.costDetails) {
+                        nodeCost = node.costDetails.totalCost || 0.0;
+                    } else {
+                        const labels = node.labels || {};
+                        if (checkIsAWSNode(labels, node.name)) {
+                            const instanceType = labels["node.kubernetes.io/instance-type"] || labels["beta.kubernetes.io/instance-type"];
+                            if (instanceType) {
+                                const hourlyCost = AWS_FALLBACK_RATES[instanceType];
+                                if (hourlyCost !== undefined) {
+                                    let ageHours = 0.0;
+                                    if (node.creationTimestamp) {
+                                        const created = new Date(node.creationTimestamp);
+                                        if (!isNaN(created.getTime())) {
+                                            ageHours = Math.max(0.0, (Date.now() - created.getTime()) / 3600000.0);
+                                        }
+                                    }
+                                    nodeCost = hourlyCost * ageHours;
+                                }
+                            }
+                        }
+                    }
+                    totalCost += nodeCost;
                 });
             }
             
@@ -1742,6 +1772,7 @@ ${labels}`;
             document.getElementById('stats-nodes').textContent = totalNodes;
             document.getElementById('stats-pods').textContent = totalPods;
             document.getElementById('stats-memory').textContent = `${formattedMemory} GB`;
+            document.getElementById('stats-cost').textContent = `$${totalCost.toFixed(2)}`;
         }
 
         function ensureRawPods() {
