@@ -1048,7 +1048,9 @@
                         "kubernetes.io/os": "linux",
                         "kubernetes.io/arch": "amd64",
                         "node.kubernetes.io/instance-type": "t3.large",
-                        "environment": "production"
+                        "environment": "production",
+                        "topology.kubernetes.io/region": "us-east-1",
+                        "topology.kubernetes.io/zone": "us-east-1a"
                     },
                     conditions: {
                         "Ready": "True",
@@ -1072,7 +1074,9 @@
                         "kubernetes.io/os": "linux",
                         "kubernetes.io/arch": "amd64",
                         "node.kubernetes.io/instance-type": "t3.medium",
-                        "environment": "database"
+                        "environment": "database",
+                        "topology.kubernetes.io/region": "us-east-1",
+                        "topology.kubernetes.io/zone": "us-east-1b"
                     },
                     conditions: {
                         "Ready": "True",
@@ -1097,7 +1101,9 @@
                         "kubernetes.io/os": "linux",
                         "kubernetes.io/arch": "amd64",
                         "node.kubernetes.io/instance-type": "m5.xlarge",
-                        "environment": "analytics"
+                        "environment": "analytics",
+                        "topology.kubernetes.io/region": "us-east-1",
+                        "topology.kubernetes.io/zone": "us-east-1a"
                     },
                     conditions: {
                         "Ready": "True",
@@ -1120,7 +1126,9 @@
                         "kubernetes.io/os": "linux",
                         "kubernetes.io/arch": "amd64",
                         "node.kubernetes.io/instance-type": "t3.medium",
-                        "environment": "staging"
+                        "environment": "staging",
+                        "topology.kubernetes.io/region": "us-east-1",
+                        "topology.kubernetes.io/zone": "us-east-1b"
                     },
                     conditions: {
                         "Ready": "Unknown",
@@ -1438,6 +1446,40 @@ ${labels}`;
                 conditions.DiskPressure === "True" || 
                 conditions.PIDPressure === "True" ||
                 conditions.NetworkUnavailable === "True") {
+                return true;
+            }
+            return false;
+        }
+
+        const AWS_FALLBACK_RATES = {
+            "t3.medium": 0.0416,
+            "t3.large": 0.0832,
+            "m5.xlarge": 0.192,
+            "c5.large": 0.085
+        };
+
+        function checkIsAWSNode(labels, nodeName) {
+            if (!labels) return false;
+            const region = labels["topology.kubernetes.io/region"] || labels["failure-domain.beta.kubernetes.io/region"];
+            if (region && (region.includes("us-east") || region.includes("us-west") || region.includes("eu-") || region.includes("ap-") || region.includes("sa-") || region.includes("ca-") || region.includes("me-") || region.includes("af-"))) {
+                return true;
+            }
+            const zone = labels["topology.kubernetes.io/zone"] || labels["failure-domain.beta.kubernetes.io/zone"];
+            if (zone && (zone.includes("us-east") || zone.includes("us-west") || zone.includes("eu-") || zone.includes("ap-") || zone.includes("sa-") || zone.includes("ca-") || zone.includes("me-") || zone.includes("af-"))) {
+                return true;
+            }
+            for (const [k, v] of Object.entries(labels)) {
+                const lowerK = k.toLowerCase();
+                const lowerV = String(v).toLowerCase();
+                if (lowerK.includes("aws") || lowerK.includes("amazon") || lowerV.includes("aws") || lowerV.includes("amazon")) {
+                    return true;
+                }
+            }
+            if (nodeName && (nodeName.startsWith("i-") || nodeName.toLowerCase().includes("aws"))) {
+                return true;
+            }
+            const instanceType = labels["node.kubernetes.io/instance-type"] || labels["beta.kubernetes.io/instance-type"];
+            if (instanceType && /^[a-z]+[0-9]+[a-z]*\.[a-z0-9]+$/.test(instanceType)) {
                 return true;
             }
             return false;
@@ -2139,6 +2181,66 @@ ${labels}`;
             return texture;
         }
 
+        // Helper to generate glowing canvas textures for cost metrics
+        function createNodeCostTexture(instanceType, hourlyCost, ageHours, totalCost) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+
+            // Draw clean dark glassmorphic background panel
+            ctx.fillStyle = 'rgba(20, 22, 28, 0.85)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Sleek premium border in vibrant amber/gold
+            const accentColor = '#f59e0b'; // Amber
+            ctx.strokeStyle = accentColor;
+            ctx.lineWidth = 10;
+            ctx.strokeRect(5, 5, canvas.width - 10, canvas.height - 10);
+
+            // Title
+            ctx.fillStyle = accentColor;
+            ctx.font = "bold 32px 'Outfit', sans-serif";
+            ctx.textAlign = "center";
+            ctx.fillText("AWS EC2 COST METER", canvas.width / 2, 55);
+
+            // Draw a separator line
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(30, 75);
+            ctx.lineTo(canvas.width - 30, 75);
+            ctx.stroke();
+
+            // Draw Main Total Cost Big
+            ctx.fillStyle = '#10b981'; // Emerald Green
+            ctx.font = "bold 64px 'JetBrains Mono', monospace";
+            ctx.textAlign = "center";
+            
+            // Glowing shadow for the total cost
+            ctx.shadowColor = 'rgba(16, 185, 129, 0.6)';
+            ctx.shadowBlur = 12;
+            ctx.fillText(`$${totalCost.toFixed(2)}`, canvas.width / 2, 150);
+            ctx.shadowBlur = 0; // Reset shadow
+
+            // Subtext/Details
+            ctx.textAlign = "left";
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = "bold 20px 'Outfit', sans-serif";
+            
+            // Left details
+            ctx.fillText(`Type: ${instanceType}`, 40, 205);
+            ctx.fillText(`Rate: $${hourlyCost.toFixed(4)}/hr`, 40, 235);
+            
+            // Right details
+            ctx.textAlign = "right";
+            ctx.fillText(`Uptime: ${ageHours.toFixed(1)} hrs`, canvas.width - 40, 220);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+            return texture;
+        }
+
         // Tapered 3D Exclamation Mark warning sign floating directly above a specific node
         function createNodeWarningSign(nodeBuilding, nodeWallHeight, buildingDepth) {
             const signGroup = new THREE.Group();
@@ -2531,6 +2633,58 @@ ${labels}`;
                     nodeMaxMemory: node.maxMemoryGB
                 };
                 nodeBuilding.add(unallocatedBox);
+            }
+
+            // AWS Cost Panel on the rear side of the node skyscraper
+            let costDetails = node.costDetails;
+            if (!costDetails) {
+                const labels = node.labels || {};
+                if (checkIsAWSNode(labels, node.name)) {
+                    const instanceType = labels["node.kubernetes.io/instance-type"] || labels["beta.kubernetes.io/instance-type"];
+                    if (instanceType) {
+                        const hourlyCost = AWS_FALLBACK_RATES[instanceType];
+                        if (hourlyCost !== undefined) {
+                            let ageHours = 0.0;
+                            if (node.creationTimestamp) {
+                                const created = new Date(node.creationTimestamp);
+                                if (!isNaN(created.getTime())) {
+                                    ageHours = Math.max(0.0, (Date.now() - created.getTime()) / 3600000.0);
+                                }
+                            }
+                            const totalCost = hourlyCost * ageHours;
+                            costDetails = {
+                                instanceType: instanceType,
+                                hourlyCost: hourlyCost,
+                                ageHours: ageHours,
+                                totalCost: totalCost
+                            };
+                        }
+                    }
+                }
+            }
+
+            if (costDetails) {
+                const costPanelWidth = 8.0;
+                const costPanelHeight = 4.0;
+                const costTexture = createNodeCostTexture(
+                    costDetails.instanceType,
+                    costDetails.hourlyCost,
+                    costDetails.ageHours,
+                    costDetails.totalCost
+                );
+                const costPanelGeo = new THREE.PlaneGeometry(costPanelWidth, costPanelHeight);
+                const costPanelMat = new THREE.MeshBasicMaterial({
+                    map: costTexture,
+                    transparent: true,
+                    side: THREE.DoubleSide
+                });
+                const costPanelMesh = new THREE.Mesh(costPanelGeo, costPanelMat);
+                // Positioned on the rear top of the rendered node: x=0, y=nodeWallHeight - costPanelHeight/2 - 0.4, z=buildingDepth + wallThickness/2 + 0.02
+                const panelY = nodeWallHeight - costPanelHeight / 2 - 0.4;
+                costPanelMesh.position.set(0, panelY, buildingDepth + wallThickness / 2 + 0.02);
+                costPanelMesh.rotation.y = 0; // Faces positive Z (away from player looking from -Z)
+                costPanelMesh.userData = { ...nodeMetadata, type: "cost" };
+                nodeBuilding.add(costPanelMesh);
             }
         }
 

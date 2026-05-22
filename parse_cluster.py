@@ -189,7 +189,9 @@ def create_mock_files_if_missing():
                         "kubernetes.io/os": "linux",
                         "kubernetes.io/arch": "amd64",
                         "node.kubernetes.io/instance-type": "t3.large",
-                        "environment": "production"
+                        "environment": "production",
+                        "topology.kubernetes.io/region": "us-east-1",
+                        "topology.kubernetes.io/zone": "us-east-1a"
                     }
                 },
                 "status": {
@@ -212,7 +214,9 @@ def create_mock_files_if_missing():
                         "kubernetes.io/os": "linux",
                         "kubernetes.io/arch": "amd64",
                         "node.kubernetes.io/instance-type": "t3.medium",
-                        "environment": "database"
+                        "environment": "database",
+                        "topology.kubernetes.io/region": "us-east-1",
+                        "topology.kubernetes.io/zone": "us-east-1b"
                     }
                 },
                 "status": {
@@ -235,7 +239,9 @@ def create_mock_files_if_missing():
                         "kubernetes.io/os": "linux",
                         "kubernetes.io/arch": "amd64",
                         "node.kubernetes.io/instance-type": "m5.xlarge",
-                        "environment": "analytics"
+                        "environment": "analytics",
+                        "topology.kubernetes.io/region": "us-east-1",
+                        "topology.kubernetes.io/zone": "us-east-1a"
                     }
                 },
                 "status": {
@@ -258,7 +264,9 @@ def create_mock_files_if_missing():
                         "kubernetes.io/os": "linux",
                         "kubernetes.io/arch": "amd64",
                         "node.kubernetes.io/instance-type": "t3.medium",
-                        "environment": "staging"
+                        "environment": "staging",
+                        "topology.kubernetes.io/region": "us-east-1",
+                        "topology.kubernetes.io/zone": "us-east-1b"
                     }
                 },
                 "status": {
@@ -455,7 +463,102 @@ def get_detailed_pod_status(pod):
             
     return phase
 
+def parse_timestamp_to_datetime(ts_str):
+    if not ts_str:
+        return None
+    try:
+        return datetime.datetime.fromisoformat(ts_str.replace('Z', '+00:00'))
+    except Exception:
+        try:
+            return datetime.datetime.strptime(ts_str, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc)
+        except Exception:
+            return None
+
+def check_is_aws_node(labels, node_name=None):
+    region = labels.get("topology.kubernetes.io/region") or labels.get("failure-domain.beta.kubernetes.io/region")
+    if region and ("us-east" in region or "us-west" in region or "eu-" in region or "ap-" in region or "sa-" in region or "ca-" in region or "me-" in region or "af-" in region):
+        return True
+    zone = labels.get("topology.kubernetes.io/zone") or labels.get("failure-domain.beta.kubernetes.io/zone")
+    if zone and ("us-east" in zone or "us-west" in zone or "eu-" in zone or "ap-" in zone or "sa-" in zone or "ca-" in zone or "me-" in zone or "af-" in zone):
+        return True
+    for k, v in labels.items():
+        if "aws" in k.lower() or "amazon" in k.lower() or "aws" in str(v).lower() or "amazon" in str(v).lower():
+            return True
+    if node_name and (node_name.startswith("i-") or "aws" in node_name.lower()):
+        return True
+    instance_type = labels.get("node.kubernetes.io/instance-type") or labels.get("beta.kubernetes.io/instance-type")
+    if instance_type and re.match(r'^[a-z]+[0-9]+[a-z]*\.[a-z0-9]+$', instance_type):
+        return True
+    return False
+
+def load_aws_costs(csv_path):
+    costs = {}
+    if not os.path.exists(csv_path):
+        print(f"▲ Warning: Cost CSV file not found at {csv_path}")
+        return costs
+    
+    import csv
+    try:
+        with open(csv_path, mode='r', encoding='utf-8') as f:
+            reader = csv.reader(f)
+            headers = next(reader)
+            api_name_idx = -1
+            on_demand_idx = -1
+            for i, h in enumerate(headers):
+                if h.strip() == "API Name":
+                    api_name_idx = i
+                elif h.strip() == "On Demand":
+                    on_demand_idx = i
+            
+            if api_name_idx == -1 or on_demand_idx == -1:
+                api_name_idx = 1
+                on_demand_idx = 9
+                
+            for row in reader:
+                if len(row) > max(api_name_idx, on_demand_idx):
+                    api_name = row[api_name_idx].strip()
+                    on_demand_str = row[on_demand_idx].strip()
+                    cost_match = re.match(r'^\$([0-9.]+)\s*hourly$', on_demand_str)
+                    if cost_match:
+                        try:
+                            costs[api_name] = float(cost_match.group(1))
+                        except ValueError:
+                            pass
+    except Exception as e:
+        print(f"▲ Error reading CSV {csv_path}: {e}")
+    return costs
+
+def get_node_cost_details(labels, creation_ts, node_name, costs_map):
+    if not check_is_aws_node(labels, node_name):
+        return None
+    instance_type = labels.get("node.kubernetes.io/instance-type") or labels.get("beta.kubernetes.io/instance-type")
+    if not instance_type:
+        return None
+    hourly_cost = costs_map.get(instance_type)
+    if hourly_cost is None:
+        return None
+    age_hours = 0.0
+    if creation_ts:
+        dt = parse_timestamp_to_datetime(creation_ts)
+        if dt:
+            now = datetime.datetime.now(datetime.timezone.utc)
+            age_hours = max(0.0, (now - dt).total_seconds() / 3600.0)
+    total_cost = round(hourly_cost * age_hours, 2)
+    return {
+        "provider": "aws",
+        "datacenter": "us-east-1",
+        "instanceType": instance_type,
+        "hourlyCost": hourly_cost,
+        "ageHours": round(age_hours, 1),
+        "totalCost": total_cost
+    }
+
 def parse_cluster():
+    # Load AWS costs database
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    csv_path = os.path.join(script_dir, "supplements", "cost_data", "aws", "aws_ec2_us_east_1.csv")
+    costs_map = load_aws_costs(csv_path)
+
     # 1. Gather data (live cluster pull)
     live_success = run_kubectl()
     if not live_success:
@@ -529,13 +632,17 @@ def parse_cluster():
                 if c_message:
                     conditions[c_type + "Message"] = c_message
 
+        creation_ts = metadata.get("creationTimestamp")
+        cost_details = get_node_cost_details(labels, creation_ts, name, costs_map)
+
         node_map[name] = {
             "name": name,
             "maxMemoryGB": max_mem_gb,
             "maxCPUCores": max_cpu_cores,
             "labels": labels,
             "conditions": conditions,
-            "creationTimestamp": metadata.get("creationTimestamp"),
+            "creationTimestamp": creation_ts,
+            "costDetails": cost_details,
             "pods": []
         }
 
