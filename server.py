@@ -87,12 +87,12 @@ class LocalAPIServer(http.server.SimpleHTTPRequestHandler):
             self.send_error_json(404, "Endpoint not found")
 
     def handle_get_state(self):
-        state_file = parse_cluster.OUTPUT_FILE
         with active_context_lock:
             ctx = active_context
+        _, _, state_file = parse_cluster.get_file_paths(ctx)
 
         if not os.path.exists(state_file):
-            print("State file missing, generating synchronously...")
+            print(f"State file '{state_file}' missing for context '{ctx}', generating synchronously...")
             try:
                 if ctx == "demo":
                     parse_cluster.parse_cluster(force_mock=True)
@@ -539,7 +539,7 @@ status:
             self.send_error_json(400, "Missing required query parameter: 'session_id'")
             return
             
-        if not re.match(r"^[a-zA-Z0-9_-]+$", session_id):
+        if not re.match(r"^[a-zA-Z0-9_./:@-]+$", session_id):
             self.send_error_json(400, "Invalid session_id format")
             return
             
@@ -613,7 +613,7 @@ status:
             self.send_error_json(400, "Missing 'session_id' field in payload")
             return
 
-        if not re.match(r"^[a-zA-Z0-9_-]+$", session_id):
+        if not re.match(r"^[a-zA-Z0-9_./:@-]+$", session_id):
             self.send_error_json(400, "Invalid session_id format")
             return
 

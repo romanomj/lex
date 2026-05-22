@@ -8,6 +8,7 @@ import os
 import sqlite3
 import json
 import datetime
+import re
 
 DB_FILE = "lex_dvr.db"
 
@@ -70,7 +71,8 @@ def start_session(cluster_name):
     """
     now = datetime.datetime.now(datetime.timezone.utc)
     timestamp_str = now.strftime("%Y-%m-%d_%H%M%S")
-    session_id = f"session_{cluster_name}_{timestamp_str}"
+    safe_cluster = re.sub(r"[^a-zA-Z0-9_-]", "-", cluster_name)
+    session_id = f"session_{safe_cluster}_{timestamp_str}"
     start_time_iso = now.isoformat()
     
     conn = get_db_connection()

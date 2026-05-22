@@ -18,7 +18,7 @@
 
         #ui-container {
             position: absolute;
-            top: 20px;
+            top: 80px;
             left: 20px;
             background: rgba(13, 13, 18, 0.75);
             backdrop-filter: blur(12px);
@@ -79,7 +79,7 @@
         /* Hover HUD Card */
         #hud-tooltip {
             position: absolute;
-            top: 75px;
+            top: 135px;
             right: 20px;
             width: 340px;
             background: rgba(13, 13, 18, 0.85);
@@ -135,7 +135,7 @@
         /* Top-Right Brand Logo Container */
         #logo-container {
             position: absolute;
-            top: 20px;
+            top: 80px;
             right: 20px;
             z-index: 100;
             pointer-events: auto;
@@ -393,7 +393,7 @@
         /* Stats Panel Styles */
         #stats-panel {
             position: absolute;
-            top: 20px;
+            top: 80px;
             left: 50%;
             transform: translateX(-50%);
             background: rgba(13, 13, 18, 0.75);
@@ -725,7 +725,7 @@
         /* Search Panel Styling */
         #search-panel {
             position: absolute;
-            top: 280px;
+            top: 380px;
             left: 20px;
             width: 320px;
             bottom: 20px;
@@ -1044,6 +1044,11 @@
             flex-direction: column;
             gap: 10px;
             pointer-events: none;
+            transition: bottom 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        #toast-container.dvr-active {
+            bottom: 120px;
         }
 
         .toast-card {
@@ -1169,7 +1174,7 @@
             bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
-            width: 780px;
+            width: 820px;
             background: rgba(13, 13, 18, 0.85);
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
@@ -5257,6 +5262,10 @@ ${labels}`;
         function enterDvrMode() {
             isDVRMode = true;
             
+            // Slide up toast notifications in DVR mode
+            const toastContainer = document.getElementById('toast-container');
+            if (toastContainer) toastContainer.classList.add('dvr-active');
+            
             // Adjust HUD toggle Mode button highlight state
             const toggleModeBtn = document.getElementById('btn-dvr-toggle-mode');
             if (toggleModeBtn) {
@@ -5295,6 +5304,10 @@ ${labels}`;
         // Exit DVR Playback Mode
         function exitDvrMode() {
             isDVRMode = false;
+            
+            // Restore toast notifications position
+            const toastContainer = document.getElementById('toast-container');
+            if (toastContainer) toastContainer.classList.remove('dvr-active');
             
             // Restore HUD toggle Mode button
             const toggleModeBtn = document.getElementById('btn-dvr-toggle-mode');
@@ -5461,7 +5474,7 @@ ${labels}`;
             if (slider) slider.value = index;
             
             // Parse in-memory state dictionary
-            let stateData = snapshot.state_json;
+            let stateData = snapshot.state || snapshot.state_json;
             if (typeof stateData === 'string') {
                 try {
                     stateData = JSON.parse(stateData);
