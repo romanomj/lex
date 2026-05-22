@@ -1,0 +1,15 @@
+# Kubernetes Dynamic Cache
+raw-nodes.json
+raw-pods.json
+cluster_state.json
+
+# Python bytecodes
+__pycache__/
+*.py[cod]
+*$py.class
+
+# OS & Editor configurations
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

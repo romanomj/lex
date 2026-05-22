@@ -46,7 +46,7 @@ class LocalAPIServer(http.server.SimpleHTTPRequestHandler):
         elif path == '/api/v1/events':
             self.handle_get_events(parsed_url.query)
         else:
-            # Fallback to serving static files (lex.html, etc.) from the workspace directory
+            # Fallback to serving static files (index.html, etc.) from the workspace directory
             super().do_GET()
 
     def handle_get_state(self):
@@ -260,7 +260,7 @@ def main():
     httpd = http.server.HTTPServer(server_address, LocalAPIServer)
     print(f"============================================================")
     print(f"🚀 Lex Server running successfully!")
-    print(f"🔗 Local Web Interface: http://{BIND_ADDRESS}:{PORT}/lex.html")
+    print(f"🔗 Local Web Interface: http://{BIND_ADDRESS}:{PORT}/")
     print(f"============================================================")
     
     try:

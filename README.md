@@ -6,26 +6,27 @@ Nodes are represented as **buildings** (proportional to total allocatable memory
 
 ---
 
-## 🚀 Quick Start (Offline Mode)
-
-You can launch and explore the visualizer immediately in **Demo Mode** without an active Kubernetes cluster:
-
-1. **Bootstrap the cluster state:**
-   ```bash
-   python parse_cluster.py
-   ```
-   *Note: Since no live Kubernetes context is detected, this script will automatically generate sample `raw-nodes.json` and `raw-pods.json` files and compile them into `cluster_state.json` for you.*
-
-2. **Start a local development server:**
-   ```bash
-   python -m http.server 8000
-   ```
-
-3. **Open the visualizer:**
-   Navigate your browser to `http://localhost:8000/lex.html`.
-   *You will see the visualizer load in **Live Cluster** mode (emerald badge) rendering the parsed state!*
+## ⚡ Zero-Dependency Architecture
+Lex is engineered to be **extremely lightweight and portable**:
+- **Backend & Ingestion**: 100% written in Python using only standard library modules (`http.server`, `subprocess`, `csv`, etc.). **No pip installs or external Python packages required!**
+- **Frontend**: Single-file standard `index.html` entrypoint loading Three.js directly via native ES module imports.
 
 ---
+
+## 🚀 Quick Start (Recommended)
+
+You can launch the full, live-syncing Lex environment with a single command:
+
+1. **Launch the Lex Local API Server:**
+   ```bash
+   python server.py
+   ```
+   *Lex will automatically bootstrap: it queries your active Kubernetes context if present, falls back gracefully to a beautiful mock cluster if offline, runs a background worker to sync changes every 30 seconds, and hosts the visualizer.*
+
+2. **Open the Visualizer:**
+   Navigate your browser to:
+   [http://localhost:8000/](http://localhost:8000/)
+   *The page will automatically load the visualizer right at the home page URL root!*
 
 ## 🛠️ Step-by-Step Setup
 
@@ -36,13 +37,11 @@ You can launch and explore the visualizer immediately in **Demo Mode** without a
 
 ---
 
-## 📊 Generating Cluster Configurations
-
 The visualizer ingests data via a decoupled approach where raw JSON configurations are parsed into a single web asset, `cluster_state.json`.
 
 ```
 [ Active K8s Cluster ]  ──( kubectl )──> [ raw-nodes.json ]
-                                         [ raw-pods.json  ] ──> [ parse_cluster.py ] ──> [ cluster_state.json ] ──> [ lex.html ]
+                                         [ raw-pods.json  ] ──> [ parse_cluster.py ] ──> [ cluster_state.json ] ──> [ index.html ]
 [ Manual JSON Files  ]  ────────────────>
 ```
 
@@ -130,22 +129,24 @@ This produces the fully compiled, highly optimized `cluster_state.json`.
 
 ## 🎮 Launching the Visualizer
 
-### 1. Launching with Live Data (Recommended)
-Because standard web browsers restrict AJAX requests on raw file structures (CORS policy), loading the dynamically compiled `cluster_state.json` requires a lightweight web server:
+### 1. Launching via Local API Server (Recommended)
+Because standard web browsers restrict AJAX requests on raw file structures (CORS policy), serving the visualizer and loading data requires a server:
 
 ```bash
-# In the project directory, launch a web server:
-python -m http.server 8000
+# Start our local API server in the project directory:
+python server.py
 ```
-Open `http://localhost:8000/lex.html` in your browser. 
-- You will see the **Live Cluster** badge indicating active connection.
-- All building layouts, pod dimensions, and namespace colors reflect your `cluster_state.json` exactly.
+Open [http://localhost:8000/](http://localhost:8000/) in your browser.
+- The home page automatically serves `index.html`.
+- Displays the status badge (`● Live Cluster`, `● Static File`, or `▲ Demo Mode` depending on connection status).
+- Enlists our background context synchronizer to pull K8s updates every 30 seconds.
+- Enables the "C" hotkey menu to securely view live logs, describe pods, check events, and inspect pod specifications.
 
-### 2. Launching in Offline Demo Mode (Zero Server)
-If you simply double-click `lex.html` directly from your file system (triggering `file://` protocol):
-- The browser will block the local JSON fetch due to CORS safety.
-- The visualizer's built-in **CORS Catch-all block** will gracefully intercept this error and fallback to rendering pre-packaged static demo data.
-- The instructions HUD will render a warm amber badge stating `▲ Demo Mode (Static)` showing that everything is fully functional.
+### 2. Launching in Zero-Server Offline Demo Mode
+If you double-click `index.html` directly from your file explorer (triggering `file://` protocol in the browser):
+- The browser blocks local JSON fetch due to CORS safety rules.
+- The visualizer's built-in **CORS Catch-all block** intercepts the error, falling back to pre-packaged offline demo data.
+- Displays a warm amber status badge `▲ Demo Mode` showing everything fully functional in offline simulation.
 
 ---
 
