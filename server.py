@@ -467,6 +467,7 @@ def init_active_context():
         print(f"Failed to query active context on boot: {e}. Defaulting to 'demo' context.")
 
 def main():
+    global active_context
     # Discover active context dynamically on startup
     init_active_context()
 
