@@ -797,7 +797,7 @@ if __name__ == "__main__":
     elif len(sys.argv) > 1 and sys.argv[1].startswith("--context="):
         context = sys.argv[1].split("=", 1)[1]
         
-    if context and not re.match(r'^[a-zA-Z0-9_.-]+$', context):
+    if context and not re.match(r'^[a-zA-Z0-9_./:-@]+$', context):
         print(f"Error: Invalid context name format '{context}'", file=sys.stderr)
         sys.exit(1)
         
