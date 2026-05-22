@@ -116,9 +116,13 @@ def parse_memory_to_gb(mem_str):
     gb_val = bytes_val / (1024**3)
     return round_to_one_decimal(gb_val)
 
-def run_kubectl():
+def run_kubectl(context=None):
     """Attempts to run kubectl to fetch live cluster JSONs."""
-    print("Attempting to query active Kubernetes cluster context...")
+    if context:
+        print(f"Attempting to query Kubernetes cluster context: {context}...")
+    else:
+        print("Attempting to query active Kubernetes cluster context...")
+        
     try:
         # Check if kubectl command exists
         subprocess.run(["kubectl", "version", "--client"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
@@ -126,17 +130,28 @@ def run_kubectl():
         print("▲ Note: 'kubectl' CLI utility is not installed or not in system PATH.")
         return False
 
+    base_cmd = ["kubectl"]
+    if context:
+        base_cmd += ["--context", context]
+
     try:
         # Check active cluster connection
-        subprocess.run(["kubectl", "config", "current-context"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        if context:
+            # Check cluster connection with a 2-second timeout
+            subprocess.run(base_cmd + ["cluster-info", "--request-timeout=2s"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        else:
+            subprocess.run(["kubectl", "config", "current-context"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
     except subprocess.CalledProcessError:
-        print("▲ Note: 'kubectl' is installed, but no active cluster context was detected.")
+        if context:
+            print(f"▲ Note: Failed to connect to context '{context}'.")
+        else:
+            print("▲ Note: 'kubectl' is installed, but no active cluster context was detected.")
         return False
 
     # Fetch nodes
     try:
         print(f"Fetching nodes list and writing to {NODES_RAW_FILE}...")
-        nodes_res = subprocess.run(["kubectl", "get", "nodes", "-o", "json"], capture_output=True, text=True, check=True)
+        nodes_res = subprocess.run(base_cmd + ["get", "nodes", "-o", "json"], capture_output=True, text=True, check=True)
         with open(NODES_RAW_FILE, "w", encoding="utf-8") as f:
             f.write(nodes_res.stdout)
     except subprocess.CalledProcessError as e:
@@ -146,7 +161,7 @@ def run_kubectl():
     # Fetch pods
     try:
         print(f"Fetching pods list across all namespaces and writing to {PODS_RAW_FILE}...")
-        pods_res = subprocess.run(["kubectl", "get", "pods", "--all-namespaces", "-o", "json"], capture_output=True, text=True, check=True)
+        pods_res = subprocess.run(base_cmd + ["get", "pods", "--all-namespaces", "-o", "json"], capture_output=True, text=True, check=True)
         with open(PODS_RAW_FILE, "w", encoding="utf-8") as f:
             f.write(pods_res.stdout)
     except subprocess.CalledProcessError as e:
@@ -156,8 +171,10 @@ def run_kubectl():
     print("● Live cluster data successfully extracted!")
     return True
 
-def get_cluster_name():
+def get_cluster_name(context=None):
     """Attempts to fetch active Kubernetes context/cluster name."""
+    if context:
+        return context
     try:
         res = subprocess.run(["kubectl", "config", "current-context"], capture_output=True, text=True, check=True)
         return res.stdout.strip()
@@ -553,17 +570,23 @@ def get_node_cost_details(labels, creation_ts, node_name, costs_map):
         "totalCost": total_cost
     }
 
-def parse_cluster():
+def parse_cluster(context=None, force_mock=False):
     # Load AWS costs database
     script_dir = os.path.dirname(os.path.abspath(__file__))
     csv_path = os.path.join(script_dir, "supplements", "cost_data", "aws", "aws_ec2_us_east_1.csv")
     costs_map = load_aws_costs(csv_path)
 
-    # 1. Gather data (live cluster pull)
-    live_success = run_kubectl()
-    if not live_success:
-        print("▲ Live cluster query skipped/failed. Processing via local files...")
+    # 1. Gather data (live cluster pull or force mock)
+    if force_mock:
         create_mock_files_if_missing()
+    else:
+        live_success = run_kubectl(context)
+        if not live_success:
+            if context:
+                print(f"Error: Failed to query cluster context '{context}'")
+                sys.exit(1)
+            print("▲ Live cluster query skipped/failed. Processing via local files...")
+            create_mock_files_if_missing()
 
     # 2. Read nodes
     if not os.path.exists(NODES_RAW_FILE):
@@ -753,7 +776,7 @@ def parse_cluster():
     # Sort nodes alphabetically for structured rendering layout
     compiled_nodes.sort(key=lambda x: x["name"])
 
-    cluster_name = get_cluster_name() or "ClusterNamePlaceHolder"
+    cluster_name = get_cluster_name(context) or "ClusterNamePlaceHolder"
 
     output_state = {
         "clusterName": cluster_name,
@@ -768,4 +791,14 @@ def parse_cluster():
     print(f"✔ Compiled cluster environment state written to '{OUTPUT_FILE}' for cluster: {cluster_name}.")
 
 if __name__ == "__main__":
-    parse_cluster()
+    context = None
+    if len(sys.argv) > 2 and sys.argv[1] == "--context":
+        context = sys.argv[2]
+    elif len(sys.argv) > 1 and sys.argv[1].startswith("--context="):
+        context = sys.argv[1].split("=", 1)[1]
+        
+    if context and not re.match(r'^[a-zA-Z0-9_./:@-]+$', context):
+        print(f"Error: Invalid context name format '{context}'", file=sys.stderr)
+        sys.exit(1)
+        
+    parse_cluster(context)
