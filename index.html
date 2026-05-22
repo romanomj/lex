@@ -1090,6 +1090,289 @@
             color: #ef4444;
             text-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
         }
+
+        /* ==================== DVR HUD & Controls Styling ==================== */
+        .dvr-hud-btn {
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #f1f5f9;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .dvr-hud-btn:hover {
+            background: rgba(30, 41, 59, 0.8);
+            border-color: rgba(255, 255, 255, 0.25);
+            transform: translateY(-1px);
+        }
+
+        .dvr-hud-btn:active {
+            transform: translateY(1px);
+        }
+
+        #btn-dvr-rec.rec-active {
+            background: rgba(239, 68, 68, 0.2);
+            border-color: rgba(239, 68, 68, 0.45);
+            color: #ef4444;
+            box-shadow: 0 0 10px rgba(239, 68, 68, 0.2);
+        }
+
+        #btn-dvr-rec.rec-active:hover {
+            background: rgba(239, 68, 68, 0.3);
+            border-color: rgba(239, 68, 68, 0.6);
+        }
+
+        .rec-dot {
+            transition: opacity 0.3s ease;
+        }
+
+        #btn-dvr-rec.rec-active .rec-dot {
+            animation: pulse-red-dot 1s infinite alternate;
+        }
+
+        @keyframes pulse-red-dot {
+            from { opacity: 0.3; }
+            to { opacity: 1; }
+        }
+
+        .rec-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 20px;
+            background: rgba(239, 68, 68, 0.12);
+            color: #ef4444;
+            font-size: 11px;
+            font-weight: 700;
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-left: 8px;
+            animation: pulse-red-badge 1.5s infinite;
+        }
+
+        @keyframes pulse-red-badge {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+            70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+
+        #dvr-control-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 780px;
+            background: rgba(13, 13, 18, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(6, 182, 212, 0.25);
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), 0 0 25px rgba(6, 182, 212, 0.1);
+            color: #e2e8f0;
+            padding: 16px 24px;
+            z-index: 500;
+            display: none;
+            flex-direction: column;
+            gap: 12px;
+            pointer-events: auto;
+            transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .dvr-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            padding-bottom: 8px;
+        }
+
+        .dvr-panel-title {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            font-weight: 800;
+            color: #06b6d4;
+            background: rgba(6, 182, 212, 0.1);
+            padding: 4px 10px;
+            border-radius: 6px;
+            border: 1px solid rgba(6, 182, 212, 0.2);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .dvr-panel-close-btn {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .dvr-panel-close-btn:hover {
+            background: rgba(239, 68, 68, 0.2);
+            border-color: rgba(239, 68, 68, 0.4);
+            transform: translateY(-1px);
+        }
+
+        .dvr-controls-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .dvr-session-select-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1.2;
+        }
+
+        .dvr-select {
+            background: rgba(15, 23, 42, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 8px;
+            color: #f1f5f9;
+            padding: 6px 12px;
+            font-size: 13px;
+            font-family: 'Outfit', sans-serif;
+            font-weight: 600;
+            outline: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            flex: 1;
+            max-width: 250px;
+        }
+
+        .dvr-select:focus {
+            border-color: rgba(6, 182, 212, 0.5);
+            box-shadow: 0 0 8px rgba(6, 182, 212, 0.25);
+        }
+
+        .dvr-buttons-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .dvr-control-btn {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #f1f5f9;
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .dvr-control-btn:hover:not(:disabled) {
+            background: rgba(6, 182, 212, 0.15);
+            border-color: rgba(6, 182, 212, 0.4);
+            color: #06b6d4;
+            transform: translateY(-1px);
+        }
+
+        .dvr-control-btn:active:not(:disabled) {
+            transform: translateY(1px);
+        }
+
+        .dvr-control-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .dvr-control-btn.active {
+            background: rgba(6, 182, 212, 0.25);
+            border-color: rgba(6, 182, 212, 0.6);
+            color: #06b6d4;
+            box-shadow: 0 0 10px rgba(6, 182, 212, 0.2);
+        }
+
+        .dvr-timeline-hud {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            color: #94a3b8;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            text-align: right;
+            min-width: 260px;
+            flex-shrink: 0;
+        }
+
+        .dvr-progress-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-top: 4px;
+        }
+
+        .dvr-slider {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: rgba(255, 255, 255, 0.1);
+            outline: none;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        .dvr-slider:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .dvr-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #06b6d4;
+            cursor: pointer;
+            box-shadow: 0 0 8px rgba(6, 182, 212, 0.6);
+            transition: transform 0.1s ease;
+        }
+
+        .dvr-slider::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        .dvr-slider::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #06b6d4;
+            cursor: pointer;
+            box-shadow: 0 0 8px rgba(6, 182, 212, 0.6);
+            border: none;
+            transition: transform 0.1s ease;
+        }
+
+        .dvr-slider::-moz-range-thumb:hover {
+            transform: scale(1.2);
+        }
     </style>
     <!-- Import maps polyfill -->
     <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
@@ -1122,11 +1405,22 @@
                 <button id="btn-speed-up" title="Increase Speed (+10%)">+</button>
             </div>
         </div>
+        <!-- DVR Mode & Recording buttons -->
+        <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; gap: 8px; width: 100%;">
+                <button id="btn-dvr-rec" class="dvr-hud-btn" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;" title="Start/Stop Recording active context">
+                    <span class="rec-dot">●</span> <span id="dvr-rec-text">REC</span>
+                </button>
+                <button id="btn-dvr-toggle-mode" class="dvr-hud-btn" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;" title="Enter DVR Playback Mode">
+                    <span>📺</span> <span>DVR Mode</span>
+                </button>
+            </div>
+        </div>
         <div id="node-info" style="margin-top: 10px; font-size: 12px;"></div>
     </div>
 
     <div id="stats-panel">
-        <div class="stats-header">
+        <div class="stats-header" style="display: flex; align-items: center;">
             <span class="stats-cluster-icon">⎈</span>
             <div class="context-switcher-container">
                 <button class="context-select-btn" id="context-select-btn">
@@ -1135,6 +1429,8 @@
                 </button>
                 <div class="context-dropdown-list" id="context-dropdown-list"></div>
             </div>
+            <span id="rec-badge" class="rec-badge" style="display: none;">● LIVE REC</span>
+        </div>
         </div>
         <div class="stats-grid">
             <div class="stats-item">
@@ -1214,6 +1510,46 @@
                 <span id="search-status-label" style="font-size: 11px; color: #94a3b8; font-weight: 600;"></span>
             </div>
             <div id="search-results-list" class="search-results-scroll"></div>
+        </div>
+    </div>
+
+    <!-- DVR Control Panel -->
+    <div id="dvr-control-panel">
+        <div class="dvr-panel-header">
+            <div class="dvr-panel-title">
+                <span>📺</span>
+                <span>DVR PLAYBACK CONTROL</span>
+            </div>
+            <button class="dvr-panel-close-btn" id="btn-dvr-close" title="Exit DVR Mode">✕ Exit DVR</button>
+        </div>
+        <div class="dvr-controls-row">
+            <div class="dvr-session-select-container">
+                <span style="font-size: 13px; color: #94a3b8; font-weight: 600;">Session:</span>
+                <select class="dvr-select" id="dvr-session-select">
+                    <option value="">-- Select Session --</option>
+                </select>
+                <button class="dvr-control-btn" id="btn-dvr-delete-session" title="Delete Selected Session" style="width: 32px; height: 32px; font-size: 12px; border-color: rgba(239, 68, 68, 0.2); color: #ef4444;" disabled>🗑️</button>
+            </div>
+            <div class="dvr-buttons-group">
+                <button class="dvr-control-btn" id="btn-dvr-prev" title="Step Backward (◀◀)" disabled>◀</button>
+                <button class="dvr-control-btn" id="btn-dvr-play" title="Play / Pause (▶)" disabled>▶</button>
+                <button class="dvr-control-btn" id="btn-dvr-next" title="Step Forward (▶▶)" disabled>▶</button>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 13px; color: #94a3b8; font-weight: 600;">Speed:</span>
+                <select class="dvr-select" id="dvr-speed-select" style="max-width: 100px; padding: 4px 8px;">
+                    <option value="1000">1s / frame</option>
+                    <option value="2000">2s / frame</option>
+                    <option value="5000" selected>5s / frame</option>
+                    <option value="10000">10s / frame</option>
+                </select>
+            </div>
+            <div class="dvr-timeline-hud" id="dvr-timeline-text">
+                DVR PLAYBACK | NO SESSION LOADED
+            </div>
+        </div>
+        <div class="dvr-progress-row">
+            <input type="range" class="dvr-slider" id="dvr-timeline-slider" min="0" max="0" value="0" disabled>
         </div>
     </div>
 
@@ -1388,6 +1724,17 @@
         // Phase 3 Multi-Cluster Context Switching globals
         let availableContexts = [];
         let activeContext = "demo";
+
+        // Phase 4 DVR playback globals
+        let isDVRMode = false;
+        let isRecording = false;
+        let activeDvrSessionId = null;
+        let dvrSessions = [];
+        let dvrSnapshots = [];
+        let currentDvrSnapshotIndex = 0;
+        let dvrPlaybackInterval = null;
+        let isDvrPlaying = false;
+        let dvrTickRate = 5000; // default 5 seconds per frame
 
         // Search variables & blinking green material
         let activeSearchQuery = "";
@@ -2196,11 +2543,22 @@ ${labels}`;
         // Setup Cluster Search UI handlers
         setupSearchUI();
 
+        // Setup DVR UI event handlers
+        setupDvrUI();
+
+        // Check active context recording status on boot
+        checkRecordingStatus();
+
         // Initial fetch and world generation
         fetchClusterState();
 
-        // Start live cluster synchronization interval (every 10s)
-        setInterval(fetchClusterState, 10000);
+        // Start live cluster synchronization interval (every 10s), suspended when in DVR Mode
+        setInterval(() => {
+            if (!isDVRMode) {
+                fetchClusterState();
+                checkRecordingStatus(); // Keep recording HUD indicator synchronized
+            }
+        }, 10000);
 
         // Start the animation and rendering loop
         animate();
@@ -4713,6 +5071,531 @@ ${labels}`;
             }
 
             renderer.render(scene, camera);
+        }
+
+        // ==================== DVR Phase 4 Features ====================
+
+        // Check active context recording status from server
+        function checkRecordingStatus() {
+            fetch('/api/v1/dvr/recording/status')
+                .then(response => {
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    return response.json();
+                })
+                .then(data => {
+                    isRecording = !!data.recording;
+                    activeDvrSessionId = data.session_id || null;
+                    updateRecordingHUD();
+                })
+                .catch(error => {
+                    console.warn("Failed to check DVR recording status:", error.message);
+                });
+        }
+
+        // Update UI REC button and active recording badge
+        function updateRecordingHUD() {
+            const recBtn = document.getElementById('btn-dvr-rec');
+            const recText = document.getElementById('dvr-rec-text');
+            const badge = document.getElementById('rec-badge');
+            
+            if (!recBtn) return;
+            
+            if (isRecording) {
+                recBtn.classList.remove('rec-inactive');
+                recBtn.classList.add('rec-active');
+                if (recText) recText.textContent = "STOP REC";
+                if (badge) {
+                    badge.style.display = "inline-flex";
+                    badge.textContent = `● LIVE REC: ${activeContext}`;
+                }
+            } else {
+                recBtn.classList.remove('rec-active');
+                recBtn.classList.add('rec-inactive');
+                if (recText) recText.textContent = "REC";
+                if (badge) {
+                    badge.style.display = "none";
+                }
+            }
+        }
+
+        // Toggle recording by hitting the REST server
+        function toggleRecording() {
+            const spinner = document.createElement('span');
+            spinner.className = 'button-spinner';
+            spinner.style.borderLeftColor = '#ef4444';
+            const recBtn = document.getElementById('btn-dvr-rec');
+            if (recBtn) recBtn.appendChild(spinner);
+            
+            fetch('/api/v1/dvr/recording/toggle', { method: 'POST' })
+                .then(response => {
+                    spinner.remove();
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    return response.json();
+                })
+                .then(data => {
+                    isRecording = data.recording;
+                    activeDvrSessionId = data.session_id || null;
+                    updateRecordingHUD();
+                    
+                    if (isRecording) {
+                        showToast(`Started recording session "${activeDvrSessionId}" for context "${data.cluster_name}"`, 'success');
+                    } else {
+                        showToast(`Stopped recording session "${data.session_id}"`, 'success');
+                        // If we are in DVR mode, re-fetch sessions instantly so the new session is selectable!
+                        if (isDVRMode) {
+                            fetchDvrSessions();
+                        }
+                    }
+                })
+                .catch(error => {
+                    spinner.remove();
+                    showToast(`Failed to toggle recording: ${error.message}`, 'error');
+                });
+        }
+
+        // Setup DVR UI elements and binds events
+        function setupDvrUI() {
+            const recBtn = document.getElementById('btn-dvr-rec');
+            const toggleModeBtn = document.getElementById('btn-dvr-toggle-mode');
+            const dvrCloseBtn = document.getElementById('btn-dvr-close');
+            const sessionSelect = document.getElementById('dvr-session-select');
+            const deleteSessionBtn = document.getElementById('btn-dvr-delete-session');
+            const prevBtn = document.getElementById('btn-dvr-prev');
+            const playBtn = document.getElementById('btn-dvr-play');
+            const nextBtn = document.getElementById('btn-dvr-next');
+            const speedSelect = document.getElementById('dvr-speed-select');
+            const slider = document.getElementById('dvr-timeline-slider');
+
+            if (recBtn) {
+                recBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    toggleRecording();
+                });
+            }
+
+            if (toggleModeBtn) {
+                toggleModeBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (isDVRMode) {
+                        exitDvrMode();
+                    } else {
+                        enterDvrMode();
+                    }
+                });
+            }
+
+            if (dvrCloseBtn) {
+                dvrCloseBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    exitDvrMode();
+                });
+            }
+
+            if (sessionSelect) {
+                sessionSelect.addEventListener('change', (e) => {
+                    const sessionId = e.target.value;
+                    if (sessionId) {
+                        fetchDvrSnapshots(sessionId);
+                    } else {
+                        resetDvrPlaybackState();
+                    }
+                });
+            }
+
+            if (deleteSessionBtn) {
+                deleteSessionBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const sessionId = sessionSelect.value;
+                    if (sessionId && confirm(`Are you sure you want to delete recording session "${sessionId}" and all its historical snapshots?`)) {
+                        deleteDvrSession(sessionId);
+                    }
+                });
+            }
+
+            if (prevBtn) {
+                prevBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    pauseDvrPlayback();
+                    stepDvrBackward();
+                });
+            }
+
+            if (playBtn) {
+                playBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    togglePlayDvrPlayback();
+                });
+            }
+
+            if (nextBtn) {
+                nextBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    pauseDvrPlayback();
+                    stepDvrForward();
+                });
+            }
+
+            if (speedSelect) {
+                speedSelect.addEventListener('change', (e) => {
+                    dvrTickRate = parseInt(e.target.value);
+                    if (isDvrPlaying) {
+                        pauseDvrPlayback();
+                        playDvrPlayback();
+                    }
+                });
+            }
+
+            if (slider) {
+                slider.addEventListener('input', (e) => {
+                    pauseDvrPlayback();
+                    renderDvrSnapshot(parseInt(e.target.value));
+                });
+            }
+        }
+
+        // Enter DVR Playback Mode
+        function enterDvrMode() {
+            isDVRMode = true;
+            
+            // Adjust HUD toggle Mode button highlight state
+            const toggleModeBtn = document.getElementById('btn-dvr-toggle-mode');
+            if (toggleModeBtn) {
+                toggleModeBtn.classList.add('active');
+                toggleModeBtn.style.borderColor = 'rgba(6, 182, 212, 0.45)';
+                toggleModeBtn.style.color = '#06b6d4';
+                toggleModeBtn.style.background = 'rgba(6, 182, 212, 0.15)';
+            }
+            
+            // Disable context switcher dropdown during playback
+            const contextBtn = document.getElementById('context-select-btn');
+            const activeLabel = document.getElementById('active-context-name');
+            if (contextBtn) {
+                contextBtn.disabled = true;
+                contextBtn.style.opacity = '0.5';
+                contextBtn.style.pointerEvents = 'none';
+            }
+            if (activeLabel) {
+                activeLabel.textContent = "📺 DVR PLAYBACK";
+            }
+            
+            // Show bottom-center DVR controls panel
+            const panel = document.getElementById('dvr-control-panel');
+            if (panel) {
+                panel.style.display = 'flex';
+                panel.style.opacity = '0';
+                setTimeout(() => { panel.style.opacity = '1'; }, 50);
+            }
+            
+            showToast("Entered DVR Playback Mode. Live cluster sync suspended.", "success");
+            
+            // Load available recorded sessions
+            fetchDvrSessions();
+        }
+
+        // Exit DVR Playback Mode
+        function exitDvrMode() {
+            isDVRMode = false;
+            
+            // Restore HUD toggle Mode button
+            const toggleModeBtn = document.getElementById('btn-dvr-toggle-mode');
+            if (toggleModeBtn) {
+                toggleModeBtn.classList.remove('active');
+                toggleModeBtn.style.borderColor = '';
+                toggleModeBtn.style.color = '';
+                toggleModeBtn.style.background = '';
+            }
+            
+            // Enable context switcher dropdown
+            const contextBtn = document.getElementById('context-select-btn');
+            const activeLabel = document.getElementById('active-context-name');
+            if (contextBtn) {
+                contextBtn.disabled = false;
+                contextBtn.style.opacity = '1.0';
+                contextBtn.style.pointerEvents = 'auto';
+            }
+            if (activeLabel) {
+                activeLabel.textContent = activeContext;
+            }
+            
+            // Hide bottom-center DVR controls panel
+            const panel = document.getElementById('dvr-control-panel');
+            if (panel) {
+                panel.style.opacity = '0';
+                setTimeout(() => { panel.style.display = 'none'; }, 300);
+            }
+            
+            // Pause any running playback
+            pauseDvrPlayback();
+            
+            // Clear current playback snapshots cache
+            dvrSnapshots = [];
+            resetDvrPlaybackState();
+            
+            showToast("Exited DVR Mode. Restoring live cluster sync...", "success");
+            
+            // Immediately query the active live/demo context
+            fetchClusterState();
+        }
+
+        // Fetch DVR sessions from backend
+        function fetchDvrSessions() {
+            const select = document.getElementById('dvr-session-select');
+            if (!select) return;
+            
+            // Keep active selected value if possible
+            const activeVal = select.value;
+            
+            select.innerHTML = '<option value="">-- Select Session --</option>';
+            
+            fetch('/api/v1/dvr/sessions')
+                .then(response => {
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    return response.json();
+                })
+                .then(data => {
+                    dvrSessions = data.sessions || [];
+                    if (dvrSessions.length === 0) {
+                        select.innerHTML = '<option value="">-- No Recorded Sessions Found --</option>';
+                        resetDvrPlaybackState();
+                        return;
+                    }
+                    
+                    dvrSessions.forEach(sess => {
+                        const opt = document.createElement('option');
+                        opt.value = sess.session_id;
+                        
+                        // Parse readable context and duration info
+                        const start = new Date(sess.start_time).toLocaleString();
+                        const durText = sess.end_time ? `Finished (${sess.snapshot_count} frames)` : `Recording... (${sess.snapshot_count} frames)`;
+                        opt.textContent = `${sess.cluster_name} | ${start} | ${durText}`;
+                        select.appendChild(opt);
+                    });
+                    
+                    // Restore active selected session if it still exists
+                    if (activeVal && dvrSessions.some(s => s.session_id === activeVal)) {
+                        select.value = activeVal;
+                    } else {
+                        // Otherwise, auto-select the latest recorded session for user convenience!
+                        select.value = dvrSessions[0].session_id;
+                        fetchDvrSnapshots(dvrSessions[0].session_id);
+                    }
+                })
+                .catch(error => {
+                    showToast(`Failed to load DVR sessions: ${error.message}`, 'error');
+                });
+        }
+
+        // Fetch snapshots for a session
+        function fetchDvrSnapshots(sessionId) {
+            const textHud = document.getElementById('dvr-timeline-text');
+            if (textHud) textHud.textContent = "DVR PLAYBACK | LOADING SNAPSHOTS...";
+            
+            fetch(`/api/v1/dvr/snapshots?session_id=${sessionId}`)
+                .then(response => {
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    return response.json();
+                })
+                .then(data => {
+                    dvrSnapshots = data.snapshots || [];
+                    if (dvrSnapshots.length === 0) {
+                        showToast(`Session "${sessionId}" contains no snapshots.`, 'warning');
+                        resetDvrPlaybackState();
+                        if (textHud) textHud.textContent = "DVR PLAYBACK | SESSION EMPTY";
+                        return;
+                    }
+                    
+                    // Enable timeline controls and delete session button
+                    document.getElementById('btn-dvr-delete-session').disabled = false;
+                    document.getElementById('btn-dvr-prev').disabled = false;
+                    document.getElementById('btn-dvr-play').disabled = false;
+                    document.getElementById('btn-dvr-next').disabled = false;
+                    
+                    const slider = document.getElementById('dvr-timeline-slider');
+                    if (slider) {
+                        slider.disabled = false;
+                        slider.min = 0;
+                        slider.max = dvrSnapshots.length - 1;
+                        slider.value = 0;
+                    }
+                    
+                    currentDvrSnapshotIndex = 0;
+                    renderDvrSnapshot(0);
+                    
+                    showToast(`Successfully loaded ${dvrSnapshots.length} historical frames for playback.`, 'success');
+                })
+                .catch(error => {
+                    showToast(`Failed to load snapshots: ${error.message}`, 'error');
+                    resetDvrPlaybackState();
+                });
+        }
+
+        // Reset control states when no session is loaded or active
+        function resetDvrPlaybackState() {
+            document.getElementById('btn-dvr-delete-session').disabled = true;
+            document.getElementById('btn-dvr-prev').disabled = true;
+            document.getElementById('btn-dvr-play').disabled = true;
+            document.getElementById('btn-dvr-next').disabled = true;
+            
+            const slider = document.getElementById('dvr-timeline-slider');
+            if (slider) {
+                slider.disabled = true;
+                slider.value = 0;
+                slider.max = 0;
+            }
+            
+            const textHud = document.getElementById('dvr-timeline-text');
+            if (textHud) textHud.textContent = "DVR PLAYBACK | NO SESSION LOADED";
+            
+            currentDvrSnapshotIndex = 0;
+        }
+
+        // Render specific snapshot by index
+        function renderDvrSnapshot(index) {
+            if (index < 0 || index >= dvrSnapshots.length) return;
+            
+            currentDvrSnapshotIndex = index;
+            const snapshot = dvrSnapshots[index];
+            
+            // Sync slider position
+            const slider = document.getElementById('dvr-timeline-slider');
+            if (slider) slider.value = index;
+            
+            // Parse in-memory state dictionary
+            let stateData = snapshot.state_json;
+            if (typeof stateData === 'string') {
+                try {
+                    stateData = JSON.parse(stateData);
+                } catch(e) {
+                    console.error("Failed to parse snapshot state_json:", e);
+                    return;
+                }
+            }
+            
+            // Execute differential rendering on the Three.js scene
+            syncClusterState(stateData);
+            
+            // Update HUD text with ISO date and frame number
+            const textHud = document.getElementById('dvr-timeline-text');
+            if (textHud) {
+                const dateStr = formatDvrTimestamp(snapshot.timestamp);
+                textHud.textContent = `DVR | ${dateStr} | FRAME ${index + 1} / ${dvrSnapshots.length}`;
+            }
+        }
+
+        // Formatting date timestamp beautifully
+        function formatDvrTimestamp(isoStr) {
+            if (!isoStr) return 'UNKNOWN';
+            try {
+                const d = new Date(isoStr);
+                return d.toLocaleString();
+            } catch(e) {
+                return isoStr;
+            }
+        }
+
+        // Play loop
+        function playDvrPlayback() {
+            if (dvrSnapshots.length === 0) return;
+            
+            isDvrPlaying = true;
+            
+            const playBtn = document.getElementById('btn-dvr-play');
+            if (playBtn) {
+                playBtn.textContent = '❚❚';
+                playBtn.title = 'Pause (❚❚)';
+                playBtn.classList.add('active');
+            }
+            
+            dvrPlaybackInterval = setInterval(() => {
+                stepDvrForward();
+            }, dvrTickRate);
+        }
+
+        // Pause loop
+        function pauseDvrPlayback() {
+            isDvrPlaying = false;
+            
+            const playBtn = document.getElementById('btn-dvr-play');
+            if (playBtn) {
+                playBtn.textContent = '▶';
+                playBtn.title = 'Play (▶)';
+                playBtn.classList.remove('active');
+            }
+            
+            if (dvrPlaybackInterval) {
+                clearInterval(dvrPlaybackInterval);
+                dvrPlaybackInterval = null;
+            }
+        }
+
+        // Toggle play/pause
+        function togglePlayDvrPlayback() {
+            if (isDvrPlaying) {
+                pauseDvrPlayback();
+            } else {
+                playDvrPlayback();
+            }
+        }
+
+        // Step forward (with loop wrap-around)
+        function stepDvrForward() {
+            if (dvrSnapshots.length === 0) return;
+            
+            let nextIndex = currentDvrSnapshotIndex + 1;
+            if (nextIndex >= dvrSnapshots.length) {
+                nextIndex = 0; // loop back to first frame
+            }
+            
+            renderDvrSnapshot(nextIndex);
+        }
+
+        // Step backward (with loop wrap-around)
+        function stepDvrBackward() {
+            if (dvrSnapshots.length === 0) return;
+            
+            let prevIndex = currentDvrSnapshotIndex - 1;
+            if (prevIndex < 0) {
+                prevIndex = dvrSnapshots.length - 1; // wrap around to last frame
+            }
+            
+            renderDvrSnapshot(prevIndex);
+        }
+
+        // Delete recorded session from SQLite
+        function deleteDvrSession(sessionId) {
+            const select = document.getElementById('dvr-session-select');
+            const deleteBtn = document.getElementById('btn-dvr-delete-session');
+            
+            const spinner = document.createElement('span');
+            spinner.className = 'button-spinner';
+            spinner.style.borderLeftColor = '#ef4444';
+            if (deleteBtn) deleteBtn.appendChild(spinner);
+            
+            fetch('/api/v1/dvr/sessions/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ session_id: sessionId })
+            })
+            .then(response => {
+                spinner.remove();
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                return response.json();
+            })
+            .then(data => {
+                showToast(`Successfully deleted session "${sessionId}"`, 'success');
+                
+                // Clear controls and playback
+                pauseDvrPlayback();
+                dvrSnapshots = [];
+                resetDvrPlaybackState();
+                
+                // Re-fetch sessions list
+                fetchDvrSessions();
+            })
+            .catch(error => {
+                spinner.remove();
+                showToast(`Failed to delete session: ${error.message}`, 'error');
+            });
         }
     </script>
 </body>

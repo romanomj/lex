@@ -14,6 +14,7 @@ import threading
 import http.server
 from urllib.parse import urlparse, parse_qs
 import parse_cluster
+import dvr_db
 
 PORT = 8000
 BIND_ADDRESS = '127.0.0.1'  # Hard-bound to local loopback for secure sandbox isolation
@@ -21,6 +22,10 @@ BIND_ADDRESS = '127.0.0.1'  # Hard-bound to local loopback for secure sandbox is
 # Thread-safe context management
 active_context = "demo"
 active_context_lock = threading.Lock()
+
+# Thread-safe DVR recording session tracker
+active_recording_session = None
+active_recording_session_lock = threading.Lock()
 
 class LocalAPIServer(http.server.SimpleHTTPRequestHandler):
     def end_headers(self):
@@ -55,6 +60,15 @@ class LocalAPIServer(http.server.SimpleHTTPRequestHandler):
         # Route: API events fetch
         elif path == '/api/v1/events':
             self.handle_get_events(parsed_url.query)
+        # Route: API DVR sessions list
+        elif path == '/api/v1/dvr/sessions':
+            self.handle_dvr_sessions()
+        # Route: API DVR snapshots fetch
+        elif path == '/api/v1/dvr/snapshots':
+            self.handle_dvr_snapshots(parsed_url.query)
+        # Route: API DVR recording status
+        elif path == '/api/v1/dvr/recording/status':
+            self.handle_dvr_recording_status()
         else:
             # Fallback to serving static files (index.html, etc.) from the workspace directory
             super().do_GET()
@@ -65,6 +79,10 @@ class LocalAPIServer(http.server.SimpleHTTPRequestHandler):
 
         if path == '/api/v1/contexts/switch':
             self.handle_switch_context()
+        elif path == '/api/v1/dvr/recording/toggle':
+            self.handle_dvr_recording_toggle()
+        elif path == '/api/v1/dvr/sessions/delete':
+            self.handle_dvr_session_delete()
         else:
             self.send_error_json(404, "Endpoint not found")
 
@@ -507,6 +525,113 @@ status:
         except Exception as e:
             self.send_text_response(500, f"▲ Server error executing kubectl events: {str(e)}")
 
+    def handle_dvr_sessions(self):
+        try:
+            sessions = dvr_db.get_sessions()
+            self.send_json_response(200, {"sessions": sessions})
+        except Exception as e:
+            self.send_error_json(500, f"Error listing sessions: {str(e)}")
+
+    def handle_dvr_snapshots(self, query_string):
+        params = parse_qs(query_string)
+        session_id = params.get('session_id', [None])[0]
+        if not session_id:
+            self.send_error_json(400, "Missing required query parameter: 'session_id'")
+            return
+            
+        if not re.match(r"^[a-zA-Z0-9_-]+$", session_id):
+            self.send_error_json(400, "Invalid session_id format")
+            return
+            
+        try:
+            snapshots = dvr_db.get_snapshots(session_id)
+            self.send_json_response(200, {"snapshots": snapshots})
+        except Exception as e:
+            self.send_error_json(500, f"Error fetching snapshots: {str(e)}")
+
+    def handle_dvr_recording_status(self):
+        with active_context_lock:
+            ctx = active_context
+        with active_recording_session_lock:
+            session_id = active_recording_session
+            
+        self.send_json_response(200, {
+            "recording": session_id is not None,
+            "session_id": session_id,
+            "cluster_name": ctx
+        })
+
+    def handle_dvr_recording_toggle(self):
+        with active_context_lock:
+            ctx = active_context
+            
+        with active_recording_session_lock:
+            global active_recording_session
+            if active_recording_session is None:
+                # Start recording
+                session_id = dvr_db.start_session(ctx)
+                if session_id:
+                    active_recording_session = session_id
+                    # Perform an immediate synchronous poll & record initial snapshot
+                    try:
+                        force_mock = (ctx == "demo")
+                        state = parse_cluster.parse_cluster(context=ctx, force_mock=force_mock)
+                        dvr_db.add_snapshot(session_id, ctx, state)
+                    except Exception as e:
+                        print(f"▲ Error saving initial snapshot during toggle: {e}")
+                    
+                    self.send_json_response(200, {
+                        "status": "success",
+                        "recording": True,
+                        "session_id": session_id,
+                        "cluster_name": ctx
+                    })
+                else:
+                    self.send_error_json(500, "Could not start recording session")
+            else:
+                # Stop recording
+                session_id = active_recording_session
+                active_recording_session = None
+                dvr_db.end_session(session_id)
+                self.send_json_response(200, {
+                    "status": "success",
+                    "recording": False,
+                    "session_id": session_id
+                })
+
+    def handle_dvr_session_delete(self):
+        try:
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length)
+            data = json.loads(post_data.decode('utf-8'))
+        except Exception as e:
+            self.send_error_json(400, f"Invalid JSON payload: {str(e)}")
+            return
+
+        session_id = data.get("session_id")
+        if not session_id:
+            self.send_error_json(400, "Missing 'session_id' field in payload")
+            return
+
+        if not re.match(r"^[a-zA-Z0-9_-]+$", session_id):
+            self.send_error_json(400, "Invalid session_id format")
+            return
+
+        with active_recording_session_lock:
+            global active_recording_session
+            # If the session to delete is active, toggle it off first
+            if active_recording_session == session_id:
+                active_recording_session = None
+
+        try:
+            success = dvr_db.delete_session(session_id)
+            if success:
+                self.send_json_response(200, {"status": "success"})
+            else:
+                self.send_error_json(500, "Failed to delete session")
+        except Exception as e:
+            self.send_error_json(500, f"Error deleting session: {str(e)}")
+
     def send_json_response(self, code, data):
         self.send_response(code)
         self.send_header('Content-Type', 'application/json; charset=utf-8')
@@ -533,8 +658,15 @@ def run_bg_sync():
         try:
             with active_context_lock:
                 ctx = active_context
-            if ctx != "demo":
-                parse_cluster.parse_cluster(context=ctx)
+            with active_recording_session_lock:
+                session_id = active_recording_session
+            
+            # Scrape and process if not demo mode or if recording is enabled
+            if ctx != "demo" or session_id:
+                force_mock = (ctx == "demo")
+                state = parse_cluster.parse_cluster(context=ctx, force_mock=force_mock)
+                if session_id:
+                    dvr_db.add_snapshot(session_id, ctx, state)
         except SystemExit:
             print(f"Background sync failed for context '{ctx}' (SystemExit)")
         except Exception as e:
@@ -562,6 +694,10 @@ def init_active_context():
 
 def main():
     global active_context
+    # Initialize DVR database schemas on boot
+    import dvr_db
+    dvr_db.init_db()
+
     # Discover active context dynamically on startup
     init_active_context()
 
