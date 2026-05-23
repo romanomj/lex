@@ -1244,7 +1244,7 @@
             display: flex;
             align-items: center;
             gap: 8px;
-            flex: 1.2;
+            flex-shrink: 0;
         }
 
         .dvr-select {
@@ -1259,8 +1259,10 @@
             outline: none;
             cursor: pointer;
             transition: all 0.2s ease;
-            flex: 1;
-            max-width: 250px;
+            width: 240px;
+            max-width: 240px;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .dvr-select:focus {
