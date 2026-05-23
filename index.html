@@ -1245,9 +1245,9 @@
             align-items: center;
             gap: 8px;
             flex-shrink: 0;
-            width: 350px;
-            min-width: 350px;
-            max-width: 350px;
+            width: 300px;
+            min-width: 300px;
+            max-width: 300px;
         }
 
         .dvr-select {
@@ -1262,11 +1262,20 @@
             outline: none;
             cursor: pointer;
             transition: all 0.2s ease;
-            width: 240px;
-            min-width: 240px;
-            max-width: 240px;
+        }
+
+        #dvr-session-select {
+            width: 190px;
+            min-width: 190px;
+            max-width: 190px;
             overflow: hidden;
             text-overflow: ellipsis;
+        }
+
+        #dvr-speed-select {
+            width: 110px;
+            min-width: 110px;
+            max-width: 110px;
         }
 
         .dvr-select:focus {
@@ -1327,8 +1336,7 @@
             padding: 6px 12px;
             border-radius: 6px;
             border: 1px solid rgba(255, 255, 255, 0.05);
-            text-align: right;
-            min-width: 340px;
+            text-align: center;
             flex-shrink: 0;
             white-space: nowrap;
         }
@@ -1550,7 +1558,7 @@
             </div>
             <div style="display: flex; align-items: center; gap: 8px;">
                 <span style="font-size: 13px; color: #94a3b8; font-weight: 600;">Speed:</span>
-                <select class="dvr-select" id="dvr-speed-select" style="max-width: 100px; padding: 4px 8px;">
+                <select class="dvr-select" id="dvr-speed-select">
                     <option value="1000">1s / frame</option>
                     <option value="2000">2s / frame</option>
                     <option value="5000" selected>5s / frame</option>
