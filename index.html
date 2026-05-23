@@ -28,7 +28,7 @@
             border-radius: 12px;
             border: 1px solid rgba(255, 255, 255, 0.08);
             box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-            max-width: 320px;
+            width: 320px;
             pointer-events: auto;
             z-index: 10;
             transition: all 0.3s ease;
@@ -1109,6 +1109,7 @@
             font-weight: 600;
             cursor: pointer;
             transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            white-space: nowrap;
         }
 
         .dvr-hud-btn:hover {
@@ -1321,8 +1322,9 @@
             border-radius: 6px;
             border: 1px solid rgba(255, 255, 255, 0.05);
             text-align: right;
-            min-width: 260px;
+            min-width: 340px;
             flex-shrink: 0;
+            white-space: nowrap;
         }
 
         .dvr-progress-row {
