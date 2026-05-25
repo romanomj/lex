@@ -1405,6 +1405,19 @@
         .dvr-slider::-moz-range-thumb:hover {
             transform: scale(1.2);
         }
+
+        .dvr-timeline-tick {
+            position: absolute;
+            width: 4px;
+            height: 10px;
+            background: #ef4444;
+            box-shadow: 0 0 8px #ef4444;
+            border-radius: 2px;
+            transform: translateX(-50%);
+            top: -2px;
+            pointer-events: none;
+            z-index: 2;
+        }
     </style>
     <!-- Import maps polyfill -->
     <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
@@ -1597,8 +1610,9 @@
                 DVR PLAYBACK | NO SESSION LOADED
             </div>
         </div>
-        <div class="dvr-progress-row">
+        <div class="dvr-progress-row" style="position: relative; margin-top: 4px; padding-bottom: 12px;">
             <input type="range" class="dvr-slider" id="dvr-timeline-slider" min="0" max="0" value="0" disabled>
+            <div id="dvr-timeline-ticks" style="position: absolute; left: 8px; right: 8px; top: 0px; height: 16px; pointer-events: none; z-index: 2;"></div>
         </div>
     </div>
 
@@ -1614,6 +1628,7 @@
     <script type="module">
         import * as THREE from 'three';
         import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+        import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js';
 
         // Dynamic timestamps for stuck/normal init pods relative to load time
         const nowMs = Date.now();
@@ -1760,6 +1775,7 @@
 
         let oceanGeometry, oceanMesh, sunGroup, sunMesh;
         const renderedPods = [];
+        const clouds = [];
         const warningSigns = [];
         const loadingSigns = [];
 
@@ -1769,6 +1785,8 @@
         const activeColliders = new Map();  // nodeName -> Array of THREE.Box3
         let activeSelectedPodData = null;   // Real-time hovered or inside pod metadata
         let activeSelectedNodeData = null;  // Real-time hovered node metadata
+        let frameCount = 0;
+        const textTextureCache = new Map();
 
         // Phase 3 Multi-Cluster Context Switching globals
         let availableContexts = [];
@@ -2320,6 +2338,31 @@ ${labels}`;
             return treeGroup;
         }
 
+        // Procedural Voxel-Style Cloud Generator
+        function createVoxelCloud() {
+            const cloudGroup = new THREE.Group();
+            const cloudMaterial = new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.70,
+                side: THREE.DoubleSide
+            });
+            const numBlocks = 4 + Math.floor(Math.random() * 4);
+            for (let i = 0; i < numBlocks; i++) {
+                const w = 8 + Math.floor(Math.random() * 10);
+                const h = 3 + Math.floor(Math.random() * 4);
+                const d = 8 + Math.floor(Math.random() * 8);
+                const blockGeo = new THREE.BoxGeometry(w, h, d);
+                const blockMesh = new THREE.Mesh(blockGeo, cloudMaterial);
+                const offsetX = (Math.random() - 0.5) * 10;
+                const offsetY = (Math.random() - 0.5) * 1.5;
+                const offsetZ = (Math.random() - 0.5) * 8;
+                blockMesh.position.set(offsetX, offsetY, offsetZ);
+                cloudGroup.add(blockMesh);
+            }
+            return cloudGroup;
+        }
+
         function updateStatsPanel() {
             const clusterName = clusterData.clusterName || "ClusterNamePlaceHolder";
             const totalNodes = clusterData.nodes ? clusterData.nodes.length : 0;
@@ -2789,6 +2832,19 @@ ${labels}`;
                 scene.add(palmTree);
             });
 
+            // Spawn Voxel Clouds at high coordinates
+            const numClouds = 7;
+            for (let i = 0; i < numClouds; i++) {
+                const cloud = createVoxelCloud();
+                const posX = (Math.random() - 0.5) * 350;
+                const posY = 55 + Math.random() * 15; // Altitude 55 to 70 units
+                const posZ = (Math.random() - 0.5) * 350;
+                cloud.position.set(posX, posY, posZ);
+                cloud.userData = { speed: 2.0 + Math.random() * 3.0 };
+                scene.add(cloud);
+                clouds.push(cloud);
+            }
+
             // Large surrounding Animated Ocean (Minecraft-inspired)
             const waterTexture = createWaterTexture();
             const oceanMat = new THREE.MeshStandardMaterial({
@@ -2799,6 +2855,40 @@ ${labels}`;
                 opacity: 0.85,
                 side: THREE.DoubleSide
             });
+
+            // Store uTime uniform reference
+            oceanMat.userData = {
+                shader: null
+            };
+
+            oceanMat.onBeforeCompile = (shader) => {
+                shader.uniforms.uTime = { value: 0 };
+                oceanMat.userData.shader = shader;
+
+                // Inject uTime uniform in vertex shader
+                shader.vertexShader = shader.vertexShader.replace(
+                    '#include <common>',
+                    `#include <common>
+                    uniform float uTime;`
+                );
+
+                // Displace vertices in vertex shader
+                shader.vertexShader = shader.vertexShader.replace(
+                    '#include <begin_vertex>',
+                    `#include <begin_vertex>
+                    float waveZ = sin(position.x * 0.02 + uTime * 0.8) * 0.4 + cos(position.y * 0.02 + uTime * 0.6) * 0.4;
+                    transformed.z += waveZ;`
+                );
+
+                // Compute exact analytical normals in vertex shader for perfect solar lighting
+                shader.vertexShader = shader.vertexShader.replace(
+                    '#include <beginnormal_vertex>',
+                    `#include <beginnormal_vertex>
+                    float du = 0.02 * cos(position.x * 0.02 + uTime * 0.8) * 0.4;
+                    float dv = -0.02 * sin(position.y * 0.02 + uTime * 0.6) * 0.4;
+                    objectNormal = normalize(vec3(-du, -dv, 1.0));`
+                );
+            };
             oceanGeometry = new THREE.PlaneGeometry(2000, 2000, 40, 40);
             oceanMesh = new THREE.Mesh(oceanGeometry, oceanMat);
             oceanMesh.rotation.x = -Math.PI / 2;
@@ -2993,6 +3083,15 @@ ${labels}`;
 
         // Helper to generate glowing canvas textures for node metrics
         function createNodeTextTexture(title, dataObj, isConditions, nodeWallHeight, buildingDepth) {
+            const cacheKey = `${title}_${JSON.stringify(dataObj)}_${isConditions}_${nodeWallHeight}_${buildingDepth}`;
+            if (textTextureCache.has(cacheKey)) {
+                return textTextureCache.get(cacheKey);
+            }
+            if (textTextureCache.size > 200) {
+                textTextureCache.forEach(tex => tex.dispose());
+                textTextureCache.clear();
+            }
+
             const canvas = document.createElement('canvas');
             canvas.width = 512;
             canvas.height = Math.round(512 * (nodeWallHeight / buildingDepth));
@@ -3113,14 +3212,37 @@ ${labels}`;
                 }
             }
 
+            // Draw holographic CRT scanlines and subtle grid over the entire card
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.20)';
+            for (let y = 0; y < canvas.height; y += 4) {
+                ctx.fillRect(0, y, canvas.width, 2);
+            }
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.03)';
+            for (let x = 0; x < canvas.width; x += 40) {
+                ctx.fillRect(x, 0, 1, canvas.height);
+            }
+            for (let y = 0; y < canvas.height; y += 40) {
+                ctx.fillRect(0, y, canvas.width, 1);
+            }
+
             const texture = new THREE.CanvasTexture(canvas);
             // Higher anisotropic filtering for crisp rendering at steep camera angles
             texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+            textTextureCache.set(cacheKey, texture);
             return texture;
         }
 
         // Helper to generate glowing canvas textures for cost metrics
         function createNodeCostTexture(instanceType, hourlyCost, ageHours, totalCost) {
+            const cacheKey = `cost_${instanceType}_${hourlyCost}_${ageHours.toFixed(2)}_${totalCost.toFixed(2)}`;
+            if (textTextureCache.has(cacheKey)) {
+                return textTextureCache.get(cacheKey);
+            }
+            if (textTextureCache.size > 200) {
+                textTextureCache.forEach(tex => tex.dispose());
+                textTextureCache.clear();
+            }
+
             const canvas = document.createElement('canvas');
             canvas.width = 512;
             canvas.height = 256;
@@ -3174,8 +3296,22 @@ ${labels}`;
             ctx.textAlign = "right";
             ctx.fillText(`Uptime: ${ageHours.toFixed(1)} hrs`, canvas.width - 40, 220);
 
+            // Draw holographic CRT scanlines and subtle grid over the entire card
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.20)';
+            for (let y = 0; y < canvas.height; y += 4) {
+                ctx.fillRect(0, y, canvas.width, 2);
+            }
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.03)';
+            for (let x = 0; x < canvas.width; x += 40) {
+                ctx.fillRect(x, 0, 1, canvas.height);
+            }
+            for (let y = 0; y < canvas.height; y += 40) {
+                ctx.fillRect(0, y, canvas.width, 1);
+            }
+
             const texture = new THREE.CanvasTexture(canvas);
             texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+            textTextureCache.set(cacheKey, texture);
             return texture;
         }
 
@@ -3400,36 +3536,35 @@ ${labels}`;
                 activeOutlineMaterial = comingOnlineOutlineMaterial;
             }
 
-            const sideWallGeo = new THREE.BoxGeometry(wallThickness, nodeWallHeight, buildingDepth);
+            // Construct and merge building outer shell structural walls (left, right, front)
+            const leftWallGeo = new THREE.BoxGeometry(wallThickness, nodeWallHeight, buildingDepth);
+            leftWallGeo.translate(-buildingWidth / 2, nodeWallHeight / 2, buildingDepth / 2);
 
-            const leftWall = new THREE.Mesh(sideWallGeo, activeWallMaterial);
-            leftWall.position.set(-buildingWidth / 2, nodeWallHeight / 2, buildingDepth / 2);
-            leftWall.userData = { ...nodeMetadata };
-            nodeBuilding.add(leftWall);
+            const rightWallGeo = new THREE.BoxGeometry(wallThickness, nodeWallHeight, buildingDepth);
+            rightWallGeo.translate(buildingWidth / 2, nodeWallHeight / 2, buildingDepth / 2);
 
-            const leftWallEdges = new THREE.EdgesGeometry(sideWallGeo);
-            const leftWallLineMat = activeOutlineMaterial || new THREE.LineBasicMaterial({ color: activeOutlineColor, transparent: true, opacity: 0.35 });
-            const leftWallLine = new THREE.LineSegments(leftWallEdges, leftWallLineMat);
-            leftWallLine.position.copy(leftWall.position);
-            nodeBuilding.add(leftWallLine);
+            const frontWallGeo = new THREE.BoxGeometry(buildingWidth + wallThickness, nodeWallHeight, wallThickness);
+            frontWallGeo.translate(0, nodeWallHeight / 2, buildingDepth);
 
-            const rightWall = new THREE.Mesh(sideWallGeo, activeWallMaterial);
-            rightWall.position.set(buildingWidth / 2, nodeWallHeight / 2, buildingDepth / 2);
-            rightWall.userData = { ...nodeMetadata };
-            nodeBuilding.add(rightWall);
+            const mergedWallsGeo = BufferGeometryUtils.mergeGeometries([leftWallGeo, rightWallGeo, frontWallGeo]);
 
-            const rightWallEdges = new THREE.EdgesGeometry(sideWallGeo);
-            const rightWallLineMat = activeOutlineMaterial || new THREE.LineBasicMaterial({ color: activeOutlineColor, transparent: true, opacity: 0.35 });
-            const rightWallLine = new THREE.LineSegments(rightWallEdges, rightWallLineMat);
-            rightWallLine.position.copy(rightWall.position);
-            nodeBuilding.add(rightWallLine);
+            const shellMesh = new THREE.Mesh(mergedWallsGeo, activeWallMaterial);
+            shellMesh.userData = { ...nodeMetadata };
+            nodeBuilding.add(shellMesh);
+
+            const shellEdges = new THREE.EdgesGeometry(mergedWallsGeo);
+            const shellLineMat = activeOutlineMaterial || new THREE.LineBasicMaterial({ color: activeOutlineColor, transparent: true, opacity: 0.35 });
+            const shellLine = new THREE.LineSegments(shellEdges, shellLineMat);
+            nodeBuilding.add(shellLine);
 
             const leftTextTexture = createNodeTextTexture("CONDITIONS", node.conditions, true, nodeWallHeight, buildingDepth);
             const textPanelGeo = new THREE.PlaneGeometry(buildingDepth, nodeWallHeight);
             const leftTextMat = new THREE.MeshBasicMaterial({
                 map: leftTextTexture,
                 transparent: true,
-                side: THREE.DoubleSide
+                side: THREE.DoubleSide,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
             });
             const leftTextMesh = new THREE.Mesh(textPanelGeo, leftTextMat);
             leftTextMesh.position.set(-buildingWidth / 2 - wallThickness / 2 - 0.02, nodeWallHeight / 2, buildingDepth / 2);
@@ -3441,25 +3576,15 @@ ${labels}`;
             const rightTextMat = new THREE.MeshBasicMaterial({
                 map: rightTextTexture,
                 transparent: true,
-                side: THREE.DoubleSide
+                side: THREE.DoubleSide,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
             });
             const rightTextMesh = new THREE.Mesh(textPanelGeo, rightTextMat);
             rightTextMesh.position.set(buildingWidth / 2 + wallThickness / 2 + 0.02, nodeWallHeight / 2, buildingDepth / 2);
             rightTextMesh.rotation.y = Math.PI / 2;
             rightTextMesh.userData = { ...nodeMetadata };
             nodeBuilding.add(rightTextMesh);
-
-            const frontWallGeo = new THREE.BoxGeometry(buildingWidth + wallThickness, nodeWallHeight, wallThickness);
-            const frontWall = new THREE.Mesh(frontWallGeo, activeWallMaterial);
-            frontWall.position.set(0, nodeWallHeight / 2, buildingDepth);
-            frontWall.userData = { ...nodeMetadata };
-            nodeBuilding.add(frontWall);
-
-            const frontWallEdges = new THREE.EdgesGeometry(frontWallGeo);
-            const frontWallLineMat = activeOutlineMaterial || new THREE.LineBasicMaterial({ color: activeOutlineColor, transparent: true, opacity: 0.35 });
-            const frontWallLine = new THREE.LineSegments(frontWallEdges, frontWallLineMat);
-            frontWallLine.position.copy(frontWall.position);
-            nodeBuilding.add(frontWallLine);
 
             let currentYOffset = 0;
             let allocatedMemory = 0;
@@ -3615,7 +3740,9 @@ ${labels}`;
                 const costPanelMat = new THREE.MeshBasicMaterial({
                     map: costTexture,
                     transparent: true,
-                    side: THREE.DoubleSide
+                    side: THREE.DoubleSide,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false
                 });
                 const costPanelMesh = new THREE.Mesh(costPanelGeo, costPanelMat);
                 // Positioned on the rear top of the rendered node: x=0, y=nodeWallHeight - costPanelHeight/2 - 0.4, z=buildingDepth + wallThickness/2 + 0.02
@@ -4769,6 +4896,7 @@ ${labels}`;
         // 4. Game Animation & Camera Movement Loops
         function animate() {
             requestAnimationFrame(animate);
+            frameCount++;
             const delta = clock.getDelta();
 
             // Slide and scale dynamic nodes
@@ -4933,9 +5061,10 @@ ${labels}`;
                     if (containerEl) containerEl.scrollTop = 0;
                 }
             } else {
-                // Player is NOT inside: run standard raycast check
-                raycaster.setFromCamera(mouse, camera);
-                const intersects = raycaster.intersectObjects(scene.children, true);
+                // Player is NOT inside: run standard raycast check throttled to once every 4 frames
+                if (frameCount % 4 === 0) {
+                    raycaster.setFromCamera(mouse, camera);
+                    const intersects = raycaster.intersectObjects(scene.children, true);
 
                 let hoveredObj = null;
                 for (let i = 0; i < intersects.length; i++) {
@@ -5114,21 +5243,22 @@ ${labels}`;
                         activeSelectedNodeData = null;
                     }
                 }
+                } // end of frameCount % 4
             }
 
-            // Animate ocean waves over time
-            if (oceanGeometry) {
-                const time = clock.getElapsedTime();
-                const position = oceanGeometry.attributes.position;
-                for (let i = 0; i < position.count; i++) {
-                    const u = position.getX(i);
-                    const v = position.getY(i);
-                    // Compute wave height using a multi-frequency sine wave
-                    const z = Math.sin(u * 0.02 + time * 0.8) * 0.4 + Math.cos(v * 0.02 + time * 0.6) * 0.4;
-                    position.setZ(i, z);
+            // Drift voxel clouds and wrap coordinates
+            clouds.forEach(cloud => {
+                cloud.position.x += cloud.userData.speed * delta;
+                if (cloud.position.x > 250) {
+                    cloud.position.x = -250;
+                    cloud.position.z = (Math.random() - 0.5) * 350;
                 }
-                position.needsUpdate = true;
-                oceanGeometry.computeVertexNormals();
+            });
+
+            // Update ocean uTime uniform for GPU-Accelerated waves
+            if (oceanMesh && oceanMesh.material.userData && oceanMesh.material.userData.shader) {
+                const time = clock.getElapsedTime();
+                oceanMesh.material.userData.shader.uniforms.uTime.value = time;
             }
 
             // Animate ocean texture offset to simulate flowing/shifting water
@@ -5606,6 +5736,42 @@ ${labels}`;
                     
                     currentDvrSnapshotIndex = 0;
                     renderDvrSnapshot(0);
+
+                    // Populate failures tick marks dynamically along progress timeline
+                    const ticksContainer = document.getElementById('dvr-timeline-ticks');
+                    if (ticksContainer) {
+                        ticksContainer.innerHTML = "";
+                        const totalSnapshots = dvrSnapshots.length;
+                        if (totalSnapshots > 1) {
+                            dvrSnapshots.forEach((snap, idx) => {
+                                let stateObj = snap.state || snap.state_json;
+                                if (typeof stateObj === 'string') {
+                                    try { stateObj = JSON.parse(stateObj); } catch(e) {}
+                                }
+                                
+                                // Determine if there's any failure/incident
+                                let hasIncident = false;
+                                if (stateObj && Array.isArray(stateObj.nodes)) {
+                                    hasIncident = stateObj.nodes.some(node => {
+                                        if (isNodeFailed(node)) return true;
+                                        if (node.pods) {
+                                            return node.pods.some(pod => isPodFailed(pod));
+                                        }
+                                        return false;
+                                    });
+                                }
+                                
+                                if (hasIncident) {
+                                    const percentage = (idx / (totalSnapshots - 1)) * 100;
+                                    const tick = document.createElement('div');
+                                    tick.className = 'dvr-timeline-tick';
+                                    tick.style.left = `${percentage}%`;
+                                    tick.title = `Incident at ${formatDvrTimestamp(snap.timestamp)}`;
+                                    ticksContainer.appendChild(tick);
+                                }
+                            });
+                        }
+                    }
                     
                     showToast(`Successfully loaded ${dvrSnapshots.length} historical frames for playback.`, 'success');
                 })
@@ -5627,6 +5793,11 @@ ${labels}`;
                 slider.disabled = true;
                 slider.value = 0;
                 slider.max = 0;
+            }
+
+            const ticksContainer = document.getElementById('dvr-timeline-ticks');
+            if (ticksContainer) {
+                ticksContainer.innerHTML = "";
             }
             
             const textHud = document.getElementById('dvr-timeline-text');
