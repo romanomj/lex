@@ -16,10 +16,21 @@
             font-family: 'Outfit', sans-serif;
         }
 
-        #ui-container {
+        #left-sidebar-container {
             position: absolute;
             top: 80px;
             left: 20px;
+            width: 320px;
+            bottom: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        #ui-container {
+            position: relative;
             background: rgba(13, 13, 18, 0.75);
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
@@ -28,9 +39,9 @@
             border-radius: 12px;
             border: 1px solid rgba(255, 255, 255, 0.08);
             box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-            width: 320px;
+            width: 100%;
+            box-sizing: border-box;
             pointer-events: auto;
-            z-index: 10;
             transition: all 0.3s ease;
         }
 
@@ -724,11 +735,11 @@
 
         /* Search Panel Styling */
         #search-panel {
-            position: absolute;
-            top: 80px;
-            left: 360px;
-            width: 320px;
-            bottom: 20px;
+            position: relative;
+            width: 100%;
+            flex: 1;
+            min-height: 0;
+            box-sizing: border-box;
             background: rgba(13, 13, 18, 0.85);
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
@@ -737,18 +748,18 @@
             color: #e2e8f0;
             padding: 20px;
             box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-            z-index: 150;
-            display: flex;
+            display: none;
             flex-direction: column;
             opacity: 0;
-            transform: translateX(-20px);
+            transform: translateY(10px);
             pointer-events: none;
             transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1), transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
         #search-panel.visible {
+            display: flex;
             opacity: 1;
-            transform: translateX(0);
+            transform: translateY(0);
             pointer-events: auto;
         }
 
@@ -1409,46 +1420,67 @@
 
 <body>
 
-    <div id="ui-container">
-        <p class="instructions" style="margin-top: 0;">
-            <strong>Click screen</strong> to lock mouse and look around.<br>
-            <strong>WASD / Arrow Keys:</strong> Move around<br>
-            <strong>Space / Shift:</strong> Fly Up / Down<br>
-            <strong>C Key:</strong> Actions Menu (on Pod)<br>
-            <strong>F Key:</strong> Search Cluster Panel<br>
-            <strong>ESC:</strong> Exit mouse lock
-        </p>
-        <div style="margin-top: 15px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: space-between;">
-            <span style="font-size: 13px; color: #94a3b8; font-weight: 600;">Speed Control:</span>
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <button id="btn-speed-down" title="Decrease Speed (-10%)">-</button>
-                <span id="speed-pct" style="font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 700; color: #3b82f6; width: 45px; text-align: center; display: inline-block; transition: transform 0.1s ease;">100%</span>
-                <button id="btn-speed-up" title="Increase Speed (+10%)">+</button>
+    <div id="left-sidebar-container">
+        <div id="ui-container">
+            <p class="instructions" style="margin-top: 0;">
+                <strong>Click screen</strong> to lock mouse and look around.<br>
+                <strong>WASD / Arrow Keys:</strong> Move around<br>
+                <strong>Space / Shift:</strong> Fly Up / Down<br>
+                <strong>C Key:</strong> Actions Menu (on Pod)<br>
+                <strong>F Key:</strong> Search Cluster Panel<br>
+                <strong>ESC:</strong> Exit mouse lock
+            </p>
+            <div style="margin-top: 15px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: space-between;">
+                <span style="font-size: 13px; color: #94a3b8; font-weight: 600;">Speed Control:</span>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <button id="btn-speed-down" title="Decrease Speed (-10%)">-</button>
+                    <span id="speed-pct" style="font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 700; color: #3b82f6; width: 45px; text-align: center; display: inline-block; transition: transform 0.1s ease;">100%</span>
+                    <button id="btn-speed-up" title="Increase Speed (+10%)">+</button>
+                </div>
+            </div>
+            <!-- DVR Mode & Recording buttons -->
+            <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; flex-direction: column; gap: 8px;">
+                <div style="display: flex; gap: 8px; width: 100%;">
+                    <button id="btn-dvr-rec" class="dvr-hud-btn" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;" title="Start/Stop Recording active context">
+                        <span class="rec-dot">●</span> <span id="dvr-rec-text">REC</span>
+                    </button>
+                    <button id="btn-dvr-toggle-mode" class="dvr-hud-btn" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;" title="Enter DVR Playback Mode">
+                        <span>📺</span> <span>DVR Mode</span>
+                    </button>
+                </div>
+            </div>
+            <div id="node-info" style="margin-top: 10px; font-size: 12px;"></div>
+            
+            <!-- Collapsible Namespace Legend -->
+            <div id="namespace-legend-wrapper" style="margin-top: 15px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08);">
+                <div id="namespace-legend-header" style="display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none;" title="Toggle Namespace Color Legend">
+                    <span style="font-size: 13px; color: #94a3b8; font-weight: 600; display: flex; align-items: center; gap: 6px;">
+                        <span>🏷️</span> Namespaces Legend
+                    </span>
+                    <span id="namespace-legend-chevron" style="font-size: 10px; color: #94a3b8; transition: transform 0.2s ease;">▲</span>
+                </div>
+                <div id="namespace-legend-content" style="margin-top: 8px; display: flex; flex-direction: column; gap: 6px; max-height: 150px; overflow-y: auto; padding-right: 4px; transition: max-height 0.2s ease, opacity 0.2s ease, margin-top 0.2s ease; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.1) transparent;">
+                    <!-- Dynamically populated rows -->
+                </div>
             </div>
         </div>
-        <!-- DVR Mode & Recording buttons -->
-        <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; flex-direction: column; gap: 8px;">
-            <div style="display: flex; gap: 8px; width: 100%;">
-                <button id="btn-dvr-rec" class="dvr-hud-btn" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;" title="Start/Stop Recording active context">
-                    <span class="rec-dot">●</span> <span id="dvr-rec-text">REC</span>
-                </button>
-                <button id="btn-dvr-toggle-mode" class="dvr-hud-btn" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;" title="Enter DVR Playback Mode">
-                    <span>📺</span> <span>DVR Mode</span>
-                </button>
-            </div>
-        </div>
-        <div id="node-info" style="margin-top: 10px; font-size: 12px;"></div>
         
-        <!-- Collapsible Namespace Legend -->
-        <div id="namespace-legend-wrapper" style="margin-top: 15px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08);">
-            <div id="namespace-legend-header" style="display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none;" title="Toggle Namespace Color Legend">
-                <span style="font-size: 13px; color: #94a3b8; font-weight: 600; display: flex; align-items: center; gap: 6px;">
-                    <span>🏷️</span> Namespaces Legend
-                </span>
-                <span id="namespace-legend-chevron" style="font-size: 10px; color: #94a3b8; transition: transform 0.2s ease;">▲</span>
+        <!-- Glassmorphic Search Panel -->
+        <div id="search-panel" style="display: none;">
+            <div class="search-panel-header">
+                <span class="search-panel-title">🔍 Search Cluster</span>
+                <button id="search-panel-close-btn" class="search-panel-close-x" title="Close Panel (ESC)">✕</button>
             </div>
-            <div id="namespace-legend-content" style="margin-top: 8px; display: flex; flex-direction: column; gap: 6px; max-height: 150px; overflow-y: auto; padding-right: 4px; transition: max-height 0.2s ease, opacity 0.2s ease, margin-top 0.2s ease; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.1) transparent;">
-                <!-- Dynamically populated rows -->
+            <div class="search-panel-body">
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="search-input" placeholder="Type name, label, or IP..." autocomplete="off" />
+                    <button id="search-action-btn">Find</button>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; flex-shrink: 0;">
+                    <button id="search-clear-btn" class="disabled" disabled>✕ Clear Highlight</button>
+                    <span id="search-status-label" style="font-size: 11px; color: #94a3b8; font-weight: 600;"></span>
+                </div>
+                <div id="search-results-list" class="search-results-scroll"></div>
             </div>
         </div>
     </div>
@@ -1528,24 +1560,7 @@
         </div>
     </div>
 
-    <!-- Glassmorphic Search Panel -->
-    <div id="search-panel">
-        <div class="search-panel-header">
-            <span class="search-panel-title">🔍 Search Cluster</span>
-            <button id="search-panel-close-btn" class="search-panel-close-x" title="Close Panel (ESC)">✕</button>
-        </div>
-        <div class="search-panel-body">
-            <div style="display: flex; gap: 8px;">
-                <input type="text" id="search-input" placeholder="Type name, label, or IP..." autocomplete="off" />
-                <button id="search-action-btn">Find</button>
-            </div>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; flex-shrink: 0;">
-                <button id="search-clear-btn" class="disabled" disabled>✕ Clear Highlight</button>
-                <span id="search-status-label" style="font-size: 11px; color: #94a3b8; font-weight: 600;"></span>
-            </div>
-            <div id="search-results-list" class="search-results-scroll"></div>
-        </div>
-    </div>
+
 
     <!-- DVR Control Panel -->
     <div id="dvr-control-panel">
@@ -4305,11 +4320,7 @@ ${labels}`;
                         didClose = true;
                     }
                     if (searchPanel && searchPanel.classList.contains('visible')) {
-                        searchPanel.classList.remove('visible');
-                        const searchInput = document.getElementById('search-input');
-                        if (searchInput) {
-                            searchInput.blur();
-                        }
+                        closeSearchPanel();
                         didClose = true;
                     }
                     if (dropdownContainer && dropdownContainer.classList.contains('open')) {
@@ -4320,7 +4331,6 @@ ${labels}`;
                     if (didClose) {
                         event.preventDefault();
                         event.stopPropagation();
-                        controls.lock();
                     }
                 }
             });
@@ -4334,6 +4344,11 @@ ${labels}`;
                 if (searchInput) {
                     searchInput.blur();
                 }
+                setTimeout(() => {
+                    if (!searchPanel.classList.contains('visible')) {
+                        searchPanel.style.display = 'none';
+                    }
+                }, 250); // Match CSS transition duration (250ms)
                 controls.lock();
             }
         }
@@ -4356,7 +4371,11 @@ ${labels}`;
                 moveDown = false;
                 velocity.set(0, 0, 0);
 
+                searchPanel.style.display = 'flex';
+                // Trigger reflow to let transition work smoothly
+                searchPanel.offsetHeight;
                 searchPanel.classList.add('visible');
+                
                 const searchInput = document.getElementById('search-input');
                 if (searchInput) {
                     searchInput.focus();
