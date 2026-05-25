@@ -12,6 +12,14 @@ NODES_RAW_FILE = "raw-nodes.json"
 PODS_RAW_FILE = "raw-pods.json"
 OUTPUT_FILE = "cluster_state.json"
 
+def get_file_paths(context=None):
+    """Returns context-specific file names to support concurrent multi-cluster scraping."""
+    if not context or context == "demo":
+        return NODES_RAW_FILE, PODS_RAW_FILE, OUTPUT_FILE
+    # Clean the context name to ensure safe local filesystem naming
+    safe_ctx = re.sub(r'[^a-zA-Z0-9_-]', '_', context)
+    return f"raw-nodes-{safe_ctx}.json", f"raw-pods-{safe_ctx}.json", f"cluster_state-{safe_ctx}.json"
+
 # Sleek, premium modern palette for namespace colors (to avoid basic primary colors)
 NAMESPACE_COLORS = [
     0x3b82f6,  # Indigo/Sleek Blue
@@ -118,6 +126,7 @@ def parse_memory_to_gb(mem_str):
 
 def run_kubectl(context=None):
     """Attempts to run kubectl to fetch live cluster JSONs."""
+    nodes_file, pods_file, _ = get_file_paths(context)
     if context:
         print(f"Attempting to query Kubernetes cluster context: {context}...")
     else:
@@ -150,9 +159,9 @@ def run_kubectl(context=None):
 
     # Fetch nodes
     try:
-        print(f"Fetching nodes list and writing to {NODES_RAW_FILE}...")
+        print(f"Fetching nodes list and writing to {nodes_file}...")
         nodes_res = subprocess.run(base_cmd + ["get", "nodes", "-o", "json"], capture_output=True, text=True, check=True)
-        with open(NODES_RAW_FILE, "w", encoding="utf-8") as f:
+        with open(nodes_file, "w", encoding="utf-8") as f:
             f.write(nodes_res.stdout)
     except subprocess.CalledProcessError as e:
         print(f"▲ Error fetching nodes: {e.stderr}")
@@ -160,9 +169,9 @@ def run_kubectl(context=None):
 
     # Fetch pods
     try:
-        print(f"Fetching pods list across all namespaces and writing to {PODS_RAW_FILE}...")
+        print(f"Fetching pods list across all namespaces and writing to {pods_file}...")
         pods_res = subprocess.run(base_cmd + ["get", "pods", "--all-namespaces", "-o", "json"], capture_output=True, text=True, check=True)
-        with open(PODS_RAW_FILE, "w", encoding="utf-8") as f:
+        with open(pods_file, "w", encoding="utf-8") as f:
             f.write(pods_res.stdout)
     except subprocess.CalledProcessError as e:
         print(f"▲ Error fetching pods: {e.stderr}")
@@ -181,9 +190,10 @@ def get_cluster_name(context=None):
     except Exception:
         return None
 
-def create_mock_files_if_missing():
+def create_mock_files_if_missing(context=None):
     """Generates standard mock JSON files if they don't exist in the directory."""
-    if os.path.exists(NODES_RAW_FILE) and os.path.exists(PODS_RAW_FILE):
+    nodes_file, pods_file, _ = get_file_paths(context)
+    if os.path.exists(nodes_file) and os.path.exists(pods_file):
         return
 
     print("▲ Local raw Kubernetes fixtures not found. Generating default mock files...")
@@ -415,15 +425,16 @@ def create_mock_files_if_missing():
         ]
     }
     
-    if not os.path.exists(NODES_RAW_FILE):
-        with open(NODES_RAW_FILE, "w", encoding="utf-8") as f:
+    nodes_file, pods_file, _ = get_file_paths(context)
+    if not os.path.exists(nodes_file):
+        with open(nodes_file, "w", encoding="utf-8") as f:
             json.dump(mock_nodes, f, indent=2)
-        print(f"Generated standard mock {NODES_RAW_FILE}.")
+        print(f"Generated standard mock {nodes_file}.")
         
-    if not os.path.exists(PODS_RAW_FILE):
-        with open(PODS_RAW_FILE, "w", encoding="utf-8") as f:
+    if not os.path.exists(pods_file):
+        with open(pods_file, "w", encoding="utf-8") as f:
             json.dump(mock_pods, f, indent=2)
-        print(f"Generated standard mock {PODS_RAW_FILE}.")
+        print(f"Generated standard mock {pods_file}.")
 
 def get_detailed_pod_status(pod):
     """
@@ -570,7 +581,11 @@ def get_node_cost_details(labels, creation_ts, node_name, costs_map):
         "totalCost": total_cost
     }
 
-def parse_cluster(context=None, force_mock=False):
+def parse_cluster(context=None, force_mock=False, write_to_file=True, custom_output_file=None):
+    nodes_file, pods_file, output_file = get_file_paths(context)
+    if custom_output_file:
+        output_file = custom_output_file
+
     # Load AWS costs database
     script_dir = os.path.dirname(os.path.abspath(__file__))
     csv_path = os.path.join(script_dir, "supplements", "cost_data", "aws", "aws_ec2_us_east_1.csv")
@@ -578,7 +593,7 @@ def parse_cluster(context=None, force_mock=False):
 
     # 1. Gather data (live cluster pull or force mock)
     if force_mock:
-        create_mock_files_if_missing()
+        create_mock_files_if_missing(context)
     else:
         live_success = run_kubectl(context)
         if not live_success:
@@ -586,30 +601,30 @@ def parse_cluster(context=None, force_mock=False):
                 print(f"Error: Failed to query cluster context '{context}'")
                 sys.exit(1)
             print("▲ Live cluster query skipped/failed. Processing via local files...")
-            create_mock_files_if_missing()
+            create_mock_files_if_missing(context)
 
     # 2. Read nodes
-    if not os.path.exists(NODES_RAW_FILE):
-        print(f"Error: {NODES_RAW_FILE} is missing. Cannot parse.")
+    if not os.path.exists(nodes_file):
+        print(f"Error: {nodes_file} is missing. Cannot parse.")
         sys.exit(1)
         
-    with open(NODES_RAW_FILE, "r", encoding="utf-8") as f:
+    with open(nodes_file, "r", encoding="utf-8") as f:
         try:
             nodes_data = json.load(f)
         except json.JSONDecodeError as e:
-            print(f"Error parsing {NODES_RAW_FILE}: {e}")
+            print(f"Error parsing {nodes_file}: {e}")
             sys.exit(1)
 
     # 3. Read pods
-    if not os.path.exists(PODS_RAW_FILE):
-        print(f"Error: {PODS_RAW_FILE} is missing. Cannot parse.")
+    if not os.path.exists(pods_file):
+        print(f"Error: {pods_file} is missing. Cannot parse.")
         sys.exit(1)
         
-    with open(PODS_RAW_FILE, "r", encoding="utf-8") as f:
+    with open(pods_file, "r", encoding="utf-8") as f:
         try:
             pods_data = json.load(f)
         except json.JSONDecodeError as e:
-            print(f"Error parsing {PODS_RAW_FILE}: {e}")
+            print(f"Error parsing {pods_file}: {e}")
             sys.exit(1)
 
     # Dictionary to structure node maps
@@ -812,12 +827,14 @@ def parse_cluster(context=None, force_mock=False):
         "nodes": compiled_nodes
     }
 
-    # Write out Compiled cluster_state.json
-    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
-        json.dump(output_state, f, indent=2)
+    # Write out Compiled cluster_state.json if requested
+    if write_to_file:
+        with open(output_file, "w", encoding="utf-8") as f:
+            json.dump(output_state, f, indent=2)
+        print(f"✔ Compiled cluster environment state written to '{output_file}' for cluster: {cluster_name}.")
 
     print(f"✔ Successfully parsed {len(node_list)} nodes and {len(pod_list)} pods.")
-    print(f"✔ Compiled cluster environment state written to '{OUTPUT_FILE}' for cluster: {cluster_name}.")
+    return output_state
 
 if __name__ == "__main__":
     context = None
