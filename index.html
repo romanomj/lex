@@ -2142,6 +2142,102 @@ ${labels}`;
             return PodProblemRules.some(rule => rule.evaluate(pod));
         }
 
+        function findNodeByName(name) {
+            if (!clusterData || !Array.isArray(clusterData.nodes)) return null;
+            return clusterData.nodes.find(n => n.name === name);
+        }
+
+        function getNodeErrorReasons(nodeName) {
+            const node = findNodeByName(nodeName);
+            if (!node || !node.conditions) return [];
+            
+            // A node coming online is not considered "failed" in terms of blinking red
+            if (isNodeComingOnline(node)) {
+                return [];
+            }
+
+            const conditions = node.conditions;
+            const reasons = [];
+
+            if (conditions.Ready !== undefined && conditions.Ready !== "True") {
+                const reasonText = conditions.ReadyReason || conditions.ReadyMessage || "Unknown reason";
+                reasons.push(`Node Not Ready: ${reasonText}`);
+            }
+            if (conditions.MemoryPressure === "True") {
+                reasons.push("Memory Pressure Alert");
+            }
+            if (conditions.DiskPressure === "True") {
+                reasons.push("Disk Pressure Alert");
+            }
+            if (conditions.PIDPressure === "True") {
+                reasons.push("PID Pressure Alert");
+            }
+            if (conditions.NetworkUnavailable === "True") {
+                reasons.push("Network Unavailable Alert");
+            }
+            return reasons;
+        }
+
+        function getPodErrorReason(podName) {
+            if (!clusterData || !Array.isArray(clusterData.nodes)) return null;
+            let foundPod = null;
+            for (const node of clusterData.nodes) {
+                if (node.pods) {
+                    foundPod = node.pods.find(p => p.name === podName);
+                    if (foundPod) break;
+                }
+            }
+            if (!foundPod) return null;
+            
+            const hasFailedStatus = PodProblemRules[0].evaluate(foundPod);
+            if (hasFailedStatus) {
+                return `Pod Status Alert: ${foundPod.status}`;
+            }
+            
+            const isStuckInitializing = PodProblemRules[1].evaluate(foundPod);
+            if (isStuckInitializing) {
+                if (foundPod.creationTimestamp) {
+                    const createdTime = new Date(foundPod.creationTimestamp).getTime();
+                    if (!isNaN(createdTime)) {
+                        const ageMinutes = (Date.now() - createdTime) / (1000 * 60);
+                        return `Stuck Initializing: ${foundPod.status} for ${Math.round(ageMinutes)}m`;
+                    }
+                }
+                return `Stuck Initializing: ${foundPod.status}`;
+            }
+
+            return null;
+        }
+
+        function getPodErrorReasonHtml(podName) {
+            const errorReason = getPodErrorReason(podName);
+            if (!errorReason) return "";
+            return `
+                <div class="hud-meta-row" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 8px 12px; margin: 8px 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px;">
+                    <span class="hud-label" style="color: #ef4444; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; gap: 4px;">
+                        <span>⚠️</span> Error State
+                    </span>
+                    <span class="hud-value" style="color: #f8fafc; font-size: 12px; word-break: break-word; font-family: 'JetBrains Mono', monospace;">${errorReason}</span>
+                </div>
+            `;
+        }
+
+        function getNodeErrorReasonsHtml(nodeName) {
+            const reasons = getNodeErrorReasons(nodeName);
+            if (reasons.length === 0) return "";
+            return `
+                <div class="hud-meta-row" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 8px 12px; margin: 8px 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px;">
+                    <span class="hud-label" style="color: #ef4444; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; gap: 4px;">
+                        <span>⚠️</span> Error State Reason${reasons.length > 1 ? 's' : ''}
+                    </span>
+                    <div style="display: flex; flex-direction: column; gap: 2px; width: 100%;">
+                        ${reasons.map(r => `<span class="hud-value" style="color: #f8fafc; font-size: 12px; word-break: break-word; font-family: 'JetBrains Mono', monospace; display: block;">• ${r}</span>`).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+
         const partitionMaterial = new THREE.MeshStandardMaterial({
             color: 0x3a3d45, // Sleek matching dark gray floor slab
             roughness: 0.2,
@@ -5015,6 +5111,7 @@ ${labels}`;
                     </div>
                     <div class="hud-title">${data.podName}</div>
                     <div style="margin-top: 16px;">
+                        ${getPodErrorReasonHtml(data.podName)}
                         <div class="hud-meta-row">
                             <span class="hud-label">Namespace</span>
                             <span class="hud-value" style="font-family: 'JetBrains Mono', monospace;">${data.namespace}</span>
@@ -5093,6 +5190,7 @@ ${labels}`;
                             </div>
                             <div class="hud-title">${data.podName}</div>
                             <div style="margin-top: 16px;">
+                                ${getPodErrorReasonHtml(data.podName)}
                                 <div class="hud-meta-row">
                                     <span class="hud-label">Namespace</span>
                                     <span class="hud-value" style="font-family: 'JetBrains Mono', monospace;">${data.namespace}</span>
@@ -5163,6 +5261,7 @@ ${labels}`;
                                 </div>
                                 <div class="hud-title">${data.nodeName}</div>
                                 <div style="margin-top: 16px;">
+                                    ${getNodeErrorReasonsHtml(data.nodeName)}
                                     <div class="hud-meta-row">
                                         <span class="hud-label">Total Capacity</span>
                                         <span class="hud-value">${formattedMaxMemory}GB</span>
