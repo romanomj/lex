@@ -1438,6 +1438,19 @@
             </div>
         </div>
         <div id="node-info" style="margin-top: 10px; font-size: 12px;"></div>
+        
+        <!-- Collapsible Namespace Legend -->
+        <div id="namespace-legend-wrapper" style="margin-top: 15px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08);">
+            <div id="namespace-legend-header" style="display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none;" title="Toggle Namespace Color Legend">
+                <span style="font-size: 13px; color: #94a3b8; font-weight: 600; display: flex; align-items: center; gap: 6px;">
+                    <span>🏷️</span> Namespaces Legend
+                </span>
+                <span id="namespace-legend-chevron" style="font-size: 10px; color: #94a3b8; transition: transform 0.2s ease;">▲</span>
+            </div>
+            <div id="namespace-legend-content" style="margin-top: 8px; display: flex; flex-direction: column; gap: 6px; max-height: 150px; overflow-y: auto; padding-right: 4px; transition: max-height 0.2s ease, opacity 0.2s ease, margin-top 0.2s ease; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.1) transparent;">
+                <!-- Dynamically populated rows -->
+            </div>
+        </div>
     </div>
 
     <div id="stats-panel">
@@ -2552,8 +2565,128 @@ ${labels}`;
                 velocity.set(0, 0, 0);
             }
         }
+ 
+        // Zero-dependency stable hash-based color matching for mock and fallback namespaces
+        function getNamespaceColor(namespace) {
+            const palette = [
+                0x3b82f6,  // Indigo/Sleek Blue
+                0x10b981,  // Emerald Green
+                0x8b5cf6,  // Purple/Violet
+                0xf59e0b,  // Warm Amber
+                0x06b6d4,  // Vivid Cyan
+                0x14b8a6,  // Modern Teal
+                0x6366f1,  // Electric Indigo
+                0xa855f7,  // Deep Purple
+                0xec4899,  // Electric Fuchsia/Pink
+                0xf97316,  // Vivid Orange
+                0x0ea5e9,  // Vivid Sky Blue
+                0x84cc16,  // Cyber Lime
+                0xeab308,  // Golden Yellow
+                0x475569,  // Slate Gray
+                0x0284c7,  // Deep Sky
+                0x0d9488   // Dark Teal
+            ];
+            let hash = 0;
+            for (let i = 0; i < namespace.length; i++) {
+                hash = namespace.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            const idx = Math.abs(hash) % palette.length;
+            return palette[idx];
+        }
 
-        init();
+        // Synchronize all mock cluster pod colors dynamically on startup
+        if (clusterData && Array.isArray(clusterData.nodes)) {
+            clusterData.nodes.forEach(node => {
+                if (Array.isArray(node.pods)) {
+                    node.pods.forEach(pod => {
+                        pod.color = getNamespaceColor(pod.namespace || "default");
+                    });
+                }
+            });
+        }
+
+        // Collapsible Namespace Legend Event Handlers
+        function setupNamespaceLegendUI() {
+            const legendHeader = document.getElementById('namespace-legend-header');
+            const legendContent = document.getElementById('namespace-legend-content');
+            const legendChevron = document.getElementById('namespace-legend-chevron');
+            if (legendHeader && legendContent && legendChevron) {
+                legendHeader.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const isCollapsed = legendContent.style.maxHeight === '0px' || legendContent.style.display === 'none';
+                    if (isCollapsed) {
+                        legendContent.style.display = 'flex';
+                        legendContent.style.maxHeight = '150px';
+                        legendContent.style.opacity = '1';
+                        legendContent.style.marginTop = '8px';
+                        legendChevron.style.transform = 'rotate(0deg)';
+                    } else {
+                        legendContent.style.maxHeight = '0px';
+                        legendContent.style.opacity = '0';
+                        legendContent.style.marginTop = '0px';
+                        legendChevron.style.transform = 'rotate(180deg)';
+                        setTimeout(() => {
+                            if (legendContent.style.maxHeight === '0px') {
+                                legendContent.style.display = 'none';
+                            }
+                        }, 200);
+                    }
+                });
+                
+                // Initialize to expanded state style attributes
+                legendContent.style.display = 'flex';
+                legendContent.style.maxHeight = '150px';
+                legendContent.style.opacity = '1';
+                legendChevron.style.transform = 'rotate(0deg)';
+            }
+        }
+
+        // Dynamically compile active namespaces and build the visual side legend
+        function updateNamespaceLegend() {
+            const legendContent = document.getElementById('namespace-legend-content');
+            if (!legendContent) return;
+            
+            const namespacesMap = new Map();
+            if (clusterData && Array.isArray(clusterData.nodes)) {
+                clusterData.nodes.forEach(node => {
+                    if (Array.isArray(node.pods)) {
+                        node.pods.forEach(pod => {
+                            if (pod.namespace) {
+                                namespacesMap.set(pod.namespace, pod.color);
+                            }
+                        });
+                    }
+                });
+            }
+            
+            legendContent.innerHTML = "";
+            if (namespacesMap.size === 0) {
+                legendContent.innerHTML = '<span style="font-size: 11px; color: #64748b; font-style: italic; padding: 4px 0; display: inline-block;">No active namespaces</span>';
+                return;
+            }
+            
+            const sortedNamespaces = Array.from(namespacesMap.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+            
+            sortedNamespaces.forEach(([ns, color]) => {
+                const hexColor = '#' + color.toString(16).padStart(6, '0');
+                const row = document.createElement('div');
+                row.style.display = 'flex';
+                row.style.alignItems = 'center';
+                row.style.gap = '8px';
+                row.style.fontSize = '12px';
+                row.style.color = '#cbd5e1';
+                row.style.padding = '2px 0';
+                row.style.userSelect = 'none';
+                
+                row.innerHTML = `
+                    <span style="width: 8px; height: 8px; border-radius: 50%; background-color: ${hexColor}; box-shadow: 0 0 6px ${hexColor}; display: inline-block; flex-shrink: 0;"></span>
+                    <span style="font-family: 'JetBrains Mono', monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px;" title="${ns}">${ns}</span>
+                `;
+                legendContent.appendChild(row);
+            });
+        }
+ 
+         init();
 
         // Discover and load available Kubernetes contexts
         fetchAvailableContexts();
@@ -2563,6 +2696,9 @@ ${labels}`;
 
         // Setup Cluster Search UI handlers
         setupSearchUI();
+
+        // Setup Namespace Legend UI handlers
+        setupNamespaceLegendUI();
 
         // Setup DVR UI event handlers
         setupDvrUI();
@@ -3572,6 +3708,7 @@ ${labels}`;
             if (searchHighlightActive && activeSearchQuery) {
                 executeSearch(activeSearchQuery);
             }
+            updateNamespaceLegend();
         }
 
         function generateClusterWorld() {
@@ -3644,6 +3781,7 @@ ${labels}`;
             if (searchHighlightActive && activeSearchQuery) {
                 executeSearch(activeSearchQuery);
             }
+            updateNamespaceLegend();
         }
 
         function fetchClusterState() {
