@@ -146,7 +146,7 @@
             opacity: 0;
             transform: translateY(10px);
             pointer-events: none;
-            transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1), transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1), transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), top 0.3s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
         #pod-yaml-panel.visible {
@@ -2270,7 +2270,7 @@ ${labels}`;
                 if (foundPod.creationTimestamp) {
                     const createdTime = new Date(foundPod.creationTimestamp).getTime();
                     if (!isNaN(createdTime)) {
-                        const ageMinutes = (Date.now() - createdTime) / (1000 * 60);
+                        const ageMinutes = (getCurrentReferenceTime() - createdTime) / (1000 * 60);
                         return `Stuck Initializing: ${foundPod.status} for ${Math.round(ageMinutes)}m`;
                     }
                 }
@@ -3793,9 +3793,7 @@ ${labels}`;
             const leftTextMat = new THREE.MeshBasicMaterial({
                 map: leftTextTexture,
                 transparent: true,
-                side: THREE.DoubleSide,
-                blending: THREE.AdditiveBlending,
-                depthWrite: false
+                side: THREE.DoubleSide
             });
             const leftTextMesh = new THREE.Mesh(textPanelGeo, leftTextMat);
             leftTextMesh.position.set(-buildingWidth / 2 - wallThickness / 2 - 0.02, nodeWallHeight / 2, buildingDepth / 2);
@@ -3807,9 +3805,7 @@ ${labels}`;
             const rightTextMat = new THREE.MeshBasicMaterial({
                 map: rightTextTexture,
                 transparent: true,
-                side: THREE.DoubleSide,
-                blending: THREE.AdditiveBlending,
-                depthWrite: false
+                side: THREE.DoubleSide
             });
             const rightTextMesh = new THREE.Mesh(textPanelGeo, rightTextMat);
             rightTextMesh.position.set(buildingWidth / 2 + wallThickness / 2 + 0.02, nodeWallHeight / 2, buildingDepth / 2);
@@ -3971,9 +3967,7 @@ ${labels}`;
                 const costPanelMat = new THREE.MeshBasicMaterial({
                     map: costTexture,
                     transparent: true,
-                    side: THREE.DoubleSide,
-                    blending: THREE.AdditiveBlending,
-                    depthWrite: false
+                    side: THREE.DoubleSide
                 });
                 const costPanelMesh = new THREE.Mesh(costPanelGeo, costPanelMat);
                 // Positioned on the rear top of the rendered node: x=0, y=nodeWallHeight - costPanelHeight/2 - 0.4, z=buildingDepth + wallThickness/2 + 0.02
@@ -5654,7 +5648,31 @@ ${labels}`;
                 });
             }
 
+            updateRightSidebarLayout();
+
             renderer.render(scene, camera);
+        }
+
+        let lastYamlPanelTop = "";
+        function updateRightSidebarLayout() {
+            const hud = document.getElementById('hud-tooltip');
+            const yamlPanel = document.getElementById('pod-yaml-panel');
+            if (!yamlPanel) return;
+            
+            let targetTop = '390px';
+            if (hud && hud.classList.contains('visible')) {
+                const hudHeight = hud.offsetHeight || 0;
+                if (hudHeight > 0) {
+                    targetTop = `${65 + hudHeight + 15}px`;
+                }
+            } else {
+                targetTop = '65px';
+            }
+            
+            if (lastYamlPanelTop !== targetTop) {
+                yamlPanel.style.top = targetTop;
+                lastYamlPanelTop = targetTop;
+            }
         }
 
         // ==================== DVR Phase 4 Features ====================
