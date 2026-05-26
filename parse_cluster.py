@@ -30,6 +30,14 @@ NAMESPACE_COLORS = [
     0x14b8a6,  # Modern Teal
     0x6366f1,  # Electric Indigo
     0xa855f7,  # Deep Purple
+    0xec4899,  # Electric Fuchsia/Pink
+    0xf97316,  # Vivid Orange
+    0x0ea5e9,  # Vivid Sky Blue
+    0x84cc16,  # Cyber Lime
+    0xeab308,  # Golden Yellow
+    0x475569,  # Slate Gray
+    0x0284c7,  # Deep Sky
+    0x0d9488,  # Dark Teal
 ]
 
 def get_namespace_color(namespace):
