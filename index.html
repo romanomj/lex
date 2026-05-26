@@ -1510,6 +1510,7 @@
                 <strong>Click screen</strong> to lock mouse and look around.<br>
                 <strong>WASD / Arrow Keys:</strong> Move around<br>
                 <strong>Space / Shift:</strong> Fly Up / Down<br>
+                <strong>Tab Key:</strong> Switch Cluster / Context<br>
                 <strong>C Key:</strong> Actions Menu (on Pod)<br>
                 <strong>F Key:</strong> Search Cluster Panel<br>
                 <strong>ESC:</strong> Exit mouse lock
@@ -3222,6 +3223,16 @@ ${labels}`;
 
             // Input Listeners
             const onKeyDown = (event) => {
+                if (event.code === 'Tab') {
+                    // Check if focused in input/textarea to let normal typing/tabbing work
+                    if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
+                        return;
+                    }
+                    event.preventDefault();
+                    toggleContextDropdown();
+                    return;
+                }
+
                 if (event.code === 'KeyF') {
                     // Check if focused in input/textarea to let normal typing work
                     if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
