@@ -411,30 +411,20 @@
         /* Stats Panel Styles */
         #stats-panel {
             position: absolute;
-            top: 65px;
+            top: 0;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(13, 13, 18, 0.75);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
+            background: transparent;
             color: #e2e8f0;
-            padding: 12px 24px;
-            border-radius: 16px;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
-            z-index: 10;
+            padding: 0;
+            z-index: 100;
             display: flex;
-            flex-direction: column;
+            flex-direction: row;
             align-items: center;
-            gap: 8px;
+            gap: 20px;
             pointer-events: auto;
             transition: all 0.3s ease;
-            min-width: 520px;
-        }
-
-        #stats-panel:hover {
-            border-color: rgba(59, 130, 246, 0.3);
-            box-shadow: 0 12px 40px 0 rgba(59, 130, 246, 0.15);
+            height: 50px;
         }
 
         .stats-header {
@@ -446,10 +436,13 @@
             letter-spacing: 0.5px;
             text-transform: uppercase;
             color: #94a3b8;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-            width: 100%;
-            padding-bottom: 6px;
-            justify-content: center;
+            width: auto;
+        }
+
+        .stats-divider {
+            width: 1px;
+            height: 20px;
+            background: rgba(255, 255, 255, 0.12);
         }
 
         .stats-cluster-icon {
@@ -470,28 +463,28 @@
         .stats-grid {
             display: flex;
             gap: 24px;
-            justify-content: space-around;
-            width: 100%;
-            padding-top: 4px;
+            justify-content: center;
+            align-items: center;
+            width: auto;
         }
 
         .stats-item {
             display: flex;
-            flex-direction: column;
+            flex-direction: row;
             align-items: center;
+            gap: 6px;
         }
 
         .stats-label {
-            font-size: 10px;
+            font-size: 11px;
             text-transform: uppercase;
-            letter-spacing: 1px;
+            letter-spacing: 0.5px;
             color: #64748b;
             font-weight: 600;
-            margin-bottom: 2px;
         }
 
         .stats-val {
-            font-size: 18px;
+            font-size: 14px;
             font-weight: 800;
             color: #f1f5f9;
             font-family: 'JetBrains Mono', monospace;
@@ -1518,7 +1511,7 @@
             </div>
             <span id="rec-badge" class="rec-badge" style="display: none;">● LIVE REC</span>
         </div>
-        </div>
+        <div class="stats-divider"></div>
         <div class="stats-grid">
             <div class="stats-item">
                 <span class="stats-label">Nodes</span>
@@ -1527,6 +1520,10 @@
             <div class="stats-item">
                 <span class="stats-label">Pods</span>
                 <span class="stats-val" id="stats-pods">-</span>
+            </div>
+            <div class="stats-item">
+                <span class="stats-label">Total CPU</span>
+                <span class="stats-val" id="stats-cpu">-</span>
             </div>
             <div class="stats-item">
                 <span class="stats-label">Total Memory</span>
@@ -2537,14 +2534,20 @@ ${labels}`;
             
             let totalPods = 0;
             let totalMemory = 0;
+            let totalCPUAllocated = 0;
+            let totalCPUCapacity = 0;
             let totalCost = 0.0;
             
             if (clusterData.nodes) {
                 clusterData.nodes.forEach(node => {
                     if (node.pods) {
                         totalPods += node.pods.length;
+                        node.pods.forEach(pod => {
+                            totalCPUAllocated += pod.cpuCores || 0;
+                        });
                     }
                     totalMemory += node.maxMemoryGB || 0;
+                    totalCPUCapacity += node.maxCPUCores || 0;
                     
                     // Aggregate node cost
                     let nodeCost = 0.0;
@@ -2573,14 +2576,24 @@ ${labels}`;
                 });
             }
             
-            // Format memory to 1 decimal place
+            // Format memory and CPU to 1 decimal place
             const formattedMemory = Math.round(totalMemory * 10) / 10;
+            const formattedCPUAllocated = Math.round(totalCPUAllocated * 10) / 10;
+            const formattedCPUCapacity = Math.round(totalCPUCapacity * 10) / 10;
             
             const activeLabel = document.getElementById('active-context-name');
             if (activeLabel) activeLabel.textContent = clusterName;
             
             document.getElementById('stats-nodes').textContent = totalNodes;
             document.getElementById('stats-pods').textContent = totalPods;
+            
+            const cpuValEl = document.getElementById('stats-cpu');
+            if (cpuValEl) {
+                cpuValEl.textContent = totalCPUCapacity > 0 
+                    ? `${formattedCPUAllocated} / ${formattedCPUCapacity} Cores` 
+                    : `${formattedCPUAllocated} Cores`;
+            }
+            
             document.getElementById('stats-memory').textContent = `${formattedMemory} GB`;
             document.getElementById('stats-cost').textContent = `$${totalCost.toFixed(2)}`;
         }
