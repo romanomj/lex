@@ -306,6 +306,34 @@ def create_mock_files_if_missing(context=None):
                         {"type": "PIDPressure", "status": "False"}
                     ]
                 }
+            },
+            {
+                "metadata": {
+                    "name": "node-echo",
+                    "creationTimestamp": "2026-05-22T10:00:00Z",
+                    "labels": {
+                        "kubernetes.io/hostname": "node-echo",
+                        "kubernetes.io/os": "linux",
+                        "kubernetes.io/arch": "amd64",
+                        "node.kubernetes.io/instance-type": "t3.medium",
+                        "environment": "draining",
+                        "topology.kubernetes.io/region": "us-east-1",
+                        "topology.kubernetes.io/zone": "us-east-1a"
+                    }
+                },
+                "spec": {
+                    "unschedulable": True
+                },
+                "status": {
+                    "allocatable": {"memory": "16Gi", "cpu": "4"},
+                    "capacity": {"memory": "16Gi", "cpu": "4"},
+                    "conditions": [
+                        {"type": "Ready", "status": "Unknown", "reason": "NodeDecommissioning", "message": "Node is being drained and deconstructed"},
+                        {"type": "MemoryPressure", "status": "False"},
+                        {"type": "DiskPressure", "status": "False"},
+                        {"type": "PIDPressure", "status": "False"}
+                    ]
+                }
             }
         ]
     }
@@ -670,6 +698,9 @@ def parse_cluster(context=None, force_mock=False, write_to_file=True, custom_out
                 if c_message:
                     conditions[c_type + "Message"] = c_message
 
+        spec = node.get("spec", {})
+        unschedulable = spec.get("unschedulable", False)
+
         creation_ts = metadata.get("creationTimestamp")
         cost_details = get_node_cost_details(labels, creation_ts, name, costs_map)
 
@@ -681,6 +712,7 @@ def parse_cluster(context=None, force_mock=False, write_to_file=True, custom_out
             "conditions": conditions,
             "creationTimestamp": creation_ts,
             "costDetails": cost_details,
+            "unschedulable": unschedulable,
             "pods": [],
             "raw": node
         }

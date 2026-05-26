@@ -16,9 +16,21 @@
             font-family: 'Outfit', sans-serif;
         }
 
+        #top-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 50px;
+            background-color: #0b0b0f;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            z-index: 99;
+            pointer-events: none;
+        }
+
         #ui-container {
             position: absolute;
-            top: 80px;
+            top: 65px;
             left: 20px;
             background: rgba(13, 13, 18, 0.75);
             backdrop-filter: blur(12px);
@@ -79,7 +91,7 @@
         /* Hover HUD Card */
         #hud-tooltip {
             position: absolute;
-            top: 135px;
+            top: 65px;
             right: 20px;
             width: 340px;
             background: rgba(13, 13, 18, 0.85);
@@ -105,7 +117,7 @@
         /* Pod YAML Panel styling */
         #pod-yaml-panel {
             position: absolute;
-            top: 50%;
+            top: 390px;
             right: 20px;
             width: 340px;
             bottom: 20px;
@@ -135,33 +147,28 @@
         /* Top-Right Brand Logo Container */
         #logo-container {
             position: absolute;
-            top: 80px;
+            top: 0;
             right: 20px;
+            height: 50px;
             z-index: 100;
             pointer-events: auto;
             display: flex;
             align-items: center;
             justify-content: center;
-            background: rgba(13, 13, 18, 0.45);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 10px;
-            padding: 6px 12px;
-            box-shadow: 
-                0 4px 16px 0 rgba(0, 0, 0, 0.4), 
-                inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+            background: transparent;
+            border: none;
+            box-shadow: none;
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
             transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
             user-select: none;
         }
 
         #logo-container:hover {
-            background: rgba(13, 13, 18, 0.6);
-            border-color: rgba(59, 130, 246, 0.3);
-            box-shadow: 
-                0 8px 24px 0 rgba(59, 130, 246, 0.15), 
-                inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
-            transform: translateY(-2px) scale(1.02);
+            background: transparent;
+            border: none;
+            box-shadow: none;
+            transform: translateY(0) scale(1.05);
         }
 
         #logo-img {
@@ -393,7 +400,7 @@
         /* Stats Panel Styles */
         #stats-panel {
             position: absolute;
-            top: 80px;
+            top: 65px;
             left: 50%;
             transform: translateX(-50%);
             background: rgba(13, 13, 18, 0.75);
@@ -1408,6 +1415,7 @@
 </head>
 
 <body>
+    <div id="top-bar"></div>
 
     <div id="ui-container">
         <p class="instructions" style="margin-top: 0;">
@@ -1697,6 +1705,31 @@
                         "PIDPressure": "False"
                     },
                     pods: []
+                },
+                {
+                    name: "node-echo",
+                    maxMemoryGB: 16,
+                    maxCPUCores: 4,
+                    creationTimestamp: "2026-05-22T10:00:00Z",
+                    labels: {
+                        "kubernetes.io/hostname": "node-echo",
+                        "kubernetes.io/os": "linux",
+                        "kubernetes.io/arch": "amd64",
+                        "node.kubernetes.io/instance-type": "t3.medium",
+                        "environment": "draining",
+                        "topology.kubernetes.io/region": "us-east-1",
+                        "topology.kubernetes.io/zone": "us-east-1a"
+                    },
+                    conditions: {
+                        "Ready": "Unknown",
+                        "ReadyReason": "NodeDecommissioning",
+                        "ReadyMessage": "Node is being drained and deconstructed",
+                        "MemoryPressure": "False",
+                        "DiskPressure": "False",
+                        "PIDPressure": "False"
+                    },
+                    pods: [],
+                    unschedulable: true
                 }
             ]
         };
@@ -1734,6 +1767,7 @@
         const renderedPods = [];
         const warningSigns = [];
         const loadingSigns = [];
+        const decommissioningSigns = [];
 
         // Phase 3 State Mappers for high-performance differential sync
         const activeNodeGroups = new Map(); // nodeName -> THREE.Group
@@ -1756,6 +1790,14 @@
         let dvrPlaybackInterval = null;
         let isDvrPlaying = false;
         let dvrTickRate = 5000; // default 5 seconds per frame
+        let dvrPlaybackTimestamp = null;
+
+        function getCurrentReferenceTime() {
+            if (isDVRMode && dvrPlaybackTimestamp) {
+                return new Date(dvrPlaybackTimestamp).getTime();
+            }
+            return Date.now();
+        }
 
         // Search variables & blinking green material
         let activeSearchQuery = "";
@@ -1833,7 +1875,7 @@
             if (!creationTimestamp) return "Unknown";
             const created = new Date(creationTimestamp);
             if (isNaN(created.getTime())) return "Unknown";
-            const diffMs = Date.now() - created.getTime();
+            const diffMs = getCurrentReferenceTime() - created.getTime();
             if (diffMs < 0) return "Just now";
             
             const diffSecs = Math.floor(diffMs / 1000);
@@ -1975,8 +2017,37 @@ ${labels}`;
             opacity: 0.65
         });
 
+        const decommissioningWallMaterial = new THREE.MeshStandardMaterial({
+            color: 0xd97706, // Amber/yellow base
+            roughness: 0.4,
+            metalness: 0.1,
+            transparent: false,
+            opacity: 1.0,
+            side: THREE.DoubleSide
+        });
+        const decommissioningOutlineMaterial = new THREE.LineBasicMaterial({
+            color: 0xd97706,
+            transparent: true,
+            opacity: 0.65
+        });
+
+        function isNodeDecommissioning(node) {
+            if (!node) return false;
+            if (node.decommissioning === true || node.status === "Decommissioning" || node.status === "Draining") return true;
+            if (node.unschedulable === true) return true;
+            
+            const conditions = node.conditions || {};
+            // If Ready is Unknown or False with decommissioning reasons
+            if (conditions.Ready === "Unknown" && node.unschedulable === true) return true;
+            if (conditions.ReadyReason === "NodeDecommissioning" || conditions.ReadyReason === "NodeDraining") return true;
+            
+            return false;
+        }
+
         function isNodeComingOnline(node) {
             if (!node) return false;
+            if (isNodeDecommissioning(node)) return false; // Distinct state
+            
             // 1. Explicit flag or status
             if (node.comingOnline === true || node.status === "ComingOnline") return true;
 
@@ -2006,8 +2077,8 @@ ${labels}`;
         function isNodeFailed(node) {
             if (!node || !node.conditions) return false;
 
-            // A node coming online is not considered "failed" in terms of blinking red
-            if (isNodeComingOnline(node)) {
+            // A node coming online or decommissioning is not considered "failed" in terms of blinking red
+            if (isNodeComingOnline(node) || isNodeDecommissioning(node)) {
                 return false;
             }
 
@@ -2085,7 +2156,7 @@ ${labels}`;
                     const createdTime = new Date(pod.creationTimestamp).getTime();
                     if (isNaN(createdTime)) return false;
 
-                    const ageMinutes = (Date.now() - createdTime) / (1000 * 60);
+                    const ageMinutes = (getCurrentReferenceTime() - createdTime) / (1000 * 60);
                     return ageMinutes > 30;
                 }
             }
@@ -2322,7 +2393,7 @@ ${labels}`;
                                     if (node.creationTimestamp) {
                                         const created = new Date(node.creationTimestamp);
                                         if (!isNaN(created.getTime())) {
-                                            ageHours = Math.max(0.0, (Date.now() - created.getTime()) / 3600000.0);
+                                            ageHours = Math.max(0.0, (getCurrentReferenceTime() - created.getTime()) / 3600000.0);
                                         }
                                     }
                                     nodeCost = hourlyCost * ageHours;
@@ -3135,6 +3206,52 @@ ${labels}`;
             loadingSigns.push(signGroup);
         }
 
+        // Beautiful gyroscopic 3D holographic deconstruction sign floating above decommissioning/draining nodes
+        function createNodeDecommissioningSign(nodeBuilding, nodeWallHeight, buildingDepth) {
+            const signGroup = new THREE.Group();
+            
+            const localX = 0;
+            const localY = nodeWallHeight + 3.0; // 3 units above node roof
+            const localZ = buildingDepth / 2;
+            
+            signGroup.position.set(localX, localY, localZ);
+            
+            signGroup.userData = {
+                baseHeight: localY,
+                type: 'decommissioning'
+            };
+
+            // Glowing amber/yellow holographic material
+            const deconstructGlowMat = new THREE.MeshBasicMaterial({
+                color: 0xf59e0b, // Amber
+                transparent: true,
+                opacity: 0.8,
+                side: THREE.DoubleSide
+            });
+
+            // 1. Central caution symbol (downward pointing cone/arrow)
+            const arrowGeo = new THREE.ConeGeometry(0.6, 1.5, 4);
+            const arrowMesh = new THREE.Mesh(arrowGeo, deconstructGlowMat);
+            arrowMesh.rotation.x = Math.PI; // point downwards
+            arrowMesh.position.set(0, 0, 0);
+            signGroup.add(arrowMesh);
+
+            // 2. Outer ring (torus rotating one way)
+            const ringGeo1 = new THREE.TorusGeometry(1.8, 0.08, 8, 24);
+            const ringMesh1 = new THREE.Mesh(ringGeo1, deconstructGlowMat);
+            ringMesh1.rotation.x = Math.PI / 2;
+            signGroup.add(ringMesh1);
+
+            // 3. Inner ring (torus tilted, rotating another way)
+            const ringGeo2 = new THREE.TorusGeometry(1.2, 0.06, 8, 24);
+            const ringMesh2 = new THREE.Mesh(ringGeo2, deconstructGlowMat);
+            ringMesh2.rotation.y = Math.PI / 4;
+            signGroup.add(ringMesh2);
+
+            nodeBuilding.add(signGroup);
+            decommissioningSigns.push(signGroup);
+        }
+
         function clearNodeContents(nodeBuilding) {
             nodeBuilding.traverse((child) => {
                 if (child.isMesh || child.isLine || child.isLineSegments) {
@@ -3151,7 +3268,9 @@ ${labels}`;
                                 mat === failedPodMaterial ||
                                 mat === failedPodOutlineMaterial ||
                                 mat === partitionMaterial ||
-                                mat === unallocatedMaterial
+                                mat === unallocatedMaterial ||
+                                mat === decommissioningWallMaterial ||
+                                mat === decommissioningOutlineMaterial
                             );
                             if (!isShared) {
                                 if (mat.map) {
@@ -3187,6 +3306,14 @@ ${labels}`;
                 }
             }
 
+            // Remove decommissioning sign from visual animations tracker
+            for (let i = decommissioningSigns.length - 1; i >= 0; i--) {
+                const sign = decommissioningSigns[i];
+                if (nodeBuilding.children.includes(sign)) {
+                    decommissioningSigns.splice(i, 1);
+                }
+            }
+
             while (nodeBuilding.children.length > 0) {
                 nodeBuilding.remove(nodeBuilding.children[0]);
             }
@@ -3198,8 +3325,11 @@ ${labels}`;
             const nodeWallHeight = node.maxMemoryGB * heightScale;
             
             const isOnline = isNodeComingOnline(node);
+            const isDecommissioning = isNodeDecommissioning(node);
             
-            if (isOnline) {
+            if (isDecommissioning) {
+                createNodeDecommissioningSign(nodeBuilding, nodeWallHeight, buildingDepth);
+            } else if (isOnline) {
                 createNodeLoadingSign(nodeBuilding, nodeWallHeight, buildingDepth);
             } else {
                 let nodeHasIssues = isNodeFailed(node);
@@ -3235,6 +3365,8 @@ ${labels}`;
             let activeWallMaterial = wallMaterial;
             if (isFailedNode) {
                 activeWallMaterial = failedWallMaterial;
+            } else if (isDecommissioning) {
+                activeWallMaterial = decommissioningWallMaterial;
             } else if (isOnline) {
                 activeWallMaterial = comingOnlineWallMaterial;
             }
@@ -3244,6 +3376,9 @@ ${labels}`;
             if (isFailedNode) {
                 activeOutlineColor = 0xef4444;
                 activeOutlineMaterial = failedOutlineMaterial;
+            } else if (isDecommissioning) {
+                activeOutlineColor = 0xd97706;
+                activeOutlineMaterial = decommissioningOutlineMaterial;
             } else if (isOnline) {
                 activeOutlineColor = 0x3b82f6;
                 activeOutlineMaterial = comingOnlineOutlineMaterial;
@@ -3436,7 +3571,7 @@ ${labels}`;
                             if (node.creationTimestamp) {
                                 const created = new Date(node.creationTimestamp);
                                 if (!isNaN(created.getTime())) {
-                                    ageHours = Math.max(0.0, (Date.now() - created.getTime()) / 3600000.0);
+                                    ageHours = Math.max(0.0, (getCurrentReferenceTime() - created.getTime()) / 3600000.0);
                                 }
                             }
                             const totalCost = hourlyCost * ageHours;
@@ -3578,6 +3713,7 @@ ${labels}`;
             renderedPods.length = 0;
             warningSigns.length = 0;
             loadingSigns.length = 0;
+            decommissioningSigns.length = 0;
             activeNodeGroups.forEach((nodeBuilding) => {
                 scene.remove(nodeBuilding);
                 clearNodeContents(nodeBuilding);
@@ -5028,6 +5164,16 @@ ${labels}`;
             const blueOutlineBright = new THREE.Color(0x00f0ff);
             comingOnlineOutlineMaterial.color.copy(blueOutlineDark).lerp(blueOutlineBright, blinkFactor);
 
+            // High-fidelity synchronized blinking yellow/amber animation for decommissioning nodes
+            const yellowDark = new THREE.Color(0x1e150a); // Dark amber/slate
+            const yellowBright = new THREE.Color(0xd97706); // Glowing amber
+            decommissioningWallMaterial.color.copy(yellowDark).lerp(yellowBright, blinkFactor);
+
+            // Pulse decommissioning node outlines
+            const yellowOutlineDark = new THREE.Color(0x1a0f02);
+            const yellowOutlineBright = new THREE.Color(0xf59e0b);
+            decommissioningOutlineMaterial.color.copy(yellowOutlineDark).lerp(yellowOutlineBright, blinkFactor);
+
             // High-fidelity synchronized blinking green animation for search matches
             if (searchHighlightActive) {
                 const searchBlinkFactor = (Math.sin(animTime * 8.0) + 1.0) / 2.0; // Rapid energetic pulse
@@ -5086,6 +5232,37 @@ ${labels}`;
                             // Pulsate the core sphere scale
                             const pulseScale = 1.0 + Math.sin(time * 6.0) * 0.2;
                             child.scale.set(pulseScale, pulseScale, pulseScale);
+                        }
+                    });
+                });
+            }
+
+            // High-fidelity animation and spin loops for node-level decommissioning signs
+            if (decommissioningSigns.length > 0) {
+                const time = clock.getElapsedTime();
+                decommissioningSigns.forEach(sign => {
+                    // Bob it up and down gently using its stored base local Y
+                    const baseHeight = sign.userData.baseHeight;
+                    sign.position.y = baseHeight + Math.sin(time * 3.0) * 0.4;
+
+                    // Spin the entire loader group slowly
+                    sign.rotation.y = time * 0.5;
+
+                    // Spin the internal gyroscopic toruses and rotate/bob the central arrow
+                    sign.children.forEach((child, idx) => {
+                        if (child.geometry.type === 'TorusGeometry') {
+                            if (idx === 1) {
+                                // Outer torus
+                                child.rotation.z = -time * 1.5;
+                                child.rotation.x = time * 0.5;
+                            } else if (idx === 2) {
+                                // Inner torus
+                                child.rotation.z = time * 2.0;
+                                child.rotation.y = time * 0.8;
+                            }
+                        } else if (child.geometry.type === 'ConeGeometry') {
+                            // Rotate central arrow opposite direction
+                            child.rotation.y = -time * 1.5;
                         }
                     });
                 });
@@ -5320,6 +5497,7 @@ ${labels}`;
         // Exit DVR Playback Mode
         function exitDvrMode() {
             isDVRMode = false;
+            dvrPlaybackTimestamp = null;
             
             // Restore toast notifications position
             const toastContainer = document.getElementById('toast-container');
@@ -5484,6 +5662,7 @@ ${labels}`;
             
             currentDvrSnapshotIndex = index;
             const snapshot = dvrSnapshots[index];
+            dvrPlaybackTimestamp = snapshot.timestamp;
             
             // Sync slider position
             const slider = document.getElementById('dvr-timeline-slider');
