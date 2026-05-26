@@ -1837,6 +1837,7 @@
         let isDvrPlaying = false;
         let dvrTickRate = 5000; // default 5 seconds per frame
         let dvrPlaybackTimestamp = null;
+        let lastYamlPanelTop = "";
 
         function getCurrentReferenceTime() {
             if (isDVRMode && dvrPlaybackTimestamp) {
@@ -5653,7 +5654,6 @@ ${labels}`;
             renderer.render(scene, camera);
         }
 
-        let lastYamlPanelTop = "";
         function updateRightSidebarLayout() {
             const hud = document.getElementById('hud-tooltip');
             const yamlPanel = document.getElementById('pod-yaml-panel');
