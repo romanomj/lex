@@ -10,6 +10,7 @@ import re
 import json
 import gzip
 import time
+import atexit
 import calendar
 import datetime
 import posixpath
@@ -21,6 +22,7 @@ import parse_cluster
 import dvr_db
 import metrics
 import redaction
+import watcher
 
 PORT = 8000
 BIND_ADDRESS = '127.0.0.1'  # Hard-bound to local loopback for secure sandbox isolation
@@ -29,6 +31,11 @@ SYNC_INTERVAL_SECONDS = 30
 # user to reload if they differ (e.g. a browser tab still running a pre-upgrade index.html).
 API_SCHEMA_VERSION = 2
 DVR_RETENTION_DAYS = 7
+# Watch-based ingestion (list once, then stream changes). Off at module level so embedding/tests keep the
+# simple polling path; main() turns it on unless --no-watch is given.
+WATCH_ENABLED = False
+WATCH_READY_TIMEOUT_SECONDS = 60
+STREAM_HEARTBEAT_SECONDS = 15
 GZIP_MIN_BYTES = 1024
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -113,7 +120,105 @@ def scrape_context(ctx, write_to_file=True):
 
 def get_sync_status(ctx):
     with sync_status_lock:
-        return dict(sync_status.get(ctx, {}))
+        status = dict(sync_status.get(ctx, {}))
+    w = get_watcher(ctx)
+    if w is not None:
+        status["mode"] = w.mode
+        if w.healthy_at:
+            status["freshAt"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(w.healthy_at))
+    return status
+
+# ---------- Watch-based ingestion ----------
+watchers = {}                      # context -> watcher.ContextWatcher
+watchers_lock = threading.Lock()
+# Bumped whenever the active context's state changes; /api/v1/stream tells browsers to re-fetch
+state_change = threading.Condition()
+state_version = 0
+_last_content_hash = {}
+
+def notify_state_change():
+    global state_version
+    with state_change:
+        state_version += 1
+        state_change.notify_all()
+
+def _on_watch_compiled(ctx, state):
+    now = utc_now_iso()
+    with sync_status_lock:
+        entry = sync_status.setdefault(ctx, {"lastSuccessAt": None})
+        entry["lastAttemptAt"] = now
+        entry["lastSuccessAt"] = now
+        entry["lastError"] = None
+    content_hash = state.get("contentHash")
+    if _last_content_hash.get(ctx) != content_hash:
+        _last_content_hash[ctx] = content_hash
+        with active_context_lock:
+            is_active = ctx == active_context
+        if is_active:
+            notify_state_change()
+
+def _on_watch_error(ctx, message):
+    with sync_status_lock:
+        entry = sync_status.setdefault(ctx, {"lastSuccessAt": None})
+        entry["lastAttemptAt"] = utc_now_iso()
+        entry["lastError"] = message
+    print(f"▲ Sync failed for '{ctx}': {message}")
+
+def get_watcher(ctx):
+    with watchers_lock:
+        return watchers.get(ctx)
+
+def ensure_watcher(ctx):
+    """Starts (or returns) the watcher for a real context. A watcher whose thread died is replaced."""
+    with watchers_lock:
+        w = watchers.get(ctx)
+        if w is None or not w.thread.is_alive():
+            w = watcher.ContextWatcher(ctx, _on_watch_compiled, _on_watch_error, poll_interval=SYNC_INTERVAL_SECONDS).start()
+            watchers[ctx] = w
+            print(f"✔ Watching '{ctx}' for changes")
+        return w
+
+def stop_unneeded_watchers():
+    """Only the active context and the context being recorded are kept live."""
+    with active_context_lock:
+        keep = {active_context}
+    with active_recording_session_lock:
+        if active_recording_context:
+            keep.add(active_recording_context)
+    with watchers_lock:
+        stale = [c for c in watchers if c not in keep]
+        stopped = [watchers.pop(c) for c in stale]
+    for w in stopped:
+        w.stop()
+        print(f"Stopped watching '{w.context}'")
+
+def stop_all_watchers():
+    with watchers_lock:
+        stopped = list(watchers.values())
+        watchers.clear()
+    for w in stopped:
+        w.stop()
+
+def read_state_file(ctx):
+    _, _, state_file = parse_cluster.get_file_paths(ctx)
+    with open(state_file, 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+def refresh_context(ctx):
+    """Makes sure ctx has current state on disk and returns it (None on failure, see sync_status).
+    Polling mode scrapes now; watch mode starts the watcher if needed and waits for its first compile."""
+    if not WATCH_ENABLED or ctx == "demo":
+        return scrape_context(ctx)
+    w = ensure_watcher(ctx)
+    if not w.wait_ready(WATCH_READY_TIMEOUT_SECONDS):
+        if not get_sync_status(ctx).get("lastError"):
+            _on_watch_error(ctx, w.last_error or f"Timed out after {WATCH_READY_TIMEOUT_SECONDS}s listing '{ctx}'")
+        return None
+    try:
+        return read_state_file(ctx)
+    except (OSError, ValueError) as e:
+        _on_watch_error(ctx, f"Could not read compiled state: {e}")
+        return None
 
 _YAML_PLAIN_RE = re.compile(r"^[A-Za-z0-9_./@%+=-][A-Za-z0-9_./@%+=:, -]*$")
 _YAML_RESERVED = {"", "true", "false", "yes", "no", "on", "off", "null", "~"}
@@ -298,6 +403,8 @@ class LocalAPIServer(http.server.SimpleHTTPRequestHandler):
             self.handle_dvr_snapshot(parsed_url.query)
         elif path == '/api/v1/metrics/history':
             self.handle_metrics_history(parsed_url.query)
+        elif path == '/api/v1/stream':
+            self.handle_stream()
         # Route: API DVR recording status
         elif path == '/api/v1/dvr/recording/status':
             self.handle_dvr_recording_status()
@@ -333,7 +440,7 @@ class LocalAPIServer(http.server.SimpleHTTPRequestHandler):
                     self.send_error_json(502, f"{status['lastError']} (retrying every {SYNC_INTERVAL_SECONDS}s)")
                     return
             print(f"State file '{state_file}' missing for context '{ctx}', generating synchronously...")
-            if scrape_context(ctx) is None:
+            if refresh_context(ctx) is None:
                 self.send_error_json(502, get_sync_status(ctx).get("lastError") or f"Failed to generate cluster state for '{ctx}'")
                 return
 
@@ -346,12 +453,15 @@ class LocalAPIServer(http.server.SimpleHTTPRequestHandler):
             # Freshness metadata travels in headers so the body (and its ETag) stays identical across
             # scrapes of an unchanged cluster, letting polls be answered with 304 Not Modified.
             etag = f'"{parse_cluster.fingerprint([ctx, content_hash])}"'
+            sync = get_sync_status(ctx)
             meta_headers = {
                 'ETag': etag,
                 'X-Lex-Context': json.dumps(ctx),
                 'X-Lex-Generated-At': generated_at or '',
-                'X-Lex-Sync': json.dumps(get_sync_status(ctx)),
+                'X-Lex-Sync': json.dumps(sync),
                 'X-Lex-Sync-Interval': str(SYNC_INTERVAL_SECONDS),
+                # Watch mode only recompiles on change: "fresh at" says the data was still current then
+                'X-Lex-Fresh-At': sync.get("freshAt") or '',
             }
             if content_hash and etag in [t.strip() for t in (self.headers.get('If-None-Match') or '').split(',')]:
                 self.send_response(304)
@@ -362,6 +472,35 @@ class LocalAPIServer(http.server.SimpleHTTPRequestHandler):
             self.send_bytes_response(200, body, 'application/json; charset=utf-8', body_gz, meta_headers)
         else:
             self.send_error_json(404, "Cluster state file could not be found.")
+
+    def handle_stream(self):
+        """Server-sent events: `event: state` whenever the active context's state changes (watch mode),
+        plus a heartbeat comment so proxies and the browser keep the connection open."""
+        self.close_connection = True
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/event-stream; charset=utf-8')
+        self.end_headers()
+        with state_change:
+            seen = state_version
+        try:
+            hello = {"watch": WATCH_ENABLED, "version": seen}
+            self.wfile.write(f"retry: 5000\nevent: hello\ndata: {json.dumps(hello)}\n\n".encode('utf-8'))
+            self.wfile.flush()
+            while True:
+                with state_change:
+                    state_change.wait_for(lambda: state_version != seen, timeout=STREAM_HEARTBEAT_SECONDS)
+                    current = state_version
+                if current != seen:
+                    seen = current
+                    with active_context_lock:
+                        ctx = active_context
+                    payload = json.dumps({"version": current, "context": ctx})
+                    self.wfile.write(f"event: state\ndata: {payload}\n\n".encode('utf-8'))
+                else:
+                    self.wfile.write(b": ping\n\n")
+                self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            pass   # browser went away
 
     def handle_get_contexts(self):
         try:
@@ -407,12 +546,15 @@ class LocalAPIServer(http.server.SimpleHTTPRequestHandler):
             return
 
         global active_context
-        if scrape_context(target_context) is None:
+        if refresh_context(target_context) is None:
             error = get_sync_status(target_context).get("lastError") or "unknown error"
             self.send_error_json(502, f"Failed to switch to '{target_context}': {error}")
             return
         with active_context_lock:
             active_context = target_context
+        if WATCH_ENABLED:
+            stop_unneeded_watchers()
+        notify_state_change()
         self.send_json_response(200, {"status": "success", "activeContext": target_context})
 
     def handle_pod_logs(self, query_string):
@@ -812,7 +954,7 @@ status:
             return
 
         # Record an initial snapshot immediately (outside the lock so the background sync isn't blocked)
-        state = scrape_context(ctx)
+        state = refresh_context(ctx)
         if state is not None:
             dvr_db.add_snapshot(session_id, ctx, state)
         self.send_json_response(200, {
@@ -914,6 +1056,9 @@ def run_bg_sync(interval=SYNC_INTERVAL_SECONDS):
                 session_id = active_recording_session
                 recording_ctx = active_recording_context
 
+            if WATCH_ENABLED:
+                record_from_watchers(ctx, session_id, recording_ctx)
+                continue
             state = None
             # Demo data is static, so only re-compile it when it's being recorded
             if ctx != "demo":
@@ -925,6 +1070,26 @@ def run_bg_sync(interval=SYNC_INTERVAL_SECONDS):
                     dvr_db.add_snapshot(session_id, recording_ctx, state)
         except Exception as e:
             print(f"Error in background sync worker: {e}")
+
+def record_from_watchers(ctx, session_id, recording_ctx):
+    """Watch mode: the watchers keep state files current, so each interval just samples them for the
+    vitals history and the DVR (and makes sure the needed watchers are running)."""
+    stop_unneeded_watchers()
+    if ctx != "demo":
+        w = ensure_watcher(ctx)
+        if w.first_compile.is_set():
+            try:
+                metrics.record(ctx, read_state_file(ctx))
+            except Exception as e:
+                print(f"▲ Could not record metrics for '{ctx}': {e}")
+    if session_id and recording_ctx:
+        if recording_ctx == "demo":
+            state = scrape_context("demo")
+        else:
+            w = ensure_watcher(recording_ctx)
+            state = read_state_file(recording_ctx) if w.first_compile.is_set() else None
+        if state is not None:
+            dvr_db.add_snapshot(session_id, recording_ctx, state)
 
 def init_active_context():
     """Attempts to discover active kubectl context at boot."""
@@ -946,7 +1111,7 @@ def init_active_context():
         print(f"Failed to query active context on boot: {e}. Defaulting to 'demo' context.")
 
 def main():
-    global active_context, SYNC_INTERVAL_SECONDS, DVR_RETENTION_DAYS
+    global active_context, SYNC_INTERVAL_SECONDS, DVR_RETENTION_DAYS, WATCH_ENABLED
     import argparse
     parser = argparse.ArgumentParser(description="Lex local API server")
     parser.add_argument("--port", type=int, default=PORT, help=f"Port to listen on (default: {PORT})")
@@ -954,8 +1119,11 @@ def main():
                         help=f"Seconds between background cluster scrapes (default: {SYNC_INTERVAL_SECONDS})")
     parser.add_argument("--dvr-retention-days", type=float, default=DVR_RETENTION_DAYS,
                         help=f"Delete DVR frames older than this many days; 0 keeps everything (default: {DVR_RETENTION_DAYS})")
+    parser.add_argument("--no-watch", action="store_true",
+                        help="Re-list the whole cluster every interval instead of streaming changes with Kubernetes watches")
     args = parser.parse_args()
     DVR_RETENTION_DAYS = args.dvr_retention_days
+    WATCH_ENABLED = not args.no_watch
 
     SYNC_INTERVAL_SECONDS = max(5, args.interval)
 
@@ -975,13 +1143,15 @@ def main():
         ctx = active_context
 
     print(f"Bootstrapping cluster state for context: {ctx}...")
-    if scrape_context(ctx) is None and ctx != "demo":
+    if refresh_context(ctx) is None and ctx != "demo":
         # Stay on the real context and keep retrying in the background: silently switching to demo
         # (as earlier versions did) left Lex stuck on sample data after a transient failure at startup.
         error = get_sync_status(ctx).get("lastError") or "unknown error"
         print(f"▲ Initial scrape of '{ctx}' failed: {error}")
         print(f"▲ Staying on '{ctx}' and retrying every {SYNC_INTERVAL_SECONDS}s. "
               f"Check kubectl access (e.g. `kubectl --context={ctx} get nodes`), or pick 'demo' in the UI for sample data.")
+
+    atexit.register(stop_all_watchers)   # never leave kubectl watch processes behind
 
     # Launch background thread
     t = threading.Thread(target=run_bg_sync, args=(SYNC_INTERVAL_SECONDS,), daemon=True)
@@ -1000,6 +1170,7 @@ def main():
         httpd.serve_forever()
     except KeyboardInterrupt:
         print("\nShutting down server...")
+        stop_all_watchers()
         httpd.server_close()
 
 if __name__ == '__main__':

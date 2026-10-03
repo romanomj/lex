@@ -21,7 +21,7 @@ You can launch the full, live-syncing Lex environment with a single command:
    ```bash
    python server.py
    ```
-   *Lex will automatically bootstrap: it queries your active Kubernetes context if present, falls back gracefully to a beautiful mock cluster if offline, runs a background worker to sync changes every 30 seconds (`--interval`), and hosts the visualizer. Use `--port` to change the port and `--dvr-retention-days` (default 7, `0` = keep forever) to control how long DVR recordings are kept.*
+   *Lex will automatically bootstrap: it queries your active Kubernetes context if present, falls back gracefully to a beautiful mock cluster if offline, streams changes from the Kubernetes API with watches (updates reach the browser within a second or two; use `--no-watch` to re-list the cluster every `--interval` seconds instead, default 30), and hosts the visualizer. Use `--port` to change the port and `--dvr-retention-days` (default 7, `0` = keep forever) to control how long DVR recordings are kept.*
 
 2. **Open the Visualizer:**
    Navigate your browser to:

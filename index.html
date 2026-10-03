@@ -5457,6 +5457,15 @@ ${labels}`;
         setInterval(() => { if (opsTab === 'vitals') fetchVitals(vitalsWindow, true).then(() => renderOpsPanel()); }, 30000);
         setInterval(() => { if (jumbotron) fetchVitals('1h', true).then(entry => drawJumbotron(entry)); }, 30000);
 
+        // Push updates: the server announces state changes over SSE (watch mode), so changes show up within
+        // a couple of seconds. The 10s poll below stays as a fallback and keeps freshness metadata current.
+        if (window.location.protocol !== 'file:' && 'EventSource' in window) {
+            const stateStream = new EventSource('/api/v1/stream');
+            stateStream.addEventListener('state', () => {
+                if (!isDVRMode && !simState) fetchClusterState();
+            });
+        }
+
         // Start live cluster synchronization interval (every 10s), suspended when in DVR Mode
         setInterval(() => {
             if (!isDVRMode && !simState) {
@@ -6816,6 +6825,7 @@ ${labels}`;
                     };
                     const meta = {
                         generatedAt: response.headers.get('X-Lex-Generated-At') || null,
+                        freshAt: response.headers.get('X-Lex-Fresh-At') || null,
                         sync: parseJsonHeader('X-Lex-Sync', {}) || {},
                         syncIntervalSeconds: parseInt(response.headers.get('X-Lex-Sync-Interval'), 10) || 30,
                         activeContext: parseJsonHeader('X-Lex-Context', null) || activeContext
@@ -6935,12 +6945,17 @@ ${labels}`;
                     return;
                 }
                 lastSyncErrorToast = null;
-                const { generatedAt, sync, syncIntervalSeconds } = lastServerStateMeta;
-                const ageSecs = generatedAt ? (Date.now() - new Date(generatedAt).getTime()) / 1000 : Infinity;
+                const { generatedAt, freshAt, sync, syncIntervalSeconds } = lastServerStateMeta;
+                // In watch mode the state is only recompiled on change; freshAt says it was still current then
+                const currentAt = [generatedAt, freshAt].filter(Boolean).sort().pop() || null;
+                const ageSecs = currentAt ? (Date.now() - new Date(currentAt).getTime()) / 1000 : Infinity;
                 const isStale = !!(sync && sync.lastError) || ageSecs > syncIntervalSeconds * 3;
+                const streaming = sync && sync.mode === 'watch';
                 if (isStale) {
                     const why = (sync && sync.lastError) ? `Last scrape failed: ${sync.lastError}` : 'The server has not refreshed this cluster recently';
-                    renderStatusBadge(...AMBER, `Stale · ${formatAgo(generatedAt)}`, `${why}. Showing data from ${generatedAt || 'an unknown time'}.`);
+                    renderStatusBadge(...AMBER, `Stale · ${formatAgo(currentAt)}`, `${why}. Showing data from ${currentAt || 'an unknown time'}.`);
+                } else if (streaming) {
+                    renderStatusBadge(...GREEN, 'Live Cluster', `Streaming changes from the Kubernetes API (watch). Last change compiled ${formatAgo(generatedAt)}.`);
                 } else {
                     renderStatusBadge(...GREEN, 'Live Cluster', `Data compiled ${formatAgo(generatedAt)}`);
                 }

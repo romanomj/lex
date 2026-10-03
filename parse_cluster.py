@@ -999,48 +999,11 @@ def summarize_pod_resources(spec):
     cpu_cores = effective_pod_request(spec, "cpu")
     return mem_gb, cpu_cores
 
-def parse_cluster(context=None, force_mock=False, write_to_file=True, custom_output_file=None):
-    nodes_file, pods_file, output_file = get_file_paths(context)
-    if custom_output_file:
-        output_file = custom_output_file
-    ensure_data_dir()
-
-    # 1. Gather data (live cluster pull or force mock)
-    if force_mock:
-        create_mock_files_if_missing(context)
-    else:
-        live_success = run_kubectl(context)
-        if not live_success:
-            if context:
-                print(f"Error: Failed to query cluster context '{context}'")
-                sys.exit(1)
-            print("▲ Live cluster query skipped/failed. Processing via local files...")
-            create_mock_files_if_missing(context)
-
-    # 2. Read nodes
-    if not os.path.exists(nodes_file):
-        print(f"Error: {nodes_file} is missing. Cannot parse.")
-        sys.exit(1)
-
-    with open(nodes_file, "r", encoding="utf-8") as f:
-        try:
-            nodes_data = json.load(f)
-        except json.JSONDecodeError as e:
-            print(f"Error parsing {nodes_file}: {e}")
-            sys.exit(1)
-
-    # 3. Read pods
-    if not os.path.exists(pods_file):
-        print(f"Error: {pods_file} is missing. Cannot parse.")
-        sys.exit(1)
-
-    with open(pods_file, "r", encoding="utf-8") as f:
-        try:
-            pods_data = json.load(f)
-        except json.JSONDecodeError as e:
-            print(f"Error parsing {pods_file}: {e}")
-            sys.exit(1)
-
+def compile_state(nodes_data, pods_data, workloads_data, cluster_name, alert_context, output_file=None, verbose=True):
+    """
+    Builds the visualizer state from kubectl List objects (nodes, pods, and optionally workloads + PDBs).
+    Used both for file-based scrapes (parse_cluster) and by the live watcher (watcher.py), in memory.
+    """
     # Dictionary to structure node maps
     node_map = {}
 
@@ -1249,22 +1212,9 @@ def parse_cluster(context=None, force_mock=False, write_to_file=True, custom_out
     for n in compiled_nodes:
         n["fingerprint"] = fingerprint(n)
 
-    if force_mock and (not context or context == "demo"):
-        cluster_name = "demo"  # don't label the demo fixture with whatever kubectl context happens to be active
-    else:
-        cluster_name = get_cluster_name(context) or "ClusterNamePlaceHolder"
-
     unscheduled_pods.sort(key=lambda p: (-(p["memoryGB"] or 0), p["namespace"], p["name"]))
-    workloads, pdbs = [], []
-    workloads_file = get_workloads_path(context)
-    if os.path.exists(workloads_file):
-        try:
-            with open(workloads_file, "r", encoding="utf-8") as f:
-                workloads_data = json.load(f)
-            workloads = summarize_workloads(workloads_data)
-            pdbs = summarize_pdbs(workloads_data)
-        except (OSError, ValueError) as e:
-            print(f"▲ Could not read {workloads_file}: {e}")
+    workloads = summarize_workloads(workloads_data) if workloads_data else []
+    pdbs = summarize_pdbs(workloads_data) if workloads_data else []
     failed_pods.sort(key=lambda p: p.get("creationTimestamp") or "", reverse=True)
 
     output_state = {
@@ -1276,20 +1226,81 @@ def parse_cluster(context=None, force_mock=False, write_to_file=True, custom_out
         "pdbs": pdbs
     }
     # Actionable alerts (stable `since` timestamps, so they don't change the hash of an unchanged cluster)
-    output_state["alerts"] = alerts.evaluate(output_state, context=context or ("demo" if force_mock else None))
+    output_state["alerts"] = alerts.evaluate(output_state, context=alert_context)
 
     # Hash of everything except the timestamp: unchanged clusters keep the same ETag across scrapes
     output_state["contentHash"] = fingerprint(output_state)
     output_state["generatedAt"] = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    # Write out Compiled cluster_state.json if requested
-    if write_to_file:
+    # Write out the compiled state if requested
+    if output_file:
         write_file_atomic(output_file, json.dumps(output_state, separators=(",", ":")))
-        print(f"✔ Compiled cluster environment state written to '{output_file}' for cluster: {cluster_name}.")
+        if verbose:
+            print(f"✔ Compiled cluster environment state written to '{output_file}' for cluster: {cluster_name}.")
 
-    print(f"✔ Successfully parsed {len(node_list)} nodes and {len(pod_list)} pods "
-          f"({len(unscheduled_pods)} unscheduled, {len(failed_pods)} failed).")
+    if verbose:
+        print(f"✔ Successfully parsed {len(node_list)} nodes and {len(pod_list)} pods "
+              f"({len(unscheduled_pods)} unscheduled, {len(failed_pods)} failed).")
     return output_state
+
+def parse_cluster(context=None, force_mock=False, write_to_file=True, custom_output_file=None):
+    nodes_file, pods_file, output_file = get_file_paths(context)
+    if custom_output_file:
+        output_file = custom_output_file
+    ensure_data_dir()
+
+    # 1. Gather data (live cluster pull or force mock)
+    if force_mock:
+        create_mock_files_if_missing(context)
+    else:
+        live_success = run_kubectl(context)
+        if not live_success:
+            if context:
+                print(f"Error: Failed to query cluster context '{context}'")
+                sys.exit(1)
+            print("▲ Live cluster query skipped/failed. Processing via local files...")
+            create_mock_files_if_missing(context)
+
+    # 2. Read nodes
+    if not os.path.exists(nodes_file):
+        print(f"Error: {nodes_file} is missing. Cannot parse.")
+        sys.exit(1)
+
+    with open(nodes_file, "r", encoding="utf-8") as f:
+        try:
+            nodes_data = json.load(f)
+        except json.JSONDecodeError as e:
+            print(f"Error parsing {nodes_file}: {e}")
+            sys.exit(1)
+
+    # 3. Read pods
+    if not os.path.exists(pods_file):
+        print(f"Error: {pods_file} is missing. Cannot parse.")
+        sys.exit(1)
+
+    with open(pods_file, "r", encoding="utf-8") as f:
+        try:
+            pods_data = json.load(f)
+        except json.JSONDecodeError as e:
+            print(f"Error parsing {pods_file}: {e}")
+            sys.exit(1)
+
+    workloads_data = None
+    workloads_file = get_workloads_path(context)
+    if os.path.exists(workloads_file):
+        try:
+            with open(workloads_file, "r", encoding="utf-8") as f:
+                workloads_data = json.load(f)
+        except (OSError, ValueError) as e:
+            print(f"▲ Could not read {workloads_file}: {e}")
+
+    if force_mock and (not context or context == "demo"):
+        cluster_name = "demo"  # don't label the demo fixture with whatever kubectl context happens to be active
+    else:
+        cluster_name = get_cluster_name(context) or "ClusterNamePlaceHolder"
+    alert_context = context or ("demo" if force_mock else None)
+    return compile_state(nodes_data, pods_data, workloads_data, cluster_name, alert_context,
+                         output_file=output_file if write_to_file else None)
 
 if __name__ == "__main__":
     context = None
