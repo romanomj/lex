@@ -1791,6 +1791,7 @@
                 <strong>X Key:</strong> Security X-ray lens<br>
                 <strong>U Key:</strong> Rightsizing lens (requests vs usage)<br>
                 <strong>T Key:</strong> TV mode (hands-free tour)<br>
+                <strong>G Key:</strong> Pod age texture (shiny = new, moss = old)<br>
                 <strong>L Key:</strong> Copy a shareable link to what you're looking at<br>
                 <strong>ESC:</strong> Exit mouse lock
             </p>
@@ -2931,15 +2932,103 @@ ${labels}`;
          partitionMaterial, floorMaterial, unallocatedMaterial, searchBlinkingMaterial].forEach(m => { m.userData.shared = true; });
 
         // One material per namespace color instead of one per pod
+        // ---------- F-35: pod age as texture ----------
+        // Fresh pods are glossy, long-lived ones grow moss, so churn (autoscaling, spot, crash-replace) stands out.
+        // Ages are relative to getCurrentReferenceTime(), so DVR playback shows the ages of that moment.
+        const AGE_BUCKETS = [
+            { key: 'fresh',   maxHours: 1,        label: 'fresh (under 1h)' },
+            { key: 'new',     maxHours: 24,       label: 'new (under 24h)' },
+            { key: 'settled', maxHours: 24 * 7,   label: 'settled (1–7 days)' },
+            { key: 'mossy',   maxHours: 24 * 30,  label: 'mossy (1–4 weeks)' },
+            { key: 'ancient', maxHours: Infinity, label: 'ancient (30+ days)' },
+        ];
+        let ageTextureEnabled = true;
+        try { ageTextureEnabled = localStorage.getItem('lex.ageTexture') !== 'off'; } catch (e) { /* storage unavailable */ }
+
+        function podAgeBucket(pod) {
+            if (!ageTextureEnabled || !pod || !pod.creationTimestamp) return 'settled';
+            const created = new Date(pod.creationTimestamp).getTime();
+            if (isNaN(created)) return 'settled';
+            const hours = Math.max(0, getCurrentReferenceTime() - created) / 3600000;
+            return AGE_BUCKETS.find(b => hours < b.maxHours).key;
+        }
+
+        function ageBucketLabel(key) {
+            const b = AGE_BUCKETS.find(x => x.key === key);
+            return b ? b.label : key;
+        }
+
+        // Moss is drawn in world space (the unit cube is scaled per room, so UV textures would stretch):
+        // blotchy value noise on the faces, denser toward each floor's lower edge.
+        const MOSS_COLOR = new THREE.Color(0x56702a);
+        function addMoss(mat, amount) {
+            mat.onBeforeCompile = (shader) => {
+                shader.uniforms.mossAmount = { value: amount };
+                shader.uniforms.mossColor = { value: MOSS_COLOR };
+                shader.vertexShader = shader.vertexShader
+                    .replace('#include <common>', '#include <common>\nvarying vec3 vMossWorld;')
+                    .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvMossWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+                shader.fragmentShader = shader.fragmentShader
+                    .replace('#include <common>', `#include <common>
+                        varying vec3 vMossWorld;
+                        uniform float mossAmount;
+                        uniform vec3 mossColor;
+                        float mossHash(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
+                        float mossNoise(vec3 p) {
+                            vec3 i = floor(p), f = fract(p);
+                            f = f * f * (3.0 - 2.0 * f);
+                            return mix(mix(mix(mossHash(i), mossHash(i + vec3(1,0,0)), f.x), mix(mossHash(i + vec3(0,1,0)), mossHash(i + vec3(1,1,0)), f.x), f.y),
+                                       mix(mix(mossHash(i + vec3(0,0,1)), mossHash(i + vec3(1,0,1)), f.x), mix(mossHash(i + vec3(0,1,1)), mossHash(i + vec3(1,1,1)), f.x), f.y), f.z);
+                        }`)
+                    .replace('#include <color_fragment>', `#include <color_fragment>
+                        {
+                            float n = mossNoise(vMossWorld * 0.9) * 0.6 + mossNoise(vMossWorld * 3.1) * 0.4;
+                            float lower = 1.0 - smoothstep(0.0, 0.9, fract(vMossWorld.y / 2.4));
+                            float m = smoothstep(1.0 - mossAmount, 1.0 - mossAmount + 0.18, n * 0.75 + lower * 0.35);
+                            diffuseColor.rgb = mix(diffuseColor.rgb, mossColor * (0.75 + 0.5 * mossNoise(vMossWorld * 7.0)), m * 0.85);
+                        }`);
+            };
+            mat.customProgramCacheKey = () => `moss-${amount}`;
+            return mat;
+        }
+
         const podMaterialCache = new Map();
-        function getPodMaterial(color) {
-            let mat = podMaterialCache.get(color);
+        function getPodMaterial(color, bucket = 'settled') {
+            const cacheKey = `${color}|${bucket}`;
+            let mat = podMaterialCache.get(cacheKey);
             if (!mat) {
-                mat = new THREE.MeshStandardMaterial({ color, roughness: 0.2, metalness: 0.1, side: THREE.DoubleSide });
+                if (bucket === 'fresh') {
+                    // Showroom gloss: clear coat, a little metal and a faint glow of its own color
+                    mat = new THREE.MeshPhysicalMaterial({ color, roughness: 0.08, metalness: 0.3, clearcoat: 1.0, clearcoatRoughness: 0.04,
+                                                           emissive: color, emissiveIntensity: 0.22, side: THREE.DoubleSide });
+                } else if (bucket === 'new') {
+                    mat = new THREE.MeshStandardMaterial({ color, roughness: 0.12, metalness: 0.2, emissive: color, emissiveIntensity: 0.08, side: THREE.DoubleSide });
+                } else if (bucket === 'mossy' || bucket === 'ancient') {
+                    mat = addMoss(new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0.0, side: THREE.DoubleSide }),
+                                  bucket === 'ancient' ? 0.62 : 0.38);
+                } else {
+                    mat = new THREE.MeshStandardMaterial({ color, roughness: 0.2, metalness: 0.1, side: THREE.DoubleSide });
+                }
                 mat.userData.shared = true;
-                podMaterialCache.set(color, mat);
+                podMaterialCache.set(cacheKey, mat);
             }
             return mat;
+        }
+
+        function ageHudSuffix(pod) {
+            if (!ageTextureEnabled || !pod || !pod.creationTimestamp) return '';
+            const b = podAgeBucket(pod);
+            return b === 'settled' ? '' : ` <span style="color:#94a3b8;">· ${escapeHtml(ageBucketLabel(b).split(' (')[0])}</span>`;
+        }
+
+        function setAgeTexture(enabled) {
+            ageTextureEnabled = enabled;
+            try { localStorage.setItem('lex.ageTexture', enabled ? 'on' : 'off'); } catch (e) { /* storage unavailable */ }
+            // Ages are part of each building's visual signature, so a sync rebuilds rooms with the new look
+            if (clusterData && !simState) syncClusterState(clusterData);   // during a simulation it applies when it ends
+            lastHudHtml = '';
+            showToast(enabled ? 'Pod age texture on: shiny = created in the last hour, moss = running for a week or more'
+                              : 'Pod age texture off', 'success');
         }
 
         // Rooms share one unit cube scaled per pod; outlines are merged into a few line meshes per node
@@ -4528,6 +4617,187 @@ ${labels}`;
         }
 
         // Cracked foundation in front of nodes that host every replica of some workload
+        // ---------- F-34: consolidation candidates ----------
+        // Nodes whose movable pods request under CONSOLIDATION_THRESHOLD of their capacity. A greedy plan drains
+        // the emptiest first and keeps a node only if the failure simulator can still place every pod elsewhere.
+        const CONSOLIDATION_THRESHOLD = 0.20;
+        const CONSOLIDATION_MIN_AGE_MINUTES = 30;   // freshly scaled-up nodes are still filling up
+        let consolidationCache = null;              // { source, refBucket, value }
+        let consolidationGroup = null;
+        let consolidationSignature = null;
+        const consolidationGlowMaterial = new THREE.MeshBasicMaterial({
+            map: (() => {
+                const c = document.createElement('canvas'); c.width = c.height = 128;
+                const g = c.getContext('2d'), grad = g.createRadialGradient(64, 64, 8, 64, 64, 64);
+                grad.addColorStop(0, 'rgba(255,255,255,0.9)'); grad.addColorStop(0.55, 'rgba(255,255,255,0.45)'); grad.addColorStop(1, 'rgba(255,255,255,0)');
+                g.fillStyle = grad; g.fillRect(0, 0, 128, 128);
+                return new THREE.CanvasTexture(c);
+            })(),
+            color: 0x34d399, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false
+        });
+        consolidationGlowMaterial.userData.shared = true;
+
+        function staysWithNode(pod) {
+            const kind = pod.workload && pod.workload.kind;
+            return kind === 'DaemonSet' || kind === 'Node';
+        }
+
+        function nodeRequestShare(node) {
+            const movable = (node.pods || []).filter(p => !staysWithNode(p));
+            const mem = movable.reduce((s, p) => s + (p.memoryGB || 0), 0);
+            const cpu = movable.reduce((s, p) => s + (p.cpuCores || 0), 0);
+            const memPct = node.maxMemoryGB ? mem / node.maxMemoryGB : 0;
+            const cpuPct = node.maxCPUCores ? cpu / node.maxCPUCores : 0;
+            return { mem, cpu, memPct, cpuPct, share: Math.max(memPct, cpuPct), movable };
+        }
+
+        function computeConsolidation(state) {
+            const refBucket = Math.floor(getCurrentReferenceTime() / 60000);   // node ages matter, at minute resolution
+            if (consolidationCache && consolidationCache.source === state && consolidationCache.refBucket === refBucket) return consolidationCache.value;
+            const now = getCurrentReferenceTime();
+            const underused = [], skipped = [];
+            (state.nodes || []).forEach(node => {
+                const labels = node.labels || {};
+                if (labels.note === 'auto-created-placeholder' || !nodeAcceptsPods(node) || isNodeDecommissioning(node)) return;
+                const u = nodeRequestShare(node);
+                if (u.share >= CONSOLIDATION_THRESHOLD) return;
+                const cost = getNodeCostSummary(node);
+                const entry = { node, name: node.name, ...u, hourly: cost ? cost.hourlyCost : null, isEstimate: !!(cost && cost.isEstimate),
+                                instanceType: cost ? cost.instanceType : (labels['node.kubernetes.io/instance-type'] || '') };
+                const created = node.creationTimestamp ? new Date(node.creationTimestamp).getTime() : NaN;
+                const unmanaged = u.movable.filter(p => !p.owner && !p.workload);
+                if ('node-role.kubernetes.io/control-plane' in labels || 'node-role.kubernetes.io/master' in labels) skipped.push({ ...entry, reason: 'control-plane node' });
+                else if (!isNaN(created) && now - created < CONSOLIDATION_MIN_AGE_MINUTES * 60000) skipped.push({ ...entry, reason: `joined ${getAgeString(node.creationTimestamp)} ago; probably still filling up` });
+                else if (unmanaged.length) skipped.push({ ...entry, reason: `runs ${unmanaged.length} unmanaged pod${unmanaged.length === 1 ? '' : 's'} that nothing would recreate` });
+                else underused.push(entry);
+            });
+            // Emptiest first; among equals, the most expensive first
+            underused.sort((a, b) => a.share - b.share || (b.hourly || 0) - (a.hourly || 0));
+            const plan = [], drained = new Set();
+            let finalSim = null;
+            underused.forEach(entry => {
+                const trial = new Set([...drained, entry.name]);
+                const sim = simulateFailure(state, trial);
+                if (sim.unplaced.length === 0) {
+                    drained.add(entry.name);
+                    plan.push(entry);
+                    finalSim = sim;
+                } else {
+                    // Would it fit on its own? Then it only conflicts with the nodes already in the plan
+                    const alone = plan.length ? simulateFailure(state, new Set([entry.name])) : sim;
+                    const u = (alone.unplaced.length ? alone : sim).unplaced.find(x => x.pod.from === entry.name) || sim.unplaced[0];
+                    const why = u.reason.charAt(0).toLowerCase() + u.reason.slice(1);
+                    skipped.push({ ...entry, reason: alone.unplaced.length
+                        ? `its pods wouldn't fit elsewhere (${why})`
+                        : `its pods would fit, but not after the ${plan.length} node${plan.length === 1 ? '' : 's'} above are drained (${why})` });
+                }
+            });
+            const priced = plan.some(e => e.hourly !== null);
+            const value = {
+                plan, skipped, priced,
+                hourly: plan.reduce((s, e) => s + (e.hourly || 0), 0),
+                monthly: plan.reduce((s, e) => s + (e.hourly || 0), 0) * HOURS_PER_MONTH,
+                isEstimate: plan.some(e => e.isEstimate) || plan.some(e => e.hourly === null),
+                moved: finalSim ? finalSim.placed.length : 0,
+                blockingPdbs: finalSim ? finalSim.blockingPdbs : [],
+                planNames: new Set(plan.map(e => e.name)),
+            };
+            consolidationCache = { source: state, refBucket, value };
+            return value;
+        }
+
+        function consolidationSign(text) {
+            const c = document.createElement('canvas'); c.width = 512; c.height = 96;
+            const g = c.getContext('2d');
+            g.fillStyle = 'rgba(6, 40, 30, 0.82)';
+            g.beginPath(); g.roundRect(4, 4, 504, 88, 22); g.fill();
+            g.strokeStyle = 'rgba(52, 211, 153, 0.9)'; g.lineWidth = 4; g.stroke();
+            g.fillStyle = '#d1fae5'; g.textAlign = 'center'; g.textBaseline = 'middle';
+            let size = 40;
+            do { g.font = `700 ${size}px Outfit, sans-serif`; size -= 2; } while (g.measureText(text).width > 470 && size > 18);
+            g.fillText(text, 256, 50);
+            const tex = new THREE.CanvasTexture(c);
+            tex.colorSpace = THREE.SRGBColorSpace;
+            const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+            sprite.scale.set(9, 9 * 96 / 512, 1);
+            return sprite;
+        }
+
+        // A faint pulsing halo around each planned node, and a small sign over its roof
+        function syncConsolidation() {
+            if (!consolidationGroup) { consolidationGroup = new THREE.Group(); scene.add(consolidationGroup); }
+            const c = computeConsolidation(clusterData);
+            const entries = c.plan.filter(e => activeNodeGroups.has(e.name)).map(e => {
+                const g = activeNodeGroups.get(e.name), p = g.userData.targetPosition;
+                const saving = e.hourly !== null ? `${e.isEstimate ? '~' : ''}$${Math.round(e.hourly * HOURS_PER_MONTH).toLocaleString()}/mo` : '';
+                return [e.name, p.x, p.z, Math.round((g.userData.wallHeight || 10) * 10) / 10, Math.round(e.share * 100), saving];
+            });
+            const sig = JSON.stringify(entries);
+            if (sig === consolidationSignature) return;
+            consolidationSignature = sig;
+            while (consolidationGroup.children.length) {
+                const child = consolidationGroup.children[0];
+                consolidationGroup.remove(child);
+                if (child.isSprite) { child.material.map.dispose(); child.material.dispose(); } else child.geometry.dispose();
+            }
+            entries.forEach(([name, x, z, height, pct, saving]) => {
+                const halo = new THREE.Mesh(new THREE.PlaneGeometry(24, 24), consolidationGlowMaterial);
+                halo.rotation.x = -Math.PI / 2;
+                halo.position.set(x, 0.05, z + 6);
+                consolidationGroup.add(halo);
+                const sign = consolidationSign(`UNDERUSED · ${pct}% requested${saving ? ' · save ' + saving : ''}`);
+                sign.position.set(x, height + 2.2, z + 6);
+                consolidationGroup.add(sign);
+            });
+        }
+
+        function consolidationHudHtml(nodeName) {
+            if (!clusterData) return '';
+            const c = computeConsolidation(clusterData);
+            const planned = c.plan.find(e => e.name === nodeName);
+            const skipped = !planned && c.skipped.find(e => e.name === nodeName);
+            const e = planned || skipped;
+            if (!e) return '';
+            const pct = `${Math.round(e.memPct * 100)}% of memory, ${Math.round(e.cpuPct * 100)}% of CPU requested`;
+            return `<div class="hud-meta-row" style="background: rgba(52, 211, 153, 0.12); border: 1px solid rgba(52, 211, 153, 0.35); border-radius: 8px; padding: 8px 12px; margin: 8px 0; display: flex; flex-direction: column; align-items: flex-start; gap: 3px;">
+                    <span class="hud-label" style="color: #34d399; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;">💤 Underused</span>
+                    <span class="hud-value" style="font-size: 12px; color: #e2e8f0;">${escapeHtml(pct)}</span>
+                    <span style="font-size: 11px; color: #94a3b8;">${planned
+                        ? `Its pods fit elsewhere: draining it saves ${e.hourly !== null ? escapeHtml(`${e.isEstimate ? '~' : ''}${formatCurrency(e.hourly * HOURS_PER_MONTH)}`) + '/month' : 'a node (no price data)'}. Ops → Rightsizing`
+                        : `Not a candidate: ${escapeHtml(e.reason)}`}</span>
+                </div>`;
+        }
+
+        function consolidationSectionHtml() {
+            const c = computeConsolidation(clusterData);
+            const n = c.plan.length;
+            const money = c.priced ? `${c.isEstimate ? '~' : ''}${formatCurrency(c.monthly)}` : null;
+            const pct = e => `${Math.round(e.memPct * 100)}% mem · ${Math.round(e.cpuPct * 100)}% CPU`;
+            const rows = c.plan.map(e => `
+                <div class="top-row" data-fly="node" data-key="${escapeHtml(e.name)}" title="Fly to node">
+                    <span class="top-name">${escapeHtml(e.name)}</span>
+                    <span class="top-value">${escapeHtml(pct(e))}${e.hourly !== null ? ` · ${escapeHtml(formatCurrency(e.hourly * HOURS_PER_MONTH))}/mo` : ''}</span>
+                    <div class="top-meter"><div style="width:${Math.max(2, Math.round(e.share * 100))}%; background:#34d399"></div></div>
+                </div>`).join('');
+            const skippedRows = c.skipped.map(e => `
+                <div class="top-row" data-fly="node" data-key="${escapeHtml(e.name)}" title="Fly to node">
+                    <span class="top-name">${escapeHtml(e.name)} <span style="color:#64748b">${escapeHtml(pct(e))}</span></span>
+                    <span class="top-value" style="white-space:normal; text-align:right;">${escapeHtml(e.reason)}</span>
+                </div>`).join('');
+            const head = n
+                ? `Draining ${n === 1 ? 'this underused node' : `these ${n} underused nodes`} saves <b style="color:#34d399">${money ? escapeHtml(money) + '/month' : 'node costs (no price data)'}</b>`
+                : `No node can be drained: ${c.skipped.length ? 'the underused ones can\'t hand their pods off' : `every node is at least ${Math.round(CONSOLIDATION_THRESHOLD * 100)}% requested`}`;
+            return `<div class="top-section">
+                <div class="top-title">💤 Consolidation (requests vs capacity)</div>
+                <div style="font-size:13px; color:#e2e8f0; margin:4px 0 6px;">${head}</div>
+                ${n ? `<div class="rs-note" style="margin-top:0">The simulator re-places their ${c.moved} pod${c.moved === 1 ? '' : 's'} on the remaining nodes (requests, nodeSelector, taints). DaemonSet pods go away with their nodes.${c.blockingPdbs.length ? ` A drain would wait on ${c.blockingPdbs.length} PDB${c.blockingPdbs.length === 1 ? '' : 's'} (${escapeHtml(c.blockingPdbs.slice(0, 3).map(b => b.pdb.name).join(', '))}); drain one node at a time.` : ''}</div>` : ''}
+                ${rows}
+                ${n ? `<button class="ops-chip" id="consolidation-sim-btn" style="margin-top:8px;">Simulate draining ${n === 1 ? 'it' : n === 2 ? 'both' : `all ${n}`}</button>` : ''}
+                ${skippedRows ? `<details style="margin-top:8px;"><summary style="cursor:pointer; font-size:12px; color:#94a3b8;">${c.skipped.length} more under ${Math.round(CONSOLIDATION_THRESHOLD * 100)}% but not drainable</summary>${skippedRows}</details>` : ''}
+                <div class="rs-note">Underused = the pods that would move (not DaemonSets) request under ${Math.round(CONSOLIDATION_THRESHOLD * 100)}% of the node's memory and CPU. Affinity, topology spread and local storage aren't modeled. If Karpenter consolidation or the cluster autoscaler's scale-down is on, it may already be working on these.</div>
+            </div>`;
+        }
+
         function syncCracks() {
             if (!crackGroup) { crackGroup = new THREE.Group(); scene.add(crackGroup); }
             const res = computeResilience(clusterData);
@@ -6169,8 +6439,10 @@ ${labels}`;
         function renderRightsizing() {
             const host = document.getElementById('ops-rightsizing');
             if (!host) return;
-            if (!usageData) { host.innerHTML = '<div class="ops-empty">Loading usage from metrics-server…</div>'; fetchUsage(); return; }
-            if (!usageData.available) { host.innerHTML = `<div class="ops-empty">${escapeHtml(usageData.reason || 'Usage is unavailable for this cluster.')}</div>`; return; }
+            const consolidation = consolidationSectionHtml();   // F-34: needs only requests, not metrics
+            if (isDVRMode) { host.innerHTML = consolidation + '<div class="ops-empty">Usage is live-only; exit DVR mode to see it.</div>'; return; }
+            if (!usageData) { host.innerHTML = consolidation + '<div class="ops-empty">Loading usage from metrics-server…</div>'; fetchUsage(); return; }
+            if (!usageData.available) { host.innerHTML = consolidation + `<div class="ops-empty">${escapeHtml(usageData.reason || 'Usage is unavailable for this cluster.')}</div>`; return; }
             if (Date.now() - usageFetchedAt > 30000) fetchUsage();
             const rs = computeRightsizing(), t = rs.totals;
             const pct = (a, b) => b > 0 ? Math.round(a / b * 100) : 0;
@@ -6197,7 +6469,8 @@ ${labels}`;
                     <span class="top-value">${p.oom ? 'OOMKilled recently' : p.peakMem > p.reqMem ? `${formatGB(p.peakMem)} peak vs ${formatGB(p.reqMem)} req` : `${formatCores(p.peakCpu)} peak vs ${formatCores(p.reqCpu)} req`}</span>
                     ${p.peakMem > p.reqMem ? meter(p.peakMem, p.reqMem) : meter(p.peakCpu, p.reqCpu)}
                 </div>`).join('');
-            host.innerHTML = `
+            host.innerHTML = consolidation + `
+                <div class="top-title" style="margin-top:14px">📏 Requests vs actual usage</div>
                 <div class="rs-note">${escapeHtml(usageCoverageText())} · ${t.covered} of ${t.pods} pods have metrics · suggestions = peak × ${rs.headroom}</div>
                 <div class="rs-tiles">
                     <div class="rs-tile"><div class="rs-label">CPU used at peak</div><div class="rs-big">${pct(t.peakCpu, t.reqCpu)}%</div><div class="rs-sub">${formatCores(t.peakCpu)} of ${formatCores(t.reqCpu)} requested</div></div>
@@ -6226,8 +6499,19 @@ ${labels}`;
             const host = document.getElementById('ops-rightsizing');
             if (host) host.addEventListener('click', (e) => {
                 e.stopPropagation();
+                if (e.target.closest('#consolidation-sim-btn')) {
+                    const c = computeConsolidation(clusterData);
+                    startSimulation(c.plan.map(x => x.name), `Draining ${c.plan.length} underused node${c.plan.length === 1 ? '' : 's'}`);
+                    return;
+                }
                 const row = e.target.closest('.top-row');
                 if (!row) return;
+                if (row.dataset.fly === 'node') {
+                    focusOnTarget('node', row.dataset.key);
+                    const g = activeNodeGroups.get(row.dataset.key);
+                    flashMeshes([g && g.userData.pickables && g.userData.pickables[0]]);
+                    return;
+                }
                 if (row.dataset.fly === 'pod') { focusOnTarget('pod', row.dataset.key); flashMeshes([activePodMeshes.get(row.dataset.key)]); }
                 else if (row.dataset.fly === 'namespace') { executeSearch(row.dataset.key); flyToClusterOverview(); }
             });
@@ -6241,6 +6525,10 @@ ${labels}`;
                 tv: () => tvMode && { label: tvMode.current && tvMode.current.label, index: tvMode.index, stops: tvMode.stops.length,
                                       camera: camera.position.toArray().map(v => Math.round(v)) },
                 usage: () => usageLens && { ...usageLens, overlays: usageOverlays.length, available: !!(usageData && usageData.available) },
+                consolidation: () => clusterData && (c => ({ plan: c.plan.map(e => e.name), skipped: c.skipped.map(e => [e.name, e.reason]),
+                                                            monthly: Math.round(c.monthly), signs: consolidationGroup ? consolidationGroup.children.length / 2 : 0,
+                                                            positions: c.plan.map(e => { const g = activeNodeGroups.get(e.name); return g ? [g.userData.targetPosition.x, g.userData.targetPosition.z] : null; }) }))(computeConsolidation(clusterData)),
+                ages: () => { const n = {}; activePodMeshes.forEach(m => { const b = podAgeBucket(m.userData.pod); n[b] = (n[b] || 0) + 1; }); return { enabled: ageTextureEnabled, buckets: n }; },
             });
         }
 
@@ -6538,6 +6826,12 @@ ${labels}`;
                 if (event.code === 'KeyN') {
                     event.preventDefault();
                     toggleNoclip();
+                    return;
+                }
+
+                if (event.code === 'KeyG') {
+                    event.preventDefault();
+                    setAgeTexture(!ageTextureEnabled);
                     return;
                 }
 
@@ -7246,6 +7540,7 @@ ${labels}`;
             clearNodeContents(nodeBuilding);
 
             const nodeWallHeight = node.maxMemoryGB * heightScale;
+            nodeBuilding.userData.wallHeight = nodeWallHeight;
             
             const isOnline = isNodeComingOnline(node);
             const isDecommissioning = isNodeDecommissioning(node);
@@ -7377,7 +7672,7 @@ ${labels}`;
 
                     const isFailed = isPodFailed(pod);
                     const podColor = isFailed ? 0xef4444 : pod.color;
-                    const podMat = isFailed ? failedPodMaterial : getPodMaterial(podColor);
+                    const podMat = isFailed ? failedPodMaterial : getPodMaterial(podColor, podAgeBucket(pod));
 
                     const podBox = new THREE.Mesh(unitBoxGeometry, podMat);
                     podBox.scale.set(roomWidth, podHeight - marginY * 2, roomDepth);
@@ -7509,8 +7804,9 @@ ${labels}`;
             const content = node.fingerprint || JSON.stringify(node);
             const failedPods = (node.pods || []).filter(isPodFailed).length;
             const cost = getNodeCostSummary(node);
+            const ages = (node.pods || []).map(podAgeBucket).join(',');   // F-35: rooms change look as pods age
             return [content, isNodeFailed(node), isNodeComingOnline(node), isNodeDecommissioning(node), failedPods,
-                    cost ? Math.floor(cost.ageHours) : ''].join('|');
+                    cost ? Math.floor(cost.ageHours) : '', ages].join('|');
         }
 
         function syncClusterState(newData) {
@@ -7617,6 +7913,7 @@ ${labels}`;
             clusterData = newData;
             syncAlerts(newData);
             syncCracks();
+            syncConsolidation();
             if (xrayEnabled) applyXray();
             refreshJumbotron();
             updateStatsPanel();
@@ -8953,6 +9250,10 @@ ${labels}`;
             requestAnimationFrame(animate);
             frameCount++;
             const delta = clock.getDelta();
+            if (consolidationGroup) {
+                consolidationGroup.visible = !simState;   // the simulator draws its own picture
+                consolidationGlowMaterial.opacity = 0.5 + 0.2 * Math.sin(performance.now() / 900);
+            }
 
             // Slide and scale dynamic nodes (time-based easing, so throttled frames still converge)
             const slideK = 1 - Math.exp(-6 * Math.min(delta, 1));
@@ -9087,7 +9388,7 @@ ${labels}`;
                         </div>
                         <div class="hud-meta-row">
                             <span class="hud-label">Age</span>
-                            <span class="hud-value">${data.creationTimestamp ? getAgeString(data.creationTimestamp) : 'Unknown'}</span>
+                            <span class="hud-value">${data.creationTimestamp ? getAgeString(data.creationTimestamp) : 'Unknown'}${ageHudSuffix(data.pod)}</span>
                         </div>
                         <div class="hud-meta-row">
                             <span class="hud-label">Memory Request</span>
@@ -9198,7 +9499,7 @@ ${labels}`;
                                 </div>
                                 <div class="hud-meta-row">
                                     <span class="hud-label">Age</span>
-                                    <span class="hud-value">${data.creationTimestamp ? getAgeString(data.creationTimestamp) : 'Unknown'}</span>
+                                    <span class="hud-value">${data.creationTimestamp ? getAgeString(data.creationTimestamp) : 'Unknown'}${ageHudSuffix(data.pod)}</span>
                                 </div>
                                 <div class="hud-meta-row">
                                     <span class="hud-label">Memory Request</span>
@@ -9261,6 +9562,7 @@ ${labels}`;
                                 <div class="hud-title">${escapeHtml(data.nodeName)}</div>
                                 <div style="margin-top: 16px;">
                                     ${getNodeErrorReasonsHtml(data.nodeName)}
+                                    ${consolidationHudHtml(data.nodeName)}
                                     <div class="hud-meta-row">
                                         <span class="hud-label">Total Capacity</span>
                                         <span class="hud-value">${formattedMaxMemory}GB</span>
