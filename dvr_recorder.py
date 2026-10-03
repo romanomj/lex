@@ -49,8 +49,11 @@ def main():
     
     args = parser.parse_args()
     
-    # Initialize DB schemas
+    # Initialize DB schemas, and scrub any pre-redaction dumps
     dvr_db.init_db()
+    import redaction
+    parse_cluster.ensure_data_dir()
+    redaction.scrub_data_dir(parse_cluster.DATA_DIR, parse_cluster.write_file_atomic)
     
     # Setup signal handlers for clean exit
     signal.signal(signal.SIGINT, graceful_shutdown)

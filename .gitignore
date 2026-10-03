@@ -1,7 +1,11 @@
-# Kubernetes Dynamic Cache
-raw-nodes.json
-raw-pods.json
-cluster_state.json
+# Kubernetes Dynamic Cache (live cluster data, never commit)
+raw-nodes*.json
+raw-pods*.json
+cluster_state*.json
+
+# DVR recordings database
+lex_dvr.db
+lex_dvr.db-*
 
 # Python bytecodes
 __pycache__/
@@ -13,3 +17,7 @@ __pycache__/
 Thumbs.db
 .vscode/
 .idea/
+
+# Local data directory (cluster dumps, compiled states, DVR database)
+data/
+.tmp-*.json

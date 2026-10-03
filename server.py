@@ -8,34 +8,262 @@ periodically query Kubernetes context, and exposes secure endpoints for pod trou
 import os
 import re
 import json
+import gzip
 import time
+import calendar
+import datetime
+import posixpath
 import subprocess
 import threading
 import http.server
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, unquote
 import parse_cluster
 import dvr_db
+import metrics
+import redaction
 
 PORT = 8000
 BIND_ADDRESS = '127.0.0.1'  # Hard-bound to local loopback for secure sandbox isolation
+SYNC_INTERVAL_SECONDS = 30
+# Bump whenever the state payload or API changes shape. The UI compares it with its own copy and asks the
+# user to reload if they differ (e.g. a browser tab still running a pre-upgrade index.html).
+API_SCHEMA_VERSION = 2
+DVR_RETENTION_DAYS = 7
+GZIP_MIN_BYTES = 1024
+APP_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Only these paths are served as static files. Everything else in the working directory
+# (raw kubectl dumps, compiled cluster state, the DVR database, .git) must never be exposed.
+STATIC_FILES = {"/": "/index.html", "/index.html": "/index.html"}
+STATIC_DIR_PREFIXES = ("/images/",)
+
+# Hostnames accepted in the Host / Origin headers. Rejecting anything else blocks
+# DNS-rebinding attacks where a malicious site resolves its own domain to 127.0.0.1.
+ALLOWED_HOSTNAMES = ("127.0.0.1", "localhost", "[::1]")
+
+# Kubernetes object name validation (DNS-1123). Names must start and end with an
+# alphanumeric character, so values like "--insecure-skip-tls-verify" can never reach kubectl as flags.
+DNS1123_SUBDOMAIN_RE = re.compile(r"^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$")  # pods, nodes
+DNS1123_LABEL_RE = re.compile(r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$")       # namespaces
+CONTEXT_NAME_RE = re.compile(r"^[a-zA-Z0-9_.:@/][a-zA-Z0-9_./:@-]*$")
+
+def is_valid_object_name(name):
+    return bool(name) and len(name) <= 253 and bool(DNS1123_SUBDOMAIN_RE.match(name))
+
+def is_valid_namespace(namespace):
+    return bool(namespace) and len(namespace) <= 63 and bool(DNS1123_LABEL_RE.match(namespace))
+
+def is_valid_context_name(context):
+    return bool(context) and len(context) <= 512 and bool(CONTEXT_NAME_RE.match(context))
+
+def list_kube_contexts():
+    """Returns the context names from the local kubeconfig (empty list on failure)."""
+    try:
+        res = subprocess.run(["kubectl", "config", "get-contexts", "-o", "name"], capture_output=True, text=True, timeout=3)
+    except Exception:
+        return []
+    if res.returncode != 0:
+        return []
+    return [line.strip() for line in res.stdout.split('\n') if line.strip()]
 
 # Thread-safe context management
 active_context = "demo"
 active_context_lock = threading.Lock()
 
-# Thread-safe DVR recording session tracker
-active_recording_session = None
+# Thread-safe DVR recording session tracker. A recording is bound to the context it was started on,
+# and keeps recording that context even if the UI switches to another one.
+active_recording_session = None   # session_id
+active_recording_context = None   # context the session records
 active_recording_session_lock = threading.Lock()
 
+# Per-context scrape health, surfaced to the UI so stale data is never presented as live
+sync_status = {}
+sync_status_lock = threading.Lock()
+
+def utc_now_iso():
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+def scrape_context(ctx, write_to_file=True):
+    """Compiles fresh state for ctx and records success/failure in sync_status. Returns the state or None."""
+    attempt_at = utc_now_iso()
+    try:
+        if ctx == "demo":
+            state = parse_cluster.parse_cluster(force_mock=True, write_to_file=write_to_file)
+        else:
+            state = parse_cluster.parse_cluster(context=ctx, write_to_file=write_to_file)
+        error = None
+    except SystemExit:
+        state, error = None, f"Context '{ctx}' is unreachable"
+    except Exception as e:
+        state, error = None, f"Error compiling cluster state: {e}"
+    if state is not None and ctx != "demo":
+        try:
+            metrics.record(ctx, state)
+        except Exception as e:
+            print(f"▲ Could not record metrics for '{ctx}': {e}")
+    with sync_status_lock:
+        entry = sync_status.setdefault(ctx, {"lastSuccessAt": None})
+        entry["lastAttemptAt"] = attempt_at
+        entry["lastError"] = error
+        if state is not None:
+            entry["lastSuccessAt"] = attempt_at
+    if error:
+        print(f"▲ Sync failed for '{ctx}': {error}")
+    return state
+
+def get_sync_status(ctx):
+    with sync_status_lock:
+        return dict(sync_status.get(ctx, {}))
+
+_YAML_PLAIN_RE = re.compile(r"^[A-Za-z0-9_./@%+=-][A-Za-z0-9_./@%+=:, -]*$")
+_YAML_RESERVED = {"", "true", "false", "yes", "no", "on", "off", "null", "~"}
+
+def _yaml_scalar(v):
+    if v is None:
+        return "null"
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, (int, float)):
+        return str(v)
+    text = str(v)
+    if (_YAML_PLAIN_RE.match(text) and text.lower() not in _YAML_RESERVED and ": " not in text
+            and not text.endswith(":") and text.strip() == text and not re.match(r"^[0-9.+-]+$", text)):
+        return text
+    return json.dumps(text)   # JSON strings are valid YAML double-quoted scalars
+
+def dict_to_yaml(d, indent=0):
+    """YAML rendering of a JSON-like structure (keys in Kubernetes order, strings quoted when needed)."""
+    lines = []
+    spacer = " " * indent
+    if isinstance(d, dict):
+        keys = list(d.keys())
+        preferred = ["apiVersion", "kind", "metadata", "spec", "status"]
+        for k in [k for k in preferred if k in keys] + [k for k in keys if k not in preferred]:
+            v = d[k]
+            key = _yaml_scalar(k)
+            if isinstance(v, (dict, list)) and v:
+                lines.append(f"{spacer}{key}:")
+                lines.append(dict_to_yaml(v, indent + 2))
+            elif isinstance(v, (dict, list)):
+                lines.append(f"{spacer}{key}: {'{}' if isinstance(v, dict) else '[]'}")
+            else:
+                lines.append(f"{spacer}{key}: {_yaml_scalar(v)}")
+    elif isinstance(d, list):
+        for item in d:
+            if isinstance(item, (dict, list)) and item:
+                lines.append(f"{spacer}- {dict_to_yaml(item, indent + 2).lstrip()}")
+            else:
+                lines.append(f"{spacer}- {_yaml_scalar(item) if not isinstance(item, (dict, list)) else ('{}' if isinstance(item, dict) else '[]')}")
+    else:
+        lines.append(f"{spacer}{_yaml_scalar(d)}")
+    return "\n".join(lines)
+
+def redaction_banner(hidden):
+    return (f"# Lex redacted {hidden} secret-looking value{'s' if hidden != 1 else ''} "
+            f"(env vars with credential-like names, and credentials embedded in URLs).\n") if hidden else ""
+
+def load_demo_state():
+    _, _, state_file = parse_cluster.get_file_paths("demo")
+    if not os.path.exists(state_file):
+        scrape_context("demo")
+    with open(state_file, 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+def load_demo_raw_items(kind):
+    """Items from the demo fixture's raw-nodes.json / raw-pods.json."""
+    nodes_file, pods_file, _ = parse_cluster.get_file_paths("demo")
+    with open(nodes_file if kind == "nodes" else pods_file, 'r', encoding='utf-8') as f:
+        return json.load(f).get("items", [])
+
+# Compiled state files cached in memory (raw + gzipped bytes) keyed by path, invalidated by mtime
+_state_cache = {}
+_state_cache_lock = threading.Lock()
+
+def load_state_bytes(path):
+    """Returns (body, gzipped_body, content_hash, generated_at) for a compiled state file."""
+    mtime = os.stat(path).st_mtime_ns
+    with _state_cache_lock:
+        cached = _state_cache.get(path)
+        if cached and cached[0] == mtime:
+            return cached[1]
+    with open(path, 'rb') as f:
+        body = f.read()
+    data = json.loads(body)
+    entry = (body, gzip.compress(body, 6), data.get("contentHash") or "", data.get("generatedAt"))
+    with _state_cache_lock:
+        _state_cache[path] = (mtime, entry)
+    return entry
+
 class LocalAPIServer(http.server.SimpleHTTPRequestHandler):
+    def __init__(self, *args, **kwargs):
+        # Serve static assets from the app directory regardless of the process working directory
+        super().__init__(*args, directory=APP_DIR, **kwargs)
+
     def end_headers(self):
-        # Enable CORS for local convenience and disable caching for API endpoints
-        self.send_header('Access-Control-Allow-Origin', '*')
+        # No CORS headers: the UI is same-origin, and other sites must not be able to read responses.
+        self.send_header('X-Content-Type-Options', 'nosniff')
+        self.send_header('X-Frame-Options', 'DENY')
+        self.send_header('Referrer-Policy', 'no-referrer')
         if self.path.startswith('/api/v1/'):
             self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+            self.send_header('X-Lex-Schema-Version', str(API_SCHEMA_VERSION))
+        else:
+            # Static assets must be revalidated on every load (cheap 304 via Last-Modified); otherwise browsers
+            # heuristically cache index.html and keep running an old UI against a newer API after an upgrade.
+            self.send_header('Cache-Control', 'no-cache')
         super().end_headers()
 
+    def _allowed_hosts(self):
+        port = self.server.server_address[1]
+        return {f"{h}:{port}" for h in ALLOWED_HOSTNAMES}
+
+    def check_host(self):
+        """Rejects requests whose Host header isn't the loopback address (DNS rebinding defense)."""
+        host = (self.headers.get('Host') or '').strip().lower()
+        if host not in self._allowed_hosts():
+            self.send_error_json(403, "Forbidden: invalid Host header")
+            return False
+        return True
+
+    def check_post_origin(self):
+        """CSRF defense for state-changing endpoints: JSON body and same-origin Origin header."""
+        content_type = (self.headers.get('Content-Type') or '').split(';')[0].strip().lower()
+        if content_type != 'application/json':
+            self.send_error_json(415, "POST requests must use Content-Type: application/json")
+            return False
+        origin = self.headers.get('Origin')
+        if origin is not None:
+            parsed = urlparse(origin)
+            if parsed.scheme != 'http' or parsed.netloc.lower() not in self._allowed_hosts():
+                self.send_error_json(403, "Forbidden: cross-origin request")
+                return False
+        return True
+
+    def serve_static(self, path, head_only=False):
+        """Serves only allowlisted static assets; everything else 404s."""
+        normalized = posixpath.normpath(unquote(path))
+        if path.endswith('/') and normalized != '/':
+            normalized += '/'
+        if normalized in STATIC_FILES:
+            self.path = STATIC_FILES[normalized]
+        elif any(normalized.startswith(p) for p in STATIC_DIR_PREFIXES) and not normalized.endswith('/'):
+            self.path = normalized
+        else:
+            self.send_error_json(404, "Not found")
+            return
+        if head_only:
+            super().do_HEAD()
+        else:
+            super().do_GET()
+
+    def do_HEAD(self):
+        if not self.check_host():
+            return
+        self.serve_static(urlparse(self.path).path, head_only=True)
+
     def do_GET(self):
+        if not self.check_host():
+            return
         parsed_url = urlparse(self.path)
         path = parsed_url.path
 
@@ -66,14 +294,19 @@ class LocalAPIServer(http.server.SimpleHTTPRequestHandler):
         # Route: API DVR snapshots fetch
         elif path == '/api/v1/dvr/snapshots':
             self.handle_dvr_snapshots(parsed_url.query)
+        elif path == '/api/v1/dvr/snapshot':
+            self.handle_dvr_snapshot(parsed_url.query)
+        elif path == '/api/v1/metrics/history':
+            self.handle_metrics_history(parsed_url.query)
         # Route: API DVR recording status
         elif path == '/api/v1/dvr/recording/status':
             self.handle_dvr_recording_status()
         else:
-            # Fallback to serving static files (index.html, etc.) from the workspace directory
-            super().do_GET()
+            self.serve_static(path)
 
     def do_POST(self):
+        if not self.check_host() or not self.check_post_origin():
+            return
         parsed_url = urlparse(self.path)
         path = parsed_url.path
 
@@ -92,37 +325,48 @@ class LocalAPIServer(http.server.SimpleHTTPRequestHandler):
         _, _, state_file = parse_cluster.get_file_paths(ctx)
 
         if not os.path.exists(state_file):
+            # A scrape just failed: report it instead of starting another (slow) kubectl attempt per poll
+            status = get_sync_status(ctx)
+            if status.get("lastError") and status.get("lastAttemptAt"):
+                age = time.time() - calendar.timegm(time.strptime(status["lastAttemptAt"], "%Y-%m-%dT%H:%M:%SZ"))
+                if age < SYNC_INTERVAL_SECONDS:
+                    self.send_error_json(502, f"{status['lastError']} (retrying every {SYNC_INTERVAL_SECONDS}s)")
+                    return
             print(f"State file '{state_file}' missing for context '{ctx}', generating synchronously...")
-            try:
-                if ctx == "demo":
-                    parse_cluster.parse_cluster(force_mock=True)
-                else:
-                    parse_cluster.parse_cluster(context=ctx)
-            except SystemExit:
-                self.send_error_json(502, f"Failed to generate cluster state: Context '{ctx}' is unreachable.")
-                return
-            except Exception as e:
-                self.send_error_json(500, f"Error generating cluster state: {str(e)}")
+            if scrape_context(ctx) is None:
+                self.send_error_json(502, get_sync_status(ctx).get("lastError") or f"Failed to generate cluster state for '{ctx}'")
                 return
 
         if os.path.exists(state_file):
             try:
-                with open(state_file, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                data["activeContext"] = ctx
-                self.send_json_response(200, data)
+                body, body_gz, content_hash, generated_at = load_state_bytes(state_file)
             except Exception as e:
                 self.send_error_json(500, f"Error reading state file: {str(e)}")
+                return
+            # Freshness metadata travels in headers so the body (and its ETag) stays identical across
+            # scrapes of an unchanged cluster, letting polls be answered with 304 Not Modified.
+            etag = f'"{parse_cluster.fingerprint([ctx, content_hash])}"'
+            meta_headers = {
+                'ETag': etag,
+                'X-Lex-Context': json.dumps(ctx),
+                'X-Lex-Generated-At': generated_at or '',
+                'X-Lex-Sync': json.dumps(get_sync_status(ctx)),
+                'X-Lex-Sync-Interval': str(SYNC_INTERVAL_SECONDS),
+            }
+            if content_hash and etag in [t.strip() for t in (self.headers.get('If-None-Match') or '').split(',')]:
+                self.send_response(304)
+                for k, v in meta_headers.items():
+                    self.send_header(k, v)
+                self.end_headers()
+                return
+            self.send_bytes_response(200, body, 'application/json; charset=utf-8', body_gz, meta_headers)
         else:
             self.send_error_json(404, "Cluster state file could not be found.")
 
     def handle_get_contexts(self):
         try:
-            res = subprocess.run(["kubectl", "config", "get-contexts", "-o", "name"], capture_output=True, text=True, timeout=3)
-            contexts = []
-            if res.returncode == 0:
-                contexts = [line.strip() for line in res.stdout.split('\n') if line.strip()]
-            
+            contexts = list_kube_contexts()
+
             if "demo" not in contexts:
                 contexts = ["demo"] + contexts
                 
@@ -154,29 +398,22 @@ class LocalAPIServer(http.server.SimpleHTTPRequestHandler):
             self.send_error_json(400, "Missing 'context' field in payload")
             return
 
-        if target_context != "demo" and not re.match(r"^[a-zA-Z0-9_./:@-]+$", target_context):
+        if not isinstance(target_context, str) or (target_context != "demo" and not is_valid_context_name(target_context)):
             self.send_error_json(400, "Invalid context name format")
             return
 
+        if target_context != "demo" and target_context not in list_kube_contexts():
+            self.send_error_json(404, f"Context '{target_context}' not found in kubeconfig")
+            return
+
         global active_context
-        if target_context == "demo":
-            try:
-                parse_cluster.parse_cluster(force_mock=True)
-                with active_context_lock:
-                    active_context = "demo"
-                self.send_json_response(200, {"status": "success", "activeContext": "demo"})
-            except Exception as e:
-                self.send_error_json(500, f"Failed to switch to Demo Mode: {str(e)}")
-        else:
-            try:
-                parse_cluster.parse_cluster(context=target_context)
-                with active_context_lock:
-                    active_context = target_context
-                self.send_json_response(200, {"status": "success", "activeContext": target_context})
-            except SystemExit:
-                self.send_error_json(502, f"Failed to query cluster context '{target_context}'. Cluster may be offline or unreachable.")
-            except Exception as e:
-                self.send_error_json(500, f"Unexpected error during context switch: {str(e)}")
+        if scrape_context(target_context) is None:
+            error = get_sync_status(target_context).get("lastError") or "unknown error"
+            self.send_error_json(502, f"Failed to switch to '{target_context}': {error}")
+            return
+        with active_context_lock:
+            active_context = target_context
+        self.send_json_response(200, {"status": "success", "activeContext": target_context})
 
     def handle_pod_logs(self, query_string):
         params = parse_qs(query_string)
@@ -187,7 +424,7 @@ class LocalAPIServer(http.server.SimpleHTTPRequestHandler):
             self.send_error_json(400, "Missing required query parameters: 'pod' and 'namespace'")
             return
 
-        if not re.match(r"^[a-z0-9.-]+$", pod) or not re.match(r"^[a-z0-9.-]+$", namespace):
+        if not is_valid_object_name(pod) or not is_valid_namespace(namespace):
             self.send_error_json(400, "Invalid characters in pod or namespace parameter")
             return
 
@@ -207,7 +444,7 @@ class LocalAPIServer(http.server.SimpleHTTPRequestHandler):
 
         try:
             print(f"Running secure command: kubectl logs {pod} -n {namespace} --tail=200 (context: {ctx})")
-            cmd = ["kubectl", "--context", ctx, "logs", pod, "-n", namespace, "--tail=200"]
+            cmd = ["kubectl", f"--context={ctx}", "logs", pod, "-n", namespace, "--tail=200"]
             res = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
             if res.returncode == 0:
                 self.send_text_response(200, res.stdout)
@@ -228,7 +465,7 @@ class LocalAPIServer(http.server.SimpleHTTPRequestHandler):
             self.send_error_json(400, "Missing required query parameters: 'pod' and 'namespace'")
             return
 
-        if not re.match(r"^[a-z0-9.-]+$", pod) or not re.match(r"^[a-z0-9.-]+$", namespace):
+        if not is_valid_object_name(pod) or not is_valid_namespace(namespace):
             self.send_error_json(400, "Invalid characters in pod or namespace parameter")
             return
 
@@ -277,10 +514,11 @@ Events:
 
         try:
             print(f"Running secure command: kubectl describe pod {pod} -n {namespace} (context: {ctx})")
-            cmd = ["kubectl", "--context", ctx, "describe", "pod", pod, "-n", namespace]
+            cmd = ["kubectl", f"--context={ctx}", "describe", "pod", pod, "-n", namespace]
             res = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
             if res.returncode == 0:
-                self.send_text_response(200, res.stdout)
+                text, hidden = redaction.redact_describe_text(res.stdout)
+                self.send_text_response(200, redaction_banner(hidden) + text)
             else:
                 error_msg = res.stderr or "Unknown error describing pod"
                 self.send_text_response(500, f"▲ kubectl failed:\n{error_msg}")
@@ -298,7 +536,7 @@ Events:
             self.send_error_json(400, "Missing required query parameters: 'pod' and 'namespace'")
             return
 
-        if not re.match(r"^[a-z0-9.-]+$", pod) or not re.match(r"^[a-z0-9.-]+$", namespace):
+        if not is_valid_object_name(pod) or not is_valid_namespace(namespace):
             self.send_error_json(400, "Invalid characters in pod or namespace parameter")
             return
 
@@ -307,45 +545,13 @@ Events:
 
         if ctx == "demo":
             try:
-                state_file = parse_cluster.OUTPUT_FILE
-                if os.path.exists(state_file):
-                    with open(state_file, 'r', encoding='utf-8') as f:
-                        state = json.load(f)
-                    found_pod = None
-                    for node in state.get("nodes", []):
-                        for p in node.get("pods", []):
-                            if p.get("name") == pod and p.get("namespace") == namespace:
-                                found_pod = p.get("raw")
-                                break
-                    if found_pod:
-                        def dict_to_yaml(d, indent=0):
-                            lines = []
-                            spacer = " " * indent
-                            if isinstance(d, dict):
-                                keys = list(d.keys())
-                                preferred = ["apiVersion", "kind", "metadata", "spec", "status"]
-                                sorted_keys = [k for k in preferred if k in keys] + [k for k in keys if k not in preferred]
-                                for k in sorted_keys:
-                                    v = d[k]
-                                    if isinstance(v, (dict, list)):
-                                        lines.append(f"{spacer}{k}:")
-                                        lines.append(dict_to_yaml(v, indent + 2))
-                                    else:
-                                        lines.append(f"{spacer}{k}: {v}")
-                            elif isinstance(d, list):
-                                for item in d:
-                                    if isinstance(item, (dict, list)):
-                                        yaml_item = dict_to_yaml(item, indent + 2).lstrip()
-                                        lines.append(f"{spacer}- {yaml_item}")
-                                    else:
-                                        lines.append(f"{spacer}- {item}")
-                            else:
-                                lines.append(f"{spacer}{d}")
-                            return "\n".join(lines)
-                        
-                        yaml_text = dict_to_yaml(found_pod)
-                        self.send_text_response(200, yaml_text)
-                        return
+                found_pod = next((p for p in load_demo_raw_items("pods")
+                                  if (p.get("metadata") or {}).get("name") == pod
+                                  and (p.get("metadata") or {}).get("namespace", "default") == namespace), None)
+                if found_pod:
+                    hidden = redaction.sanitize_pod_for_display(found_pod)
+                    self.send_text_response(200, redaction_banner(hidden) + dict_to_yaml(found_pod))
+                    return
             except Exception as e:
                 print(f"Error serving mock pod spec: {e}")
 
@@ -369,10 +575,12 @@ spec:
 
         try:
             print(f"Running secure command: kubectl get pod {pod} -n {namespace} -o yaml (context: {ctx})")
-            cmd = ["kubectl", "--context", ctx, "get", "pod", pod, "-n", namespace, "-o", "yaml"]
+            cmd = ["kubectl", f"--context={ctx}", "get", "pod", pod, "-n", namespace, "-o", "json"]
             res = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
             if res.returncode == 0:
-                self.send_text_response(200, res.stdout)
+                pod_obj = json.loads(res.stdout)
+                hidden = redaction.sanitize_pod_for_display(pod_obj)
+                self.send_text_response(200, redaction_banner(hidden) + dict_to_yaml(pod_obj))
             else:
                 error_msg = res.stderr or "Unknown error fetching pod spec"
                 self.send_text_response(500, f"▲ kubectl failed:\n{error_msg}")
@@ -389,7 +597,7 @@ spec:
             self.send_error_json(400, "Missing required query parameter: 'node'")
             return
 
-        if not re.match(r"^[a-z0-9.-]+$", node_name):
+        if not is_valid_object_name(node_name):
             self.send_error_json(400, "Invalid characters in node parameter")
             return
 
@@ -398,44 +606,12 @@ spec:
 
         if ctx == "demo":
             try:
-                state_file = parse_cluster.OUTPUT_FILE
-                if os.path.exists(state_file):
-                    with open(state_file, 'r', encoding='utf-8') as f:
-                        state = json.load(f)
-                    found_node = None
-                    for n in state.get("nodes", []):
-                        if n.get("name") == node_name:
-                            found_node = n.get("raw")
-                            break
-                    if found_node:
-                        def dict_to_yaml(d, indent=0):
-                            lines = []
-                            spacer = " " * indent
-                            if isinstance(d, dict):
-                                keys = list(d.keys())
-                                preferred = ["apiVersion", "kind", "metadata", "spec", "status"]
-                                sorted_keys = [k for k in preferred if k in keys] + [k for k in keys if k not in preferred]
-                                for k in sorted_keys:
-                                    v = d[k]
-                                    if isinstance(v, (dict, list)):
-                                        lines.append(f"{spacer}{k}:")
-                                        lines.append(dict_to_yaml(v, indent + 2))
-                                    else:
-                                        lines.append(f"{spacer}{k}: {v}")
-                            elif isinstance(d, list):
-                                for item in d:
-                                    if isinstance(item, (dict, list)):
-                                        yaml_item = dict_to_yaml(item, indent + 2).lstrip()
-                                        lines.append(f"{spacer}- {yaml_item}")
-                                    else:
-                                        lines.append(f"{spacer}- {item}")
-                            else:
-                                lines.append(f"{spacer}{d}")
-                            return "\n".join(lines)
-                        
-                        yaml_text = dict_to_yaml(found_node)
-                        self.send_text_response(200, yaml_text)
-                        return
+                found_node = next((n for n in load_demo_raw_items("nodes")
+                                   if (n.get("metadata") or {}).get("name") == node_name), None)
+                if found_node:
+                    yaml_text = dict_to_yaml(found_node)
+                    self.send_text_response(200, yaml_text)
+                    return
             except Exception as e:
                 print(f"Error serving mock node spec: {e}")
 
@@ -460,7 +636,7 @@ status:
 
         try:
             print(f"Running secure command: kubectl get node {node_name} -o yaml (context: {ctx})")
-            cmd = ["kubectl", "--context", ctx, "get", "node", node_name, "-o", "yaml"]
+            cmd = ["kubectl", f"--context={ctx}", "get", "node", node_name, "-o", "yaml"]
             res = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
             if res.returncode == 0:
                 self.send_text_response(200, res.stdout)
@@ -482,7 +658,7 @@ status:
             self.send_error_json(400, "Missing required query parameters: 'name' and 'kind'")
             return
 
-        if not re.match(r"^[a-z0-9.-]+$", name) or (namespace and not re.match(r"^[a-z0-9.-]+$", namespace)):
+        if not is_valid_object_name(name) or (namespace and not is_valid_namespace(namespace)):
             self.send_error_json(400, "Invalid characters in name or namespace parameter")
             return
 
@@ -506,7 +682,7 @@ status:
 
         try:
             cmd = ["kubectl"]
-            cmd += ["--context", ctx]
+            cmd += [f"--context={ctx}"]
             if kind == 'pod':
                 ns = namespace if namespace else 'default'
                 cmd += ["get", "events", "-n", ns, "--field-selector", f"involvedObject.name={name}"]
@@ -544,60 +720,107 @@ status:
             return
             
         try:
-            snapshots = dvr_db.get_snapshots(session_id)
-            self.send_json_response(200, {"snapshots": snapshots})
+            # Timeline only (ids, timestamps, incident summaries); frames are fetched individually
+            self.send_json_response(200, {"frames": dvr_db.get_timeline(session_id)})
         except Exception as e:
             self.send_error_json(500, f"Error fetching snapshots: {str(e)}")
 
-    def handle_dvr_recording_status(self):
+    METRICS_WINDOWS = {"1h": 3600, "6h": 6 * 3600, "24h": 24 * 3600, "7d": 7 * 24 * 3600}
+
+    def handle_metrics_history(self, query_string):
+        params = parse_qs(query_string)
+        window = params.get('window', ['1h'])[0]
+        if window not in self.METRICS_WINDOWS:
+            self.send_error_json(400, f"window must be one of {', '.join(self.METRICS_WINDOWS)}")
+            return
         with active_context_lock:
-            ctx = active_context
+            ctx = params.get('context', [active_context])[0]
+        if ctx != "demo" and not is_valid_context_name(ctx):
+            self.send_error_json(400, "Invalid context name format")
+            return
+        end = None
+        if params.get('end'):
+            try:
+                end = datetime.datetime.fromisoformat(params['end'][0].replace('Z', '+00:00'))
+            except ValueError:
+                self.send_error_json(400, "end must be an ISO-8601 timestamp")
+                return
+        try:
+            if ctx == "demo":
+                points = metrics.synthetic_history(load_demo_state(), self.METRICS_WINDOWS[window], end)
+                synthetic = True
+            else:
+                points = metrics.history(ctx, self.METRICS_WINDOWS[window], end)
+                synthetic = False
+        except Exception as e:
+            self.send_error_json(500, f"Error reading metrics history: {e}")
+            return
+        self.send_json_response(200, {"context": ctx, "window": window, "synthetic": synthetic, "points": points})
+
+    def handle_dvr_snapshot(self, query_string):
+        params = parse_qs(query_string)
+        session_id = params.get('session_id', [None])[0]
+        snapshot_id = params.get('id', [None])[0]
+        if not session_id or not snapshot_id or not snapshot_id.isdigit():
+            self.send_error_json(400, "Required query parameters: 'session_id' and numeric 'id'")
+            return
+        if not re.match(r"^[a-zA-Z0-9_./:@-]+$", session_id):
+            self.send_error_json(400, "Invalid session_id format")
+            return
+        snapshot = dvr_db.get_snapshot(session_id, int(snapshot_id))
+        if snapshot is None:
+            self.send_error_json(404, "Snapshot not found")
+            return
+        self.send_json_response(200, snapshot)
+
+    def handle_dvr_recording_status(self):
         with active_recording_session_lock:
             session_id = active_recording_session
-            
+            recording_ctx = active_recording_context
+
         self.send_json_response(200, {
             "recording": session_id is not None,
             "session_id": session_id,
-            "cluster_name": ctx
+            "cluster_name": recording_ctx
         })
 
     def handle_dvr_recording_toggle(self):
+        global active_recording_session, active_recording_context
         with active_context_lock:
             ctx = active_context
-            
+
         with active_recording_session_lock:
-            global active_recording_session
-            if active_recording_session is None:
-                # Start recording
+            stopping_session = active_recording_session
+            if stopping_session is None:
                 session_id = dvr_db.start_session(ctx)
-                if session_id:
-                    active_recording_session = session_id
-                    # Perform an immediate synchronous poll & record initial snapshot
-                    try:
-                        force_mock = (ctx == "demo")
-                        state = parse_cluster.parse_cluster(context=ctx, force_mock=force_mock)
-                        dvr_db.add_snapshot(session_id, ctx, state)
-                    except Exception as e:
-                        print(f"▲ Error saving initial snapshot during toggle: {e}")
-                    
-                    self.send_json_response(200, {
-                        "status": "success",
-                        "recording": True,
-                        "session_id": session_id,
-                        "cluster_name": ctx
-                    })
-                else:
+                if not session_id:
                     self.send_error_json(500, "Could not start recording session")
+                    return
+                active_recording_session = session_id
+                active_recording_context = ctx
             else:
-                # Stop recording
-                session_id = active_recording_session
                 active_recording_session = None
-                dvr_db.end_session(session_id)
-                self.send_json_response(200, {
-                    "status": "success",
-                    "recording": False,
-                    "session_id": session_id
-                })
+                active_recording_context = None
+
+        if stopping_session is not None:
+            dvr_db.end_session(stopping_session)
+            self.send_json_response(200, {
+                "status": "success",
+                "recording": False,
+                "session_id": stopping_session
+            })
+            return
+
+        # Record an initial snapshot immediately (outside the lock so the background sync isn't blocked)
+        state = scrape_context(ctx)
+        if state is not None:
+            dvr_db.add_snapshot(session_id, ctx, state)
+        self.send_json_response(200, {
+            "status": "success",
+            "recording": True,
+            "session_id": session_id,
+            "cluster_name": ctx
+        })
 
     def handle_dvr_session_delete(self):
         try:
@@ -618,10 +841,11 @@ status:
             return
 
         with active_recording_session_lock:
-            global active_recording_session
+            global active_recording_session, active_recording_context
             # If the session to delete is active, toggle it off first
             if active_recording_session == session_id:
                 active_recording_session = None
+                active_recording_context = None
 
         try:
             success = dvr_db.delete_session(session_id)
@@ -632,13 +856,29 @@ status:
         except Exception as e:
             self.send_error_json(500, f"Error deleting session: {str(e)}")
 
-    def send_json_response(self, code, data):
+    def accepts_gzip(self):
+        return 'gzip' in (self.headers.get('Accept-Encoding') or '').lower()
+
+    def send_bytes_response(self, code, body, content_type, body_gz=None, extra_headers=None):
+        """Sends body, gzip-encoded when the client accepts it and it's worth compressing."""
+        use_gzip = self.accepts_gzip() and len(body) >= GZIP_MIN_BYTES
+        if use_gzip and body_gz is None:
+            body_gz = gzip.compress(body, 6)
+        payload = body_gz if use_gzip else body
         self.send_response(code)
-        self.send_header('Content-Type', 'application/json; charset=utf-8')
-        payload = json.dumps(data).encode('utf-8')
+        self.send_header('Content-Type', content_type)
+        if use_gzip:
+            self.send_header('Content-Encoding', 'gzip')
+        self.send_header('Vary', 'Accept-Encoding')
+        for k, v in (extra_headers or {}).items():
+            self.send_header(k, v)
         self.send_header('Content-Length', str(len(payload)))
         self.end_headers()
         self.wfile.write(payload)
+
+    def send_json_response(self, code, data):
+        payload = json.dumps(data, separators=(",", ":")).encode('utf-8')
+        self.send_bytes_response(code, payload, 'application/json; charset=utf-8')
 
     def send_text_response(self, code, text):
         self.send_response(code)
@@ -651,27 +891,40 @@ status:
     def send_error_json(self, code, message):
         self.send_json_response(code, {"error": message})
 
-def run_bg_sync():
-    """Background polling thread worker."""
-    print("Background Kubernetes context poller started (30s interval).")
+def run_bg_sync(interval=SYNC_INTERVAL_SECONDS):
+    """Background polling thread worker: refreshes the active context and feeds any active recording."""
+    print(f"Background Kubernetes context poller started ({interval}s interval).")
+    last_prune = 0.0
+    next_run = time.time() + interval  # main() has just compiled fresh state at boot
     while True:
+        time.sleep(max(1.0, next_run - time.time()))
+        next_run = max(next_run + interval, time.time())
+        started = time.time()
+        if started - last_prune > 3600:
+            last_prune = started
+            try:
+                dvr_db.prune_old_snapshots(DVR_RETENTION_DAYS)
+                metrics.prune()
+            except Exception as e:
+                print(f"▲ Retention pass failed: {e}")
         try:
             with active_context_lock:
                 ctx = active_context
             with active_recording_session_lock:
                 session_id = active_recording_session
-            
-            # Scrape and process if not demo mode or if recording is enabled
-            if ctx != "demo" or session_id:
-                force_mock = (ctx == "demo")
-                state = parse_cluster.parse_cluster(context=ctx, force_mock=force_mock)
-                if session_id:
-                    dvr_db.add_snapshot(session_id, ctx, state)
-        except SystemExit:
-            print(f"Background sync failed for context '{ctx}' (SystemExit)")
+                recording_ctx = active_recording_context
+
+            state = None
+            # Demo data is static, so only re-compile it when it's being recorded
+            if ctx != "demo":
+                state = scrape_context(ctx)
+            if session_id and recording_ctx:
+                if recording_ctx != ctx or state is None:
+                    state = scrape_context(recording_ctx)
+                if state is not None:
+                    dvr_db.add_snapshot(session_id, recording_ctx, state)
         except Exception as e:
             print(f"Error in background sync worker: {e}")
-        time.sleep(30)
 
 def init_active_context():
     """Attempts to discover active kubectl context at boot."""
@@ -693,10 +946,27 @@ def init_active_context():
         print(f"Failed to query active context on boot: {e}. Defaulting to 'demo' context.")
 
 def main():
-    global active_context
+    global active_context, SYNC_INTERVAL_SECONDS, DVR_RETENTION_DAYS
+    import argparse
+    parser = argparse.ArgumentParser(description="Lex local API server")
+    parser.add_argument("--port", type=int, default=PORT, help=f"Port to listen on (default: {PORT})")
+    parser.add_argument("--interval", type=int, default=SYNC_INTERVAL_SECONDS,
+                        help=f"Seconds between background cluster scrapes (default: {SYNC_INTERVAL_SECONDS})")
+    parser.add_argument("--dvr-retention-days", type=float, default=DVR_RETENTION_DAYS,
+                        help=f"Delete DVR frames older than this many days; 0 keeps everything (default: {DVR_RETENTION_DAYS})")
+    args = parser.parse_args()
+    DVR_RETENTION_DAYS = args.dvr_retention_days
+
+    SYNC_INTERVAL_SECONDS = max(5, args.interval)
+
     # Initialize DVR database schemas on boot
-    import dvr_db
     dvr_db.init_db()
+
+    # Dumps written by earlier versions held literal env values (often credentials): scrub them once
+    parse_cluster.ensure_data_dir()
+    scrubbed = redaction.scrub_data_dir(parse_cluster.DATA_DIR, parse_cluster.write_file_atomic)
+    if scrubbed:
+        print(f"✔ Redacted secret values from {scrubbed} existing cluster dump(s) in {parse_cluster.DATA_DIR}")
 
     # Discover active context dynamically on startup
     init_active_context()
@@ -705,34 +975,27 @@ def main():
         ctx = active_context
 
     print(f"Bootstrapping cluster state for context: {ctx}...")
-    try:
-        if ctx == "demo":
-            parse_cluster.parse_cluster(force_mock=True)
-        else:
-            parse_cluster.parse_cluster(context=ctx)
-    except SystemExit:
-        print(f"Warning: Context '{ctx}' is unreachable on boot. Falling back to Demo Mode...")
-        parse_cluster.parse_cluster(force_mock=True)
-        with active_context_lock:
-            active_context = "demo"
-    except Exception as e:
-        print(f"Initial context parsing completed with warning: {e}. Falling back to Demo Mode...")
-        parse_cluster.parse_cluster(force_mock=True)
-        with active_context_lock:
-            active_context = "demo"
+    if scrape_context(ctx) is None and ctx != "demo":
+        # Stay on the real context and keep retrying in the background: silently switching to demo
+        # (as earlier versions did) left Lex stuck on sample data after a transient failure at startup.
+        error = get_sync_status(ctx).get("lastError") or "unknown error"
+        print(f"▲ Initial scrape of '{ctx}' failed: {error}")
+        print(f"▲ Staying on '{ctx}' and retrying every {SYNC_INTERVAL_SECONDS}s. "
+              f"Check kubectl access (e.g. `kubectl --context={ctx} get nodes`), or pick 'demo' in the UI for sample data.")
 
     # Launch background thread
-    t = threading.Thread(target=run_bg_sync, daemon=True)
+    t = threading.Thread(target=run_bg_sync, args=(SYNC_INTERVAL_SECONDS,), daemon=True)
     t.start()
 
-    # Serve HTTP
-    server_address = (BIND_ADDRESS, PORT)
-    httpd = http.server.HTTPServer(server_address, LocalAPIServer)
+    # Serve HTTP (threaded, so a slow kubectl call never blocks other requests)
+    server_address = (BIND_ADDRESS, args.port)
+    httpd = http.server.ThreadingHTTPServer(server_address, LocalAPIServer)
+    httpd.daemon_threads = True
     print(f"============================================================")
     print(f"🚀 Lex Server running successfully!")
-    print(f"🔗 Local Web Interface: http://{BIND_ADDRESS}:{PORT}/")
+    print(f"🔗 Local Web Interface: http://{BIND_ADDRESS}:{args.port}/")
     print(f"============================================================")
-    
+
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
