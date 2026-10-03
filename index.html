@@ -97,7 +97,7 @@
         .res-row-name { font: 11px 'JetBrains Mono', monospace; color: #e2e8f0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .res-row-detail { font-size: 10px; color: #94a3b8; margin-top: 1px; }
 
-        #xray-legend {
+        #xray-legend, #usage-legend {
             position: fixed; left: 50%; top: 58px; transform: translateX(-50%); z-index: 30;   /* below the stats bar; toasts and DVR use the bottom */
             display: flex; align-items: center; gap: 14px; padding: 9px 16px; border-radius: 14px;
             background: rgba(13, 13, 18, 0.88); border: 1px solid rgba(255, 255, 255, 0.15);
@@ -108,7 +108,16 @@
         .xray-item b { font-family: 'JetBrains Mono', monospace; margin-left: 2px; }
         .xray-toggle { display: flex; align-items: center; gap: 6px; color: #94a3b8; font: 11px 'Outfit', sans-serif; cursor: pointer; margin-bottom: 8px; }
         #xray-legend .xray-toggle { margin-bottom: 0; }
-        #xray-legend button { font: 700 11px 'Outfit', sans-serif; color: #cbd5e1; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; padding: 3px 9px; cursor: pointer; }
+        #usage-legend { gap: 10px; max-width: calc(100vw - 32px); flex-wrap: wrap; justify-content: center; }
+        #usage-legend .usage-status { color: #94a3b8; font-size: 11px; white-space: normal; max-width: 420px; }
+        .usage-seg { display: inline-flex; }
+        .usage-seg button { border-radius: 0 !important; }
+        .usage-seg button:first-child { border-radius: 8px 0 0 8px !important; }
+        .usage-seg button:last-child { border-radius: 0 8px 8px 0 !important; border-left: none !important; }
+        #usage-legend button.active { color: #f8fafc; background: rgba(57, 135, 229, 0.35); border-color: rgba(57, 135, 229, 0.7); }
+        .usage-shell-swatch::before { background: rgba(203, 213, 225, 0.12) !important; border: 1px solid rgba(203, 213, 225, 0.6); box-sizing: border-box; }
+        .xray-item[style*="transparent"]::before { border: 1px dashed rgba(203, 213, 225, 0.5); box-sizing: border-box; }
+        #usage-legend button, #xray-legend button { font: 700 11px 'Outfit', sans-serif; color: #cbd5e1; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; padding: 3px 9px; cursor: pointer; }
         .sec-badge { font: 800 9px 'Outfit', sans-serif; letter-spacing: 0.5px; padding: 1px 6px; border-radius: 6px; text-transform: uppercase; }
         .sec-badge.critical { color: #fecaca; background: rgba(208, 59, 59, 0.3); }
         .sec-badge.high { color: #fed7aa; background: rgba(236, 131, 90, 0.28); }
@@ -876,12 +885,17 @@
         #ops-panel.visible { opacity: 1; transform: translateY(0); pointer-events: auto; }
         .ops-filter-row { display: flex; gap: 6px; margin: 4px 0 10px; flex-shrink: 0; }
         .ops-chip-right { margin-left: auto; }
-        .ops-tabs { display: flex; gap: 4px; margin: 2px 0 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); flex-shrink: 0; }
-        .ops-tab {
-            font: 700 12px 'Outfit', sans-serif; color: #94a3b8; background: none; border: none; cursor: pointer;
-            padding: 6px 10px 8px; border-bottom: 2px solid transparent; margin-bottom: -1px;
+        /* Tabs are pills that wrap onto a second row instead of overflowing the panel */
+        .ops-tabs {
+            display: flex; flex-wrap: wrap; gap: 4px; margin: 2px 0 10px; padding-bottom: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08); flex-shrink: 0;
         }
-        .ops-tab.active { color: #f8fafc; border-bottom-color: #3987e5; }
+        .ops-tab {
+            font: 700 12px 'Outfit', sans-serif; color: #94a3b8; background: rgba(255, 255, 255, 0.03); cursor: pointer;
+            padding: 5px 10px; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; white-space: nowrap;
+        }
+        .ops-tab:hover { color: #e2e8f0; background: rgba(255, 255, 255, 0.07); }
+        .ops-tab.active { color: #f8fafc; background: rgba(57, 135, 229, 0.22); border-color: rgba(57, 135, 229, 0.6); }
         .ops-tab-body { flex: 1; min-height: 0; flex-direction: column; display: flex; }
         .vital-tile {
             position: relative; padding: 10px 12px 8px; margin-bottom: 8px; border-radius: 10px;
@@ -901,6 +915,24 @@
         .vital-table td { text-align: right; padding: 3px 4px; border-bottom: 1px solid rgba(255,255,255,0.04); }
         .vital-table th:first-child, .vital-table td:first-child { text-align: left; }
         .top-section { margin-bottom: 12px; }
+        .rs-note { font-size: 11px; color: #94a3b8; margin: 2px 0 10px; line-height: 1.45; }
+        .rs-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }
+        .rs-tile { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 8px 10px; min-width: 0; }
+        .rs-label { font-size: 10px; color: #94a3b8; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; }
+        .rs-big { font: 800 20px 'Outfit', sans-serif; color: #f8fafc; margin-top: 2px; }
+        .rs-unit { font-size: 12px; color: #94a3b8; font-weight: 600; }
+        .rs-sub { font-size: 10px; color: #cbd5e1; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        body.tv-mode #crosshair, body.tv-mode #hud-tooltip, body.tv-mode #pod-yaml-panel { display: none !important; }
+        body.tv-mode #canvas-container { cursor: none; }
+        #tv-caption {
+            position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 40; max-width: calc(100vw - 32px);
+            display: flex; align-items: center; gap: 12px; padding: 10px 18px; border-radius: 16px;
+            background: rgba(13, 13, 18, 0.82); border: 1px solid rgba(255, 255, 255, 0.15); backdrop-filter: blur(12px);
+            color: #f8fafc; font: 600 16px 'Outfit', sans-serif;
+        }
+        #tv-caption .tv-chip { font: 800 11px 'Outfit', sans-serif; letter-spacing: 0.8px; padding: 3px 8px; border-radius: 8px; background: rgba(57, 135, 229, 0.3); color: #bfdbfe; }
+        #tv-caption .tv-caption-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        #tv-caption .tv-exit { font-size: 11px; color: #94a3b8; font-weight: 500; white-space: nowrap; }
         .top-title { font: 700 11px 'Outfit', sans-serif; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px; }
         .top-row {
             display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; cursor: pointer;
@@ -1703,6 +1735,8 @@
                 <strong>O Key:</strong> Alerts (Ops) Panel<br>
                 <strong>N Key:</strong> Toggle noclip (walk through walls)<br>
                 <strong>X Key:</strong> Security X-ray lens<br>
+                <strong>U Key:</strong> Rightsizing lens (requests vs usage)<br>
+                <strong>T Key:</strong> TV mode (hands-free tour)<br>
                 <strong>L Key:</strong> Copy a shareable link to what you're looking at<br>
                 <strong>ESC:</strong> Exit mouse lock
             </p>
@@ -1752,6 +1786,7 @@
                 <button class="ops-tab" data-tab="top" role="tab">Top 5</button>
                 <button class="ops-tab" data-tab="security" role="tab">Security</button>
                 <button class="ops-tab" data-tab="resilience" role="tab">Resilience</button>
+                <button class="ops-tab" data-tab="rightsizing" role="tab">Rightsizing</button>
             </div>
             <div class="ops-tab-body" id="ops-tab-alerts">
                 <div class="ops-filter-row" id="ops-filter-row">
@@ -1780,6 +1815,9 @@
             <div class="ops-tab-body" id="ops-tab-security" style="display: none;">
                 <label class="xray-toggle"><input type="checkbox" class="xray-platform-toggle"> Include platform agents (DaemonSets, kube-system…)</label>
                 <div id="ops-security" class="search-results-scroll"></div>
+            </div>
+            <div class="ops-tab-body" id="ops-tab-rightsizing" style="display: none;">
+                <div id="ops-rightsizing" class="search-results-scroll"></div>
             </div>
         </div>
 
@@ -1960,6 +1998,18 @@
         <label class="xray-toggle"><input type="checkbox" class="xray-platform-toggle"> Platform agents</label>
         <button id="xray-details-btn" title="Findings by type (Ops → Security)">Details</button>
         <button id="xray-close-btn" title="Turn off X-ray (X)">✕</button>
+    </div>
+    <div id="usage-legend" style="display: none;">
+        <span class="xray-title">📏 RIGHTSIZING</span>
+        <span class="usage-seg"><button data-usage-metric="memory" title="Fill rooms by memory used">Memory</button><button data-usage-metric="cpu" title="Fill rooms by CPU used">CPU</button></span>
+        <span class="usage-seg"><button data-usage-basis="peak" title="Recent peak usage">Peak</button><button data-usage-basis="current" title="Latest sample">Now</button></span>
+        <span class="xray-item" style="--swatch:#3987e5">Used</span>
+        <span class="xray-item" style="--swatch:#ec835a">Over request <b id="usage-count-over">0</b></span>
+        <span class="xray-item usage-shell-swatch">Mostly idle &lt;35% <b id="usage-count-idle">0</b></span>
+        <span class="xray-item" style="--swatch:transparent">No data <b id="usage-count-none">0</b></span>
+        <span class="usage-status"></span>
+        <button id="usage-details-btn" title="Savings by namespace (Ops → Rightsizing)">Details</button>
+        <button id="usage-close-btn" title="Turn off the rightsizing lens (U)">✕</button>
     </div>
     <div id="toast-container"></div>
     <div id="canvas-container"></div>
@@ -3563,6 +3613,7 @@ ${labels}`;
             if (opsTab === 'top') { renderTop(); return; }
             if (opsTab === 'security') { renderSecurity(); return; }
             if (opsTab === 'resilience') { renderResilience(); return; }
+            if (opsTab === 'rightsizing') { renderRightsizing(); return; }
             const all = alertIndex ? alertIndex.all : [];
             const counts = { all: all.length, critical: all.filter(a => a.severity === 'critical').length };
             counts.warning = counts.all - counts.critical;
@@ -3717,7 +3768,7 @@ ${labels}`;
                 t.classList.toggle('active', active);
                 t.setAttribute('aria-selected', active ? 'true' : 'false');
             });
-            ['alerts', 'vitals', 'top', 'security', 'resilience'].forEach(t => {
+            ['alerts', 'vitals', 'top', 'security', 'resilience', 'rightsizing'].forEach(t => {
                 const el = document.getElementById(`ops-tab-${t}`);
                 if (el) el.style.display = t === tab ? 'flex' : 'none';
             });
@@ -4198,6 +4249,7 @@ ${labels}`;
         }
 
         function setXray(enabled) {
+            if (enabled && usageLens) setUsageLens(false, true);
             xrayEnabled = enabled;
             const legend = document.getElementById('xray-legend');
             if (legend) legend.style.display = enabled ? 'flex' : 'none';
@@ -4463,6 +4515,7 @@ ${labels}`;
             if (isDVRMode) { showToast('Exit DVR mode to run a failure simulation', 'error'); return; }
             if (simState) endSimulation(true);
             if (xrayEnabled) setXray(false);
+            if (usageLens) setUsageLens(false, true);
             clearSearchHighlight(false);
             setHoverHighlight([]);
             const targets = new Set(targetNames);
@@ -4605,8 +4658,8 @@ ${labels}`;
         // ---------- Shareable deep links (F-23) ----------
         // #ctx=<context>&(pod=<ns>/<name> | node=<name> | workload=<ns>/<Kind>/<name> | alert=<id> | lobby=1 | cam=x,y,z,tx,ty,tz)[&xray=1][&ops=<tab>]
         let pendingDeepLink = null;        // parsed link waiting for its context's data
-        const DEEP_LINK_KEYS = ['ctx', 'pod', 'node', 'workload', 'alert', 'lobby', 'cam', 'xray', 'ops'];
-        const OPS_TABS = ['alerts', 'vitals', 'top', 'security', 'resilience'];
+        const DEEP_LINK_KEYS = ['ctx', 'pod', 'node', 'workload', 'alert', 'lobby', 'cam', 'xray', 'ops', 'lens', 'tv'];
+        const OPS_TABS = ['alerts', 'vitals', 'top', 'security', 'resilience', 'rightsizing'];
 
         function currentContextName() {
             return (lastServerStateMeta && lastServerStateMeta.activeContext) || activeContext;
@@ -4707,6 +4760,7 @@ ${labels}`;
             history.replaceState(null, '', window.location.pathname + window.location.search);   // a used link shouldn't re-fire on reload
 
             if (link.xray === '1' && !xrayEnabled) setXray(true);
+            if (link.lens === 'usage' && !usageLens) setUsageLens(true);
             if (link.ops && OPS_TABS.includes(link.ops)) { openOpsPanel(); setOpsTab(link.ops); }
 
             if (link.pod) {
@@ -4746,6 +4800,7 @@ ${labels}`;
             } else if (link.cam) {
                 applyCameraParam(link.cam);
             }
+            if (link.tv === '1') startTvMode();   // e.g. a wall screen bookmarked with #tv=1
         }
 
         function queueDeepLinkFromHash() {
@@ -4770,6 +4825,7 @@ ${labels}`;
                     showToast(fresh.length === 1
                         ? `New critical alert: ${fresh[0].title} (${alertSubjectLabel(fresh[0])})`
                         : `${fresh.length} new critical alerts: ${fresh.slice(0, 3).map(a => a.title).join(', ')}${fresh.length > 3 ? '…' : ''}`, 'error');
+                    if (tvMode) tvInterrupt(fresh[0]);
                     const pill = document.getElementById('alert-pill');
                     if (pill) {
                         pill.classList.remove('new-critical');
@@ -5255,6 +5311,8 @@ ${labels}`;
             .then(data => {
                 showToast(`Switched context to "${newCtx}" successfully.`, 'success');
                 activeContext = newCtx;
+                usageData = null;
+                if (usageLens) fetchUsage();
                 hasLoadedServerState = false;
                 lastServerStateMeta = null;
                 lastStateETag = null;
@@ -5425,7 +5483,709 @@ ${labels}`;
             });
         }
  
+        // ---------- F-27: animate what actually happens (diff of consecutive states) ----------
+        // All motion is computed from timestamps, so throttled or backgrounded tabs never replay a backlog.
+        const fxReducedMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+        let fxEnabled = !fxReducedMotion;
+        let fxSourceKey = null;            // effects only fire between two states of the same cluster and view
+        let fxPrevAlertIds = new Set();
+        const FX_MAX_PARTICLES = 1600;
+        const FX_MAX_EFFECTS_PER_SYNC = 40;  // a big DVR seek or a mass reschedule stays readable
+        const fxParticleMaterial = new THREE.MeshLambertMaterial({ color: 0xffffff });
+        fxParticleMaterial.userData.shared = true;
+        let fxParticles = null;
+        const fxList = [];
+        const fxMoves = [];                // rooms dropping in or settling: { mesh, fromY, toY, born, dur, bounce, dustAt }
+        const fxDummy = new THREE.Object3D();
+        const fxColor = new THREE.Color();
+
+        function fxNow() { return performance.now() / 1000; }
+
+        function ensureFxParticles() {
+            if (fxParticles) return;
+            fxParticles = new THREE.InstancedMesh(unitBoxGeometry, fxParticleMaterial, FX_MAX_PARTICLES);
+            fxParticles.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+            fxParticles.setColorAt(0, fxColor.set(0xffffff));
+            fxParticles.count = 0;
+            fxParticles.frustumCulled = false;
+            scene.add(fxParticles);
+        }
+
+        // opts: color, count, spread [x,y,z], speed, up, gravity, life, size, ground, delay (emission window), grow, drag
+        function fxBurst(center, opts) {
+            if (!fxEnabled) return;
+            ensureFxParticles();
+            const now = fxNow();
+            const [sx, sy, sz] = opts.spread || [1, 1, 1];
+            for (let i = 0; i < (opts.count || 20); i++) {
+                if (fxList.length >= FX_MAX_PARTICLES) fxList.shift();
+                fxColor.setHex(opts.color != null ? opts.color : 0xffffff).offsetHSL(0, 0, (Math.random() - 0.5) * (opts.shade != null ? opts.shade : 0.16));
+                fxList.push({
+                    x0: center.x + (Math.random() - 0.5) * sx, y0: center.y + (Math.random() - 0.5) * sy, z0: center.z + (Math.random() - 0.5) * sz,
+                    vx: (Math.random() - 0.5) * (opts.speed || 4), vz: (Math.random() - 0.5) * (opts.speed || 4),
+                    vy: (opts.up || 0) * (0.4 + Math.random() * 0.9),
+                    g: opts.gravity != null ? opts.gravity : -18, drag: opts.drag || 1.2,
+                    born: now + Math.random() * (opts.delay || 0), life: (opts.life || 1.5) * (0.7 + Math.random() * 0.6),
+                    size: (opts.size || 0.4) * (0.6 + Math.random() * 0.8), grow: opts.grow || 0,
+                    ground: opts.ground != null ? opts.ground : 0.15, spin: (Math.random() - 0.5) * 8,
+                    r: fxColor.r, gr: fxColor.g, b: fxColor.b
+                });
+            }
+        }
+
+        function fxBreak(pos, scale, color) {
+            const volume = Math.max(0.5, scale.x * scale.y * scale.z);
+            fxBurst(pos, { color, count: Math.round(Math.min(60, 10 + volume * 0.25)), spread: [scale.x * 0.8, Math.max(0.4, scale.y), scale.z * 0.8],
+                           speed: 7, up: 5, gravity: -20, life: 1.8, size: 0.55 });
+        }
+        function fxDust(pos, radius = 3, count = 18) {
+            fxBurst(pos, { color: 0xd6c7a1, count, spread: [radius * 2, 0.3, radius * 2], speed: 5, up: 2.2, gravity: -4, life: 1.1, size: 0.3, shade: 0.1 });
+        }
+        function fxSmoke(pos) {
+            fxBurst(pos, { color: 0x6b7280, count: 34, spread: [2.5, 1, 2.5], speed: 1.2, up: 2.2, gravity: 1.2, life: 3.2, size: 0.5, grow: 0.9, delay: 2.5, ground: -1e9, drag: 0.4 });
+            fxBurst(pos, { color: 0xef4444, count: 14, spread: [2, 1, 2], speed: 6, up: 4, gravity: -14, life: 0.8, size: 0.25 });
+        }
+        function fxSparks(pos) {
+            fxBurst(pos, { color: 0xf59e0b, count: 12, spread: [1.5, 0.6, 1.5], speed: 7, up: 5, gravity: -16, life: 0.7, size: 0.18, shade: 0.25 });
+        }
+        function fxMove(mesh, fromY, toY, opts = {}) {
+            mesh.position.y = fromY;
+            mesh.userData.restY = toY;   // overlays (rightsizing lens) are placed at the resting height
+            fxMoves.push({ mesh, fromY, toY, born: fxNow() + (opts.delay || 0), dur: opts.dur || 0.8, bounce: !!opts.bounce, dust: !!opts.dust });
+        }
+
+        function easeOutBounce(x) {
+            const n1 = 7.5625, d1 = 2.75;
+            if (x < 1 / d1) return n1 * x * x;
+            if (x < 2 / d1) return n1 * (x -= 1.5 / d1) * x + 0.75;
+            if (x < 2.5 / d1) return n1 * (x -= 2.25 / d1) * x + 0.9375;
+            return n1 * (x -= 2.625 / d1) * x + 0.984375;
+        }
+
+        function updateFx() {
+            const now = fxNow();
+            for (let i = fxMoves.length - 1; i >= 0; i--) {
+                const m = fxMoves[i];
+                if (!m.mesh.parent) { fxMoves.splice(i, 1); continue; }   // rebuilt meanwhile
+                const p = Math.min(1, Math.max(0, (now - m.born) / m.dur));
+                const e = m.bounce ? easeOutBounce(p) : 1 - Math.pow(1 - p, 3);
+                m.mesh.position.y = m.fromY + (m.toY - m.fromY) * e;
+                if (p >= 1) {
+                    m.mesh.position.y = m.toY;
+                    delete m.mesh.userData.restY;
+                    if (m.dust) {
+                        const w = new THREE.Vector3();
+                        m.mesh.getWorldPosition(w);
+                        w.y -= m.mesh.scale.y / 2;
+                        fxDust(w, Math.min(5, m.mesh.scale.x / 2), 10);
+                    }
+                    fxMoves.splice(i, 1);
+                }
+            }
+            if (!fxParticles) return;
+            let write = 0, n = 0;
+            for (let i = 0; i < fxList.length; i++) {
+                const p = fxList[i];
+                const age = now - p.born;
+                if (age > p.life) continue;
+                fxList[write++] = p;
+                if (age < 0) continue;   // not emitted yet
+                const k = (1 - Math.exp(-p.drag * age)) / p.drag;
+                let y = p.y0 + p.vy * age + 0.5 * p.g * age * age;
+                if (y < p.ground) y = p.ground;
+                const fade = age > p.life * 0.7 ? 1 - (age - p.life * 0.7) / (p.life * 0.3) : 1;
+                const s = p.size * (1 + p.grow * age) * Math.max(0.01, fade) * Math.min(1, age / 0.06 + 0.2);
+                fxDummy.position.set(p.x0 + p.vx * k, y, p.z0 + p.vz * k);
+                fxDummy.rotation.set(p.spin * age * 0.5, p.spin * age, 0);
+                fxDummy.scale.setScalar(s);
+                fxDummy.updateMatrix();
+                fxParticles.setMatrixAt(n, fxDummy.matrix);
+                fxParticles.setColorAt(n, fxColor.setRGB(p.r, p.gr, p.b));
+                n++;
+            }
+            fxList.length = write;
+            fxParticles.count = n;
+            fxParticles.instanceMatrix.needsUpdate = true;
+            if (fxParticles.instanceColor) fxParticles.instanceColor.needsUpdate = true;
+        }
+
+        // Before a sync: where every room is now. After: compare and animate the differences.
+        function fxCaptureBefore(newData) {
+            const key = (isDVRMode ? 'dvr:' : 'live:') + (newData.clusterName || '');
+            const active = fxEnabled && !simState && fxSourceKey === key && activeNodeGroups.size > 0;
+            fxSourceKey = key;
+            if (!active) return null;
+            const rooms = new Map();
+            const w = new THREE.Vector3();
+            activePodMeshes.forEach((mesh, k) => {
+                if (!mesh.parent || !mesh.userData.nodeName || mesh.parent !== activeNodeGroups.get(mesh.userData.nodeName)) return;
+                mesh.getWorldPosition(w);
+                rooms.set(k, { pos: w.clone(), scale: mesh.scale.clone(), localY: mesh.position.y, color: mesh.userData.color,
+                               node: mesh.userData.nodeName, restarts: mesh.userData.restarts || 0 });
+            });
+            const nodes = new Map();
+            activeNodeGroups.forEach((g, name) => { if (!g.userData.isFadingOut) nodes.set(name, g.position.clone()); });
+            return { rooms, nodes, alertIds: fxPrevAlertIds };
+        }
+
+        function fxApplyAfter(before, newData) {
+            fxPrevAlertIds = new Set((newData.alerts || []).map(a => a.id));
+            if (!before) return;
+            let budget = FX_MAX_EFFECTS_PER_SYNC;
+            const spend = () => budget-- > 0;
+
+            // Nodes that left collapse in a cloud of debris; new ones rise (the existing grow animation) with dust
+            before.nodes.forEach((pos, name) => {
+                if (activeNodeGroups.has(name) && !activeNodeGroups.get(name).userData.isFadingOut) return;
+                if (!spend()) return;
+                fxBurst(new THREE.Vector3(pos.x, 1.5, pos.z + 6), { color: 0x94a3b8, count: 60, spread: [12, 3, 12], speed: 9, up: 6, life: 2.2, size: 0.7 });
+                fxDust(new THREE.Vector3(pos.x, 0.2, pos.z + 6), 8, 30);
+            });
+            activeNodeGroups.forEach((g, name) => {
+                if (before.nodes.has(name) || !g.userData.isNew || !spend()) return;
+                fxDust(new THREE.Vector3(g.userData.targetPosition.x, 0.2, g.userData.targetPosition.z + 6), 8, 26);
+            });
+
+            // Rooms that vanished break apart (unless their whole building is collapsing anyway)
+            before.rooms.forEach((r, k) => {
+                if (activePodMeshes.has(k) && activePodMeshes.get(k).userData.nodeName === r.node) return;
+                const g = activeNodeGroups.get(r.node);
+                if (!g || g.userData.isFadingOut || !spend()) return;
+                fxBreak(r.pos, r.scale, r.color);
+            });
+
+            // New rooms drop in from above; surviving rooms whose floor moved settle into place
+            let drops = 0;
+            activePodMeshes.forEach((mesh, k) => {
+                const nodeName = mesh.userData.nodeName;
+                const g = nodeName && activeNodeGroups.get(nodeName);
+                if (!g || mesh.parent !== g || g.userData.isNew) return;
+                const old = before.rooms.get(k);
+                const toY = mesh.position.y;
+                if (!old || old.node !== nodeName) {
+                    if (!spend()) return;
+                    fxMove(mesh, toY + 16 + mesh.scale.y, toY, { dur: 1.1, bounce: true, dust: true, delay: Math.min(1.2, drops++ * 0.12) });
+                } else {
+                    if (Math.abs(old.localY - toY) > 0.05) fxMove(mesh, old.localY, toY, { dur: 0.6 });
+                    if ((mesh.userData.restarts || 0) > old.restarts && spend()) {
+                        const w = new THREE.Vector3();
+                        mesh.getWorldPosition(w);
+                        fxSparks(w);
+                    }
+                }
+            });
+
+            // A fresh OOM kill: red flash and a plume of smoke from the room (or its rubble)
+            (newData.alerts || []).forEach(a => {
+                if (a.type !== 'OOMKilled' || before.alertIds.has(a.id) || !spend()) return;
+                const s = a.subject || {};
+                const mesh = activePodMeshes.get(podKey(s.namespace, s.name));
+                if (!mesh) return;
+                const w = new THREE.Vector3();
+                mesh.getWorldPosition(w);
+                fxSmoke(w);
+                flashMeshes([mesh]);
+            });
+        }
+
+        // ---------- F-30: TV mode (hands-free camera for a wall screen) ----------
+        let tvMode = null;                 // { stops, index, stopStart, from, fromLook, caption, wakeLock, cycle }
+        const TV_FLIGHT_SECONDS = 3.2;
+        const tvLook = new THREE.Vector3();
+
+        function tvMaxRoof() {
+            return Math.max(10, ...((clusterData.nodes || []).map(n => (n.maxMemoryGB || 0) * 0.8)));
+        }
+
+        function tvCityBounds() {
+            const groups = Array.from(activeNodeGroups.values()).filter(g => !g.userData.isFadingOut && g.userData.targetPosition);
+            if (!groups.length) return null;
+            const xs = groups.map(g => g.userData.targetPosition.x), zs = groups.map(g => g.userData.targetPosition.z);
+            const minX = Math.min(...xs) - 6, maxX = Math.max(...xs) + 6, minZ = Math.min(...zs), maxZ = Math.max(...zs) + 12;
+            return { cx: (minX + maxX) / 2, cz: (minZ + maxZ) / 2, span: Math.max(maxX - minX, maxZ - minZ, 40) };
+        }
+
+        // A stop's camera pose at time tau seconds into it
+        function tvPose(stop, tau, outPos, outLook) {
+            if (stop.kind === 'orbit') {
+                const a = stop.angle0 + tau * stop.speed;
+                outPos.set(stop.center.x + Math.sin(a) * stop.radius, stop.height, stop.center.z - Math.cos(a) * stop.radius);
+                outLook.copy(stop.center);
+            } else {
+                const sway = Math.sin(tau * Math.PI * 2 / 16) * (stop.sway || 5);
+                outPos.copy(stop.pos).addScaledVector(stop.swayAxis || new THREE.Vector3(1, 0, 0), sway);
+                outLook.copy(stop.look);
+            }
+        }
+
+        function tvNodeStop(nodeName, label, duration, focusY) {
+            const g = activeNodeGroups.get(nodeName);
+            const node = (clusterData.nodes || []).find(n => n.name === nodeName);
+            if (!g || !node || !g.userData.targetPosition) return null;
+            const { x, z } = g.userData.targetPosition;
+            const h = (node.maxMemoryGB || 0) * 0.8;
+            let front = null;   // a building in the same column, in front of this one, would block a street-level view
+            activeNodeGroups.forEach((o, n) => {
+                if (n === nodeName || o.userData.isFadingOut || !o.userData.targetPosition) return;
+                const dx = Math.abs(o.userData.targetPosition.x - x), dz = z - o.userData.targetPosition.z;
+                if (dx < 2 && dz > 0 && dz < 25 && (!front || o.userData.targetPosition.z > front.userData.targetPosition.z)) front = o;
+            });
+            const camZ = front ? (front.userData.targetPosition.z + 12 + z) / 2 : z - 20;
+            const y = Math.max(3.5, Math.min(focusY != null ? focusY : h * 0.5, h));
+            return { kind: 'dolly', label, duration, pos: new THREE.Vector3(x, y + (front ? 0 : 2), camZ), look: new THREE.Vector3(x, y, z + 6),
+                     sway: front ? 3 : 6, flash: null };
+        }
+
+        function tvStopForSubject(s, label, duration) {
+            s = s || {};
+            if (s.kind === 'node') return tvNodeStop(s.name, label, duration);
+            if (s.kind === 'pod') {
+                const mesh = activePodMeshes.get(podKey(s.namespace, s.name));
+                if (mesh && mesh.userData.nodeName) {
+                    const w = new THREE.Vector3();
+                    mesh.getWorldPosition(w);
+                    const stop = tvNodeStop(mesh.userData.nodeName, label, duration, w.y);
+                    if (stop) stop.flash = () => [activePodMeshes.get(podKey(s.namespace, s.name))];
+                    return stop;
+                }
+                if (s.lobby && lobbyLayout && lobbyLayout.pendingCount > 0) return tvLobbyStop(label, duration);
+                return null;
+            }
+            if (s.kind === 'workload') {
+                const meshes = workloadPodMeshes(s);
+                const byNode = new Map();
+                meshes.forEach(m => { if (m.userData.nodeName) byNode.set(m.userData.nodeName, (byNode.get(m.userData.nodeName) || 0) + 1); });
+                const busiest = Array.from(byNode.entries()).sort((a, b) => b[1] - a[1])[0];
+                const stop = busiest && tvNodeStop(busiest[0], label, duration);
+                if (stop) stop.flash = () => workloadPodMeshes(s);
+                return stop;
+            }
+            return null;
+        }
+
+        function tvLobbyStop(label, duration) {
+            if (!lobbyLayout) return null;
+            const { dockZ, plazaCenterX, plazaDepthX } = lobbyLayout;
+            return { kind: 'dolly', label, duration, pos: new THREE.Vector3(plazaCenterX - plazaDepthX / 2 - 16, 9, dockZ - 14),
+                     look: new THREE.Vector3(SHORE_X + 4, 1, dockZ), sway: 4, swayAxis: new THREE.Vector3(0, 0, 1) };
+        }
+
+        function tvBuildStops() {
+            const b = tvCityBounds();
+            if (!b) return [];
+            const roof = tvMaxRoof();
+            const ctx = currentContextName().split('/').pop();
+            const stops = [{ kind: 'orbit', label: `${ctx} · overview`, duration: 22, center: new THREE.Vector3(b.cx, roof * 0.25, b.cz),
+                             radius: b.span * 0.55 + 18, height: roof * 0.85 + b.span * 0.25, angle0: (tvMode ? tvMode.cycle : 0) * 1.3, speed: 0.05 }];
+            if (jumbotron && jumbotron.mesh && jumbotron.mesh.visible) {
+                const p = new THREE.Vector3(), n = new THREE.Vector3();
+                jumbotron.mesh.getWorldPosition(p);
+                jumbotron.mesh.getWorldDirection(n);
+                stops.push({ kind: 'dolly', label: 'Vital signs', duration: 10, pos: p.clone().addScaledVector(n, 34), look: p, sway: 4 });
+            }
+            const seen = new Set();
+            const criticals = alertIndex ? alertIndex.all.filter(a => a.severity === 'critical') : [];
+            criticals.forEach(a => {
+                const s = a.subject || {};
+                const subjectKey = `${s.kind}/${s.namespace || ''}/${s.name || ''}`;
+                if (seen.has(subjectKey) || seen.size >= 5) return;
+                const stop = tvStopForSubject(s, `⚠ ${a.title} · ${alertSubjectLabel(a)}`, 12);
+                if (stop) { seen.add(subjectKey); stops.push(stop); }
+            });
+            if (lobbyLayout && lobbyLayout.pendingCount > 0) {
+                const stop = tvLobbyStop(`Waiting Lobby · ${lobbyLayout.pendingCount} pending`, 10);
+                if (stop) stops.push(stop);
+            }
+            // A couple of the fullest buildings, rotating through the city on each cycle
+            const nodes = (clusterData.nodes || []).filter(n => activeNodeGroups.has(n.name));
+            if (nodes.length) {
+                const byFill = nodes.map(n => ({ n, pct: n.maxMemoryGB ? (n.pods || []).reduce((s, p) => s + (p.memoryGB || 0), 0) / n.maxMemoryGB : 0 }))
+                                    .sort((a, b) => b.pct - a.pct);
+                const offset = ((tvMode ? tvMode.cycle : 0) * 2) % byFill.length;
+                for (let i = 0; i < Math.min(2, byFill.length); i++) {
+                    const { n, pct } = byFill[(offset + i) % byFill.length];
+                    const stop = tvNodeStop(n.name, `${n.name} · ${Math.round(pct * 100)}% of memory requested`, 9);
+                    if (stop) stops.push(stop);
+                }
+            }
+            return stops;
+        }
+
+        function tvSetCaption(text) {
+            if (!tvMode) return;
+            tvMode.caption.querySelector('.tv-caption-text').textContent = text;
+        }
+
+        function tvBeginStop(stop) {
+            tvMode.current = stop;
+            tvMode.stopStart = fxNow();
+            tvMode.from = camera.position.clone();
+            const dir = new THREE.Vector3();
+            camera.getWorldDirection(dir);
+            tvMode.fromLook = camera.position.clone().add(dir.multiplyScalar(20));
+            tvMode.flashed = false;
+            tvSetCaption(stop.label);
+        }
+
+        function tvNextStop() {
+            tvMode.index++;
+            if (tvMode.index >= tvMode.stops.length) {
+                tvMode.cycle++;
+                tvMode.stops = tvBuildStops();
+                tvMode.index = 0;
+            }
+            if (!tvMode.stops.length) { tvSetCaption('Waiting for cluster data…'); tvMode.current = null; return; }
+            tvBeginStop(tvMode.stops[tvMode.index]);
+        }
+
+        const tvPos = new THREE.Vector3();
+        function updateTv() {
+            if (!tvMode) return;
+            const now = fxNow();
+            if (!tvMode.current) {
+                if (now - (tvMode.lastRetry || 0) > 2) { tvMode.lastRetry = now; tvMode.index = tvMode.stops.length; tvNextStop(); }
+                return;
+            }
+            const stop = tvMode.current;
+            const tau = now - tvMode.stopStart;
+            if (tau >= stop.duration + TV_FLIGHT_SECONDS) { tvNextStop(); return; }
+            tvPose(stop, tau, tvPos, tvLook);
+            const f = Math.min(1, tau / TV_FLIGHT_SECONDS);
+            const e = f < 0.5 ? 4 * f * f * f : 1 - Math.pow(-2 * f + 2, 3) / 2;   // ease in-out
+            if (f < 1) {
+                // Fly high between distant stops so the path clears the rooftops
+                const lift = Math.sin(f * Math.PI) * Math.min(25, tvMode.from.distanceTo(tvPos) * 0.25);
+                tvPos.lerpVectors(tvMode.from, tvPos, e);
+                tvPos.y += lift;
+                tvLook.lerpVectors(tvMode.fromLook, tvLook, e);
+            } else if (!tvMode.flashed && stop.flash) {
+                tvMode.flashed = true;
+                flashMeshes(stop.flash() || []);
+            }
+            camera.position.copy(tvPos);
+            if (camera.position.y < 2.5) camera.position.y = 2.5;
+            camera.lookAt(tvLook);
+        }
+
+        // A new critical alert interrupts the tour: fly there now, then carry on
+        function tvInterrupt(alert) {
+            if (!tvMode) return;
+            const stop = tvStopForSubject(alert.subject, `🚨 New critical · ${alert.title} · ${alertSubjectLabel(alert)}`, 15);
+            if (!stop) return;
+            tvMode.stops.splice(tvMode.index + 1, 0, stop);
+            tvNextStop();
+        }
+
+        function startTvMode() {
+            if (tvMode) return;
+            controls.unlock();
+            moveForward = moveBackward = moveLeft = moveRight = moveUp = moveDown = false;
+            closeSearchPanel();
+            closeOpsPanel();
+            const caption = document.createElement('div');
+            caption.id = 'tv-caption';
+            caption.innerHTML = '<span class="tv-chip">📺 TV</span><span class="tv-caption-text"></span><span class="tv-exit">T or Esc to exit</span>';
+            document.body.appendChild(caption);
+            document.body.classList.add('tv-mode');
+            tvMode = { stops: [], index: -1, cycle: 0, caption, current: null, wakeLock: null };
+            tvMode.stops = tvBuildStops();
+            tvNextStop();
+            if (navigator.wakeLock && navigator.wakeLock.request) {
+                navigator.wakeLock.request('screen').then(lock => { if (tvMode) tvMode.wakeLock = lock; else lock.release(); }).catch(() => {});
+            }
+            showToast('TV mode: touring the cluster. New critical alerts interrupt the tour.', 'success');
+        }
+
+        function stopTvMode() {
+            if (!tvMode) return;
+            if (tvMode.wakeLock) tvMode.wakeLock.release().catch(() => {});
+            tvMode.caption.remove();
+            document.body.classList.remove('tv-mode');
+            tvMode = null;
+        }
+
+        // ---------- F-33: Rightsizing lens (requests vs actual usage from metrics-server) ----------
+        const STATUS_SERIOUS = '#ec835a';
+        let usageLens = null;              // { metric: 'memory' | 'cpu', basis: 'peak' | 'current' } while on
+        let usageData = null;              // last /api/v1/usage payload
+        let usageFetchedAt = 0;
+        let usageFetchInFlight = null;
+        let usageOverlays = [];
+        const USAGE_IDLE_RATIO = 0.35;
+        const usageShellMaterials = new Map();   // one translucent shell per namespace color, so rooms keep their identity
+        function usageShellMaterial(color) {
+            let m = usageShellMaterials.get(color);
+            if (!m) {
+                m = new THREE.MeshStandardMaterial({ color, transparent: true, opacity: 0.3, depthWrite: false, roughness: 0.9 });
+                m.userData.shared = true;
+                usageShellMaterials.set(color, m);
+            }
+            return m;
+        }
+        const usageFillMaterial = new THREE.MeshStandardMaterial({ color: 0x3987e5, roughness: 0.55 });
+        const usageOverMaterial = new THREE.MeshStandardMaterial({ color: 0xec835a, roughness: 0.55 });
+        [usageFillMaterial, usageOverMaterial].forEach(m => { m.userData.shared = true; });
+
+        function fetchUsage() {
+            if (window.location.protocol === 'file:') {
+                usageData = { available: false, reason: 'Usage comes from the Lex server (metrics-server); this page was opened from disk.' };
+                return Promise.resolve(usageData);
+            }
+            if (usageFetchInFlight) return usageFetchInFlight;
+            usageFetchInFlight = fetch('/api/v1/usage', { cache: 'no-store' })
+                .then(r => r.json().then(body => { if (!r.ok) throw new Error(body.error || `HTTP ${r.status}`); return body; }))
+                .then(data => { usageData = data; })
+                .catch(err => { usageData = { available: false, reason: `Could not load usage: ${err.message}` }; })
+                .then(() => {
+                    usageFetchedAt = Date.now();
+                    usageFetchInFlight = null;
+                    if (usageLens) applyUsageLens();
+                    if (opsTab === 'rightsizing') renderOpsPanel();
+                    lastHudHtml = '';
+                    return usageData;
+                });
+            return usageFetchInFlight;
+        }
+
+        function podUsage(key) {
+            const u = usageData && usageData.available && usageData.pods && usageData.pods[key];
+            return u ? { cpu: u[0], mem: u[1], peakCpu: u[2], peakMem: u[3] } : null;
+        }
+
+        function usageRatio(pod, u, metric, basis) {
+            if (!u) return null;
+            const req = metric === 'cpu' ? pod.cpuCores : pod.memoryGB;
+            const used = metric === 'cpu' ? (basis === 'peak' ? u.peakCpu : u.cpu) : (basis === 'peak' ? u.peakMem : u.mem);
+            if (!req || req <= 0) return null;
+            return used / req;
+        }
+
+        function clearUsageOverlays() {
+            usageOverlays.forEach(m => { if (m.parent) m.parent.remove(m); });
+            usageOverlays = [];
+            activePodMeshes.forEach(m => { if (m.userData.usageHidden) { m.visible = true; delete m.userData.usageHidden; } });
+        }
+
+        function applyUsageLens() {
+            clearUsageOverlays();
+            if (!usageLens) return;
+            const counts = { idle: 0, ok: 0, over: 0, none: 0 };
+            activePodMeshes.forEach((mesh, key) => {
+                const g = mesh.userData.nodeName && activeNodeGroups.get(mesh.userData.nodeName);
+                if (!g || mesh.parent !== g || mesh.userData.type !== 'pod') return;
+                // Hidden rooms still answer the crosshair, so hover and the HUD keep working
+                mesh.visible = false;
+                mesh.userData.usageHidden = true;
+                const restY = mesh.userData.restY != null ? mesh.userData.restY : mesh.position.y;
+                const shell = new THREE.Mesh(unitBoxGeometry, usageShellMaterial(mesh.userData.color != null ? mesh.userData.color : 0xcbd5e1));
+                shell.position.copy(mesh.position);
+                shell.position.y = restY;
+                shell.scale.copy(mesh.scale);
+                shell.userData = { type: 'usageOverlay' };
+                g.add(shell);
+                usageOverlays.push(shell);
+                const ratio = usageRatio(mesh.userData.pod || {}, podUsage(key), usageLens.metric, usageLens.basis);
+                if (ratio == null) { counts.none++; return; }
+                counts[ratio > 1 ? 'over' : ratio < USAGE_IDLE_RATIO ? 'idle' : 'ok']++;
+                const h = Math.max(0.04, mesh.scale.y * Math.min(1, ratio));
+                const fill = new THREE.Mesh(unitBoxGeometry, ratio > 1 ? usageOverMaterial : usageFillMaterial);
+                fill.scale.set(mesh.scale.x * 0.94, h, mesh.scale.z * 0.94);
+                fill.position.set(mesh.position.x, restY - mesh.scale.y / 2 + h / 2, mesh.position.z);
+                fill.userData = { type: 'usageOverlay' };
+                g.add(fill);
+                usageOverlays.push(fill);
+            });
+            renderUsageLegend(counts);
+        }
+
+        // CPU with its unit: "250m CPU" below one core, "1.5 cores" above
+        function formatCores(c) { return c >= 1 ? `${c >= 10 ? Math.round(c) : Math.round(c * 10) / 10} core${c === 1 ? '' : 's'}` : `${Math.round(c * 1000)}m CPU`; }
+        // A recent OOM kill means the real peak exceeded what metrics-server sampled: never suggest less memory
+        function recentlyOomKilled(pod) {
+            const t = pod && pod.lastTermination;
+            return !!(t && t.reason === 'OOMKilled' && (!t.finishedAt || Date.now() - new Date(t.finishedAt).getTime() < 7 * 86400000));
+        }
+        function formatGB(g) { return g >= 10 ? `${Math.round(g)} GB` : g >= 1 ? `${Math.round(g * 10) / 10} GB` : `${Math.round(g * 1024)} MiB`; }
+
+        // Per-namespace and per-pod rightsizing math. Recommendations always use the recent peak plus headroom.
+        function computeRightsizing() {
+            const headroom = (usageData && usageData.headroom) || 1.2;
+            let costSum = 0, coreSum = 0, gbSum = 0;
+            (clusterData.nodes || []).forEach(n => {
+                const c = getNodeCostSummary(n);
+                if (!c || !c.hourlyCost) return;
+                costSum += c.hourlyCost; coreSum += n.maxCPUCores || 0; gbSum += n.maxMemoryGB || 0;
+            });
+            // Split each node's price evenly between its cores and its memory (a common showback convention)
+            const perCoreHr = coreSum ? costSum * 0.5 / coreSum : 0, perGBHr = gbSum ? costSum * 0.5 / gbSum : 0;
+            const ns = new Map(), pods = [];
+            const totals = { reqCpu: 0, peakCpu: 0, reqMem: 0, peakMem: 0, reclaimCpu: 0, reclaimMem: 0, covered: 0, pods: 0 };
+            (clusterData.nodes || []).forEach(n => (n.pods || []).forEach(p => {
+                totals.pods++;
+                const key = podKey(p.namespace, p.name);
+                const u = podUsage(key);
+                if (!u) return;
+                totals.covered++;
+                const reqCpu = p.cpuCores || 0, reqMem = p.memoryGB || 0;
+                const recCpu = Math.max(0.01, u.peakCpu * headroom), recMem = Math.max(32 / 1024, u.peakMem * headroom);
+                const oom = recentlyOomKilled(p);
+                const reclaimCpu = reqCpu > 0 ? Math.max(0, reqCpu - recCpu) : 0, reclaimMem = reqMem > 0 && !oom ? Math.max(0, reqMem - recMem) : 0;
+                const monthly = (reclaimCpu * perCoreHr + reclaimMem * perGBHr) * 730;
+                const row = { key, namespace: p.namespace, name: p.name, reqCpu, reqMem, peakCpu: u.peakCpu, peakMem: u.peakMem, recCpu, recMem,
+                              reclaimCpu, reclaimMem, monthly, oom, over: oom || (reqMem > 0 && u.peakMem > reqMem) || (reqCpu > 0 && u.peakCpu > reqCpu) };
+                pods.push(row);
+                const s = ns.get(p.namespace) || { namespace: p.namespace, reqCpu: 0, peakCpu: 0, reqMem: 0, peakMem: 0, reclaimCpu: 0, reclaimMem: 0, monthly: 0, pods: 0 };
+                ['reqCpu', 'peakCpu', 'reqMem', 'peakMem', 'reclaimCpu', 'reclaimMem', 'monthly'].forEach(f => { s[f] += row[f]; });
+                s.pods++;
+                ns.set(p.namespace, s);
+                totals.reqCpu += reqCpu; totals.peakCpu += u.peakCpu; totals.reqMem += reqMem; totals.peakMem += u.peakMem;
+                totals.reclaimCpu += reclaimCpu; totals.reclaimMem += reclaimMem;
+            }));
+            totals.monthly = (totals.reclaimCpu * perCoreHr + totals.reclaimMem * perGBHr) * 730;
+            return { namespaces: Array.from(ns.values()).sort((a, b) => b.monthly - a.monthly || b.reclaimMem - a.reclaimMem), pods, totals,
+                     priced: costSum > 0, headroom };
+        }
+
+        function usageCoverageText() {
+            if (!usageData || !usageData.available) return '';
+            if (usageData.synthetic) return 'Demo cluster: synthetic usage';
+            const win = usageData.windowMinutes || 0;
+            return win >= (usageData.peakWindowMinutes || 60) ? `Peaks over the last ${usageData.peakWindowMinutes} min`
+                 : `Peaks over ${win < 1 ? 'under a minute' : `${win} min`} so far (fills to ${usageData.peakWindowMinutes} min)`;
+        }
+
+        function renderUsageLegend(counts) {
+            const el = document.getElementById('usage-legend');
+            if (!el || !usageLens) return;
+            el.querySelectorAll('[data-usage-metric]').forEach(b => b.classList.toggle('active', b.dataset.usageMetric === usageLens.metric));
+            el.querySelectorAll('[data-usage-basis]').forEach(b => b.classList.toggle('active', b.dataset.usageBasis === usageLens.basis));
+            const status = el.querySelector('.usage-status');
+            if (!usageData) { status.textContent = 'Loading usage…'; return; }
+            if (!usageData.available) { status.textContent = usageData.reason || 'Usage unavailable'; return; }
+            if (counts) {
+                ['idle', 'ok', 'over', 'none'].forEach(k => { const b = el.querySelector(`#usage-count-${k}`); if (b) b.textContent = counts[k]; });
+            }
+            const rs = computeRightsizing();
+            status.textContent = `${usageCoverageText()} · reclaimable ≈ ${formatCores(rs.totals.reclaimCpu)}, ${formatGB(rs.totals.reclaimMem)}` +
+                                 (rs.priced ? ` (~${formatCurrency(rs.totals.monthly)}/mo)` : '');
+        }
+
+        function setUsageLens(enabled, silent = false) {
+            if (enabled && simState) { showToast('End the failure simulation before using the rightsizing lens', 'error'); return; }
+            if (enabled && isDVRMode) { showToast('The rightsizing lens shows live usage; exit DVR mode first', 'error'); return; }
+            if (enabled && xrayEnabled) setXray(false);
+            usageLens = enabled ? (usageLens || { metric: 'memory', basis: 'peak' }) : null;
+            const legend = document.getElementById('usage-legend');
+            if (legend) legend.style.display = enabled ? 'flex' : 'none';
+            lastHudHtml = '';
+            if (!enabled) { clearUsageOverlays(); if (!silent) showToast('Rightsizing lens off', 'success'); return; }
+            applyUsageLens();
+            if (!usageData || Date.now() - usageFetchedAt > 25000) fetchUsage();
+            if (!silent) showToast('Rightsizing lens on: each room is filled to what it actually uses', 'success');
+        }
+
+        function usageHudHtml(data) {
+            if (!usageLens || !data || data.type !== 'pod' || !data.pod) return '';
+            const u = podUsage(data.podKey);
+            const head = '<div style="display:flex; justify-content:space-between; font-size:11px; color:#94a3b8; font-weight:700; letter-spacing:0.5px;"><span>📏 USAGE</span><span>' +
+                         escapeHtml(usageData && usageData.synthetic ? 'synthetic' : usageCoverageText().replace('Peaks over', 'peak:')) + '</span></div>';
+            if (!u) return `<div style="margin-top:12px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.08);">${head}<div style="font-size:12px; color:#94a3b8; margin-top:4px;">${escapeHtml(usageData && !usageData.available ? (usageData.reason || 'Unavailable') : 'No metrics for this pod yet')}</div></div>`;
+            const headroom = (usageData && usageData.headroom) || 1.2;
+            const oom = recentlyOomKilled(data.pod);
+            const row = (label, used, peak, req, fmt, min, noLower) => {
+                const pct = req > 0 ? Math.round(peak / req * 100) : null;
+                const suggest = Math.max(min, peak * headroom);
+                let advice = '';
+                if (noLower) advice = '<span style="color:#fdba74">recently OOMKilled: don\'t lower</span>';
+                else if (req > 0 && Math.abs(suggest - req) / req > 0.2) advice = `<span style="color:${suggest < req ? '#93c5fd' : '#fdba74'}">${fmt(suggest)} ${suggest < req ? '(lower)' : '(raise)'}</span>`;
+                return `<div class="hud-meta-row"><span class="hud-label">${label}</span><span class="hud-value">${fmt(used)} · peak ${fmt(peak)}${req > 0 ? ` (${pct}% of ${fmt(req)})` : ' · no request'}</span></div>` +
+                       (advice ? `<div class="hud-meta-row"><span class="hud-label">Suggest</span><span class="hud-value">${advice}</span></div>` : '');
+            };
+            return `<div style="margin-top:12px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.08);">${head}
+                ${row('Memory', u.mem, u.peakMem, data.pod.memoryGB || 0, formatGB, 32 / 1024, oom)}
+                ${row('CPU', u.cpu, u.peakCpu, data.pod.cpuCores || 0, formatCores, 0.01, false)}</div>`;
+        }
+
+        function renderRightsizing() {
+            const host = document.getElementById('ops-rightsizing');
+            if (!host) return;
+            if (!usageData) { host.innerHTML = '<div class="ops-empty">Loading usage from metrics-server…</div>'; fetchUsage(); return; }
+            if (!usageData.available) { host.innerHTML = `<div class="ops-empty">${escapeHtml(usageData.reason || 'Usage is unavailable for this cluster.')}</div>`; return; }
+            if (Date.now() - usageFetchedAt > 30000) fetchUsage();
+            const rs = computeRightsizing(), t = rs.totals;
+            const pct = (a, b) => b > 0 ? Math.round(a / b * 100) : 0;
+            const meter = (used, req) => {
+                const p = pct(used, req);
+                return `<div class="top-meter"><div style="width:${Math.min(100, p)}%; background:${p > 100 ? STATUS_SERIOUS : CHART_ACCENT}"></div></div>`;
+            };
+            const section = (title, rows) => `<div class="top-section"><div class="top-title">${title}</div>${rows || '<div class="ops-empty" style="margin-top:4px">Nothing to show</div>'}</div>`;
+            const nsRows = rs.namespaces.filter(n => n.reclaimMem > 0.05 || n.reclaimCpu > 0.02).slice(0, 8).map(n => `
+                <div class="top-row" data-fly="namespace" data-key="${escapeHtml(n.namespace)}" title="Highlight this namespace">
+                    <span class="top-name">${escapeHtml(n.namespace)}</span>
+                    <span class="top-value">−${formatGB(n.reclaimMem)}${n.reclaimCpu >= 0.01 ? ` · −${formatCores(n.reclaimCpu)}` : ''}${rs.priced ? ` · ${escapeHtml(formatCurrency(n.monthly))}/mo` : ''}</span>
+                    ${meter(n.peakMem, n.reqMem)}
+                </div>`).join('');
+            const podRows = rs.pods.filter(p => p.reclaimMem > 0.05).sort((a, b) => b.reclaimMem - a.reclaimMem).slice(0, 8).map(p => `
+                <div class="top-row" data-fly="pod" data-key="${escapeHtml(p.key)}" title="Fly to pod">
+                    <span class="top-name">${escapeHtml(p.namespace)}/${escapeHtml(p.name)}</span>
+                    <span class="top-value">${formatGB(p.reqMem)} → ${formatGB(p.recMem)}</span>
+                    ${meter(p.peakMem, p.reqMem)}
+                </div>`).join('');
+            const riskRows = rs.pods.filter(p => p.over).sort((a, b) => (b.oom - a.oom) || ((b.peakMem - b.reqMem) - (a.peakMem - a.reqMem))).slice(0, 5).map(p => `
+                <div class="top-row" data-fly="pod" data-key="${escapeHtml(p.key)}" title="Fly to pod">
+                    <span class="top-name">${escapeHtml(p.namespace)}/${escapeHtml(p.name)}</span>
+                    <span class="top-value">${p.oom ? 'OOMKilled recently' : p.peakMem > p.reqMem ? `${formatGB(p.peakMem)} peak vs ${formatGB(p.reqMem)} req` : `${formatCores(p.peakCpu)} peak vs ${formatCores(p.reqCpu)} req`}</span>
+                    ${p.peakMem > p.reqMem ? meter(p.peakMem, p.reqMem) : meter(p.peakCpu, p.reqCpu)}
+                </div>`).join('');
+            host.innerHTML = `
+                <div class="rs-note">${escapeHtml(usageCoverageText())} · ${t.covered} of ${t.pods} pods have metrics · suggestions = peak × ${rs.headroom}</div>
+                <div class="rs-tiles">
+                    <div class="rs-tile"><div class="rs-label">CPU used at peak</div><div class="rs-big">${pct(t.peakCpu, t.reqCpu)}%</div><div class="rs-sub">${formatCores(t.peakCpu)} of ${formatCores(t.reqCpu)} requested</div></div>
+                    <div class="rs-tile"><div class="rs-label">Memory used at peak</div><div class="rs-big">${pct(t.peakMem, t.reqMem)}%</div><div class="rs-sub">${formatGB(t.peakMem)} of ${formatGB(t.reqMem)} requested</div></div>
+                    <div class="rs-tile"><div class="rs-label">Reclaimable</div><div class="rs-big">${rs.priced ? escapeHtml(formatCurrency(t.monthly)) + '<span class="rs-unit">/mo</span>' : formatGB(t.reclaimMem)}</div><div class="rs-sub">${formatCores(t.reclaimCpu)} · ${formatGB(t.reclaimMem)}</div></div>
+                </div>` +
+                section('Namespaces with the most to reclaim', nsRows) +
+                section('Most over-requested pods (memory → suggested)', podRows) +
+                section('Using more than they request (eviction / OOM risk)', riskRows) +
+                `<div class="rs-note">Savings only materialize when lower requests let the autoscaler remove nodes. Peaks cover only the time Lex has been sampling this context; check a longer history (e.g. a week of peaks) before lowering requests.</div>`;
+        }
+
+        function setupExtrasUI() {
+            const legend = document.getElementById('usage-legend');
+            if (legend) legend.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const b = e.target.closest('button');
+                if (!b || !usageLens) return;
+                if (b.dataset.usageMetric) usageLens.metric = b.dataset.usageMetric;
+                else if (b.dataset.usageBasis) usageLens.basis = b.dataset.usageBasis;
+                else if (b.id === 'usage-details-btn') { openOpsPanel(); setOpsTab('rightsizing'); return; }
+                else if (b.id === 'usage-close-btn') { setUsageLens(false); return; }
+                applyUsageLens();
+                lastHudHtml = '';
+            });
+            const host = document.getElementById('ops-rightsizing');
+            if (host) host.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const row = e.target.closest('.top-row');
+                if (!row) return;
+                if (row.dataset.fly === 'pod') { focusOnTarget('pod', row.dataset.key); flashMeshes([activePodMeshes.get(row.dataset.key)]); }
+                else if (row.dataset.fly === 'namespace') { executeSearch(row.dataset.key); flyToClusterOverview(); }
+            });
+            // Keep the lens current while it's open
+            setInterval(() => { if (usageLens && !document.hidden) fetchUsage(); }, 30000);
+            // In TV mode, any click on the scene hands the camera back
+            controls.addEventListener('lock', () => { if (tvMode) stopTvMode(); });
+            // Read-only status for scripted checks (counts and labels only)
+            window.lexDebug = Object.freeze({
+                fx: () => ({ enabled: fxEnabled, particles: fxList.length, moving: fxMoves.length }),
+                tv: () => tvMode && { label: tvMode.current && tvMode.current.label, index: tvMode.index, stops: tvMode.stops.length,
+                                      camera: camera.position.toArray().map(v => Math.round(v)) },
+                usage: () => usageLens && { ...usageLens, overlays: usageOverlays.length, available: !!(usageData && usageData.available) },
+            });
+        }
+
          init();
+         setupExtrasUI();
 
         // Discover and load available Kubernetes contexts
         fetchAvailableContexts();
@@ -5665,6 +6425,23 @@ ${labels}`;
                 // Never treat keystrokes in form controls (search box, DVR selects, ...) as game controls
                 if (isTypingTarget(event.target)) return;
                 if (event.ctrlKey || event.metaKey || event.altKey) return;
+
+                if (event.code === 'KeyT') {
+                    event.preventDefault();
+                    if (tvMode) stopTvMode(); else startTvMode();
+                    return;
+                }
+
+                if (event.code === 'Escape' && tvMode) {
+                    stopTvMode();
+                    return;
+                }
+
+                if (event.code === 'KeyU') {
+                    event.preventDefault();
+                    setUsageLens(!usageLens);
+                    return;
+                }
 
                 if (event.code === 'KeyK') {
                     event.preventDefault();
@@ -6676,6 +7453,7 @@ ${labels}`;
         }
 
         function syncClusterState(newData) {
+            const fxBefore = fxCaptureBefore(newData);   // F-27: where every room was, to animate the differences
             alertIndex = buildAlertIndex(newData);   // drives node/pod failure visuals below
             const buildingWidth = 12;
             const buildingDepth = 12;
@@ -6785,6 +7563,9 @@ ${labels}`;
                 executeSearch(activeSearchQuery);
             }
             updateNamespaceLegend();
+            fxApplyAfter(fxBefore, newData);
+            if (usageLens) applyUsageLens();
+            if (tvMode && !tvMode.current) tvNextStop();
         }
 
         function fetchClusterState() {
@@ -8094,6 +8875,7 @@ ${labels}`;
                             <span class="hud-value">${escapeHtml(data.nodeName)}</span>
                         </div>
                         ${xrayHudHtml(data)}
+                        ${usageHudHtml(data)}
                         <div style="margin-top: 16px;">
                             <div style="display:flex; justify-content:space-between; font-size:12px; color:#94a3b8; margin-bottom: 4px;">
                                 <span>Memory Allocation Share</span>
@@ -8204,6 +8986,7 @@ ${labels}`;
                                     <span class="hud-value">${escapeHtml(data.nodeName)}</span>
                                 </div>
                                 ${xrayHudHtml(data)}
+                        ${usageHudHtml(data)}
                                 <div style="margin-top: 16px;">
                                     <div style="display:flex; justify-content:space-between; font-size:12px; color:#94a3b8; margin-bottom: 4px;">
                                         <span>Memory Allocation Share</span>
@@ -8509,6 +9292,8 @@ ${labels}`;
                 updateRightSidebarLayout();
             }
 
+            updateFx();
+            updateTv();
             renderer.render(scene, camera);
         }
 
@@ -8724,6 +9509,7 @@ ${labels}`;
         // Enter DVR Playback Mode
         function enterDvrMode() {
             endSimulation(true);
+            if (usageLens) { setUsageLens(false, true); showToast('Rightsizing lens off: it shows live usage only', 'success'); }
             isDVRMode = true;
             
             // Slide up toast notifications in DVR mode

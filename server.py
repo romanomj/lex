@@ -23,6 +23,7 @@ import dvr_db
 import metrics
 import redaction
 import watcher
+import usage
 
 PORT = 8000
 BIND_ADDRESS = '127.0.0.1'  # Hard-bound to local loopback for secure sandbox isolation
@@ -405,6 +406,8 @@ class LocalAPIServer(http.server.SimpleHTTPRequestHandler):
             self.handle_metrics_history(parsed_url.query)
         elif path == '/api/v1/stream':
             self.handle_stream()
+        elif path == '/api/v1/usage':
+            self.handle_usage()
         # Route: API DVR recording status
         elif path == '/api/v1/dvr/recording/status':
             self.handle_dvr_recording_status()
@@ -472,6 +475,24 @@ class LocalAPIServer(http.server.SimpleHTTPRequestHandler):
             self.send_bytes_response(200, body, 'application/json; charset=utf-8', body_gz, meta_headers)
         else:
             self.send_error_json(404, "Cluster state file could not be found.")
+
+    def handle_usage(self):
+        """Actual CPU/memory usage (metrics-server) for the rightsizing lens, with recent peaks."""
+        with active_context_lock:
+            ctx = active_context
+        if ctx == "demo":
+            try:
+                data = usage.synthetic_usage(load_demo_state())
+            except Exception as e:
+                self.send_error_json(500, f"Could not build demo usage: {e}")
+                return
+        else:
+            tracker = usage.tracker_for(ctx)
+            if tracker.sampled_at is None or tracker.due(SYNC_INTERVAL_SECONDS):
+                tracker.sample()   # first request for this context (or a stale sample): read it now
+            data = tracker.snapshot()
+        data["context"] = ctx
+        self.send_json_response(200, data)
 
     def handle_stream(self):
         """Server-sent events: `event: state` whenever the active context's state changes (watch mode),
@@ -1056,6 +1077,11 @@ def run_bg_sync(interval=SYNC_INTERVAL_SECONDS):
                 session_id = active_recording_session
                 recording_ctx = active_recording_context
 
+            if ctx != "demo":
+                try:
+                    usage.sample_if_due(ctx, interval)   # keeps the rightsizing peaks current (one small call)
+                except Exception as e:
+                    print(f"▲ Usage sample failed for '{ctx}': {e}")
             if WATCH_ENABLED:
                 record_from_watchers(ctx, session_id, recording_ctx)
                 continue

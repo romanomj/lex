@@ -163,6 +163,8 @@ If you double-click `index.html` directly from your file explorer (triggering `f
 - **Shareable links:** press `L` to copy a link to the pod, node or view you're looking at (also in the `C` menu and on every alert). Opening it in Lex switches to the right cluster and flies there, which is handy for incident channels.
 - **What-if failures:** press `C` on a building → *Simulate Node Failure*, or use Ops → Resilience to lose a node or a whole zone. Lost buildings turn to ghosts, rescheduled load appears in the surviving buildings, and pods that don't fit sail to the Waiting Lobby. The same tab lists single points of failure (all replicas on one node or zone, drain-blocking PDBs, single-replica workloads).
 - **X Key:** Security X-ray: rooms colored by their worst security finding (privileged, host access, secrets in env vars, root…). Details in Ops → Security.
+- **U Key:** Rightsizing lens: each room becomes a shell for what it requested, filled to what it actually uses (metrics-server; recent peak or now, memory or CPU). Savings by namespace in Ops → Rightsizing.
+- **T Key:** TV mode: a hands-free tour of the city, the Jumbotron and current problems, interrupted by new critical alerts. Start a wall screen with `http://127.0.0.1:8000/#tv=1`.
 - **N Key:** Toggle noclip (walk through walls).
 - **ESC Key:** Exit mouse lock / release cursor.
 - **Crosshair Raycaster:** Point the center screen crosshair directly at any Pod Floor or Node Wall to see a real-time HUD Card pop up in the top right containing real-time metadata (Status, Namespace, Memory Request, Capacity Utilization).
