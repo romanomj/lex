@@ -17,6 +17,7 @@ import posixpath
 import subprocess
 import threading
 import http.server
+from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlparse, parse_qs, unquote
 import parse_cluster
 import dvr_db
@@ -24,6 +25,7 @@ import metrics
 import redaction
 import watcher
 import usage
+import diagnose
 
 PORT = 8000
 BIND_ADDRESS = '127.0.0.1'  # Hard-bound to local loopback for secure sandbox isolation
@@ -388,6 +390,8 @@ class LocalAPIServer(http.server.SimpleHTTPRequestHandler):
         # Route: API pod spec
         elif path == '/api/v1/pods/spec':
             self.handle_pod_spec(parsed_url.query)
+        elif path == '/api/v1/pods/diagnose':
+            self.handle_pod_diagnose(parsed_url.query)
         # Route: API node spec
         elif path == '/api/v1/nodes/spec':
             self.handle_node_spec(parsed_url.query)
@@ -582,6 +586,8 @@ class LocalAPIServer(http.server.SimpleHTTPRequestHandler):
         params = parse_qs(query_string)
         pod = params.get('pod', [None])[0]
         namespace = params.get('namespace', [None])[0]
+        container = params.get('container', [None])[0]
+        previous = params.get('previous', [None])[0] == '1'
 
         if not pod or not namespace:
             self.send_error_json(400, "Missing required query parameters: 'pod' and 'namespace'")
@@ -591,10 +597,18 @@ class LocalAPIServer(http.server.SimpleHTTPRequestHandler):
             self.send_error_json(400, "Invalid characters in pod or namespace parameter")
             return
 
+        # Container names are DNS-1123 labels, like namespaces
+        if container is not None and not is_valid_namespace(container):
+            self.send_error_json(400, "Invalid characters in container parameter")
+            return
+
         with active_context_lock:
             ctx = active_context
 
         if ctx == "demo":
+            if previous:
+                self.send_text_response(200, diagnose.demo_previous_logs(pod, container))
+                return
             mock_logs = f"""[DEMO MODE ACTIVE] - Streaming logs for pod '{pod}' in namespace '{namespace}'
 2026-05-22T10:00:00Z INFO [app] Initializing container...
 2026-05-22T10:00:02Z INFO [app] Database connection pool established (10 connections).
@@ -606,8 +620,12 @@ class LocalAPIServer(http.server.SimpleHTTPRequestHandler):
             return
 
         try:
-            print(f"Running secure command: kubectl logs {pod} -n {namespace} --tail=200 (context: {ctx})")
             cmd = ["kubectl", f"--context={ctx}", "logs", pod, "-n", namespace, "--tail=200"]
+            if container:
+                cmd.append(f"--container={container}")
+            if previous:
+                cmd.append("--previous")
+            print(f"Running secure command: {' '.join(cmd)}")
             res = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
             if res.returncode == 0:
                 self.send_text_response(200, res.stdout)
@@ -751,6 +769,103 @@ spec:
             self.send_text_response(504, "▲ Command timeout expired while connecting to cluster.")
         except Exception as e:
             self.send_text_response(500, f"▲ Server error executing kubectl get pod: {str(e)}")
+
+    def handle_pod_diagnose(self, query_string):
+        """F-24: a plain-English diagnosis built from the live pod, its events, its node and recent usage."""
+        params = parse_qs(query_string)
+        pod = params.get('pod', [None])[0]
+        namespace = params.get('namespace', [None])[0]
+
+        if not pod or not namespace:
+            self.send_error_json(400, "Missing required query parameters: 'pod' and 'namespace'")
+            return
+
+        if not is_valid_object_name(pod) or not is_valid_namespace(namespace):
+            self.send_error_json(400, "Invalid characters in pod or namespace parameter")
+            return
+
+        with active_context_lock:
+            ctx = active_context
+
+        events_error = None
+        if ctx == "demo":
+            pod_obj = next((p for p in load_demo_raw_items("pods")
+                            if (p.get("metadata") or {}).get("name") == pod
+                            and (p.get("metadata") or {}).get("namespace", "default") == namespace), None)
+            if pod_obj is None:
+                self.send_error_json(404, f"Pod {namespace}/{pod} was not found")
+                return
+            events = diagnose.synthesize_demo_events(pod_obj)
+        else:
+            def run(cmd):
+                return subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+            base = ["kubectl", f"--context={ctx}", "--request-timeout=10s"]
+            print(f"Running secure command: kubectl get pod {pod} -n {namespace} -o json + events (context: {ctx})")
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                pod_future = pool.submit(run, base + ["get", "pod", pod, "-n", namespace, "-o", "json"])
+                events_future = pool.submit(run, base + ["get", "events", "-n", namespace, "-o", "json",
+                                                         "--field-selector", f"involvedObject.name={pod},involvedObject.kind=Pod"])
+                try:
+                    pod_res = pod_future.result()
+                except subprocess.TimeoutExpired:
+                    self.send_error_json(504, "Timed out fetching the pod from the cluster")
+                    return
+                except Exception as e:
+                    self.send_error_json(500, f"Could not run kubectl: {e}")
+                    return
+                try:
+                    events_res = events_future.result()
+                except Exception as e:
+                    events_res, events_error = None, f"Could not fetch events: {e}"
+            if pod_res.returncode != 0:
+                err = (pod_res.stderr or "kubectl failed").strip()
+                self.send_error_json(404 if "NotFound" in err else 502, err[:500])
+                return
+            try:
+                pod_obj = json.loads(pod_res.stdout)
+            except ValueError:
+                self.send_error_json(502, "kubectl returned invalid JSON for the pod")
+                return
+            events = None
+            if events_res is not None:
+                if events_res.returncode == 0:
+                    try:
+                        events = json.loads(events_res.stdout)
+                    except ValueError:
+                        events_error = "kubectl returned invalid JSON for events"
+                else:
+                    events_error = (events_res.stderr or "kubectl get events failed").strip()[:300]
+
+        # The node's conditions come from the compiled state (no extra kubectl call)
+        node = None
+        node_name = (pod_obj.get("spec") or {}).get("nodeName")
+        if node_name:
+            try:
+                state = load_demo_state() if ctx == "demo" else read_state_file(ctx)
+                node = next((n for n in state.get("nodes") or [] if n.get("name") == node_name), None)
+            except (OSError, ValueError):
+                pass
+
+        # Recent usage, only if the rightsizing sampler already has it (never triggers a metrics read)
+        pod_usage = None
+        try:
+            snap = usage.synthetic_usage(load_demo_state()) if ctx == "demo" else usage.tracker_for(ctx).snapshot()
+            row = (snap.get("pods") or {}).get(f"{namespace}/{pod}") if snap.get("available") else None
+            if row:
+                pod_usage = {"cpu": row[0], "memoryBytes": row[1] * 1024 ** 3, "peakCpu": row[2],
+                             "peakMemoryBytes": row[3] * 1024 ** 3, "windowMinutes": snap.get("windowMinutes")}
+        except Exception as e:
+            print(f"▲ Usage unavailable for diagnosis: {e}")
+
+        redaction.sanitize_pod_for_display(pod_obj)
+        try:
+            result = diagnose.diagnose(pod_obj, events, node=node, usage=pod_usage)
+        except Exception as e:
+            self.send_error_json(500, f"Diagnosis failed: {e}")
+            return
+        result["context"] = ctx
+        result["eventsError"] = events_error
+        self.send_json_response(200, result)
 
     def handle_node_spec(self, query_string):
         params = parse_qs(query_string)

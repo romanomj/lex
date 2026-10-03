@@ -839,6 +839,59 @@
             text-shadow: 0 0 2px rgba(167, 243, 208, 0.15);
         }
 
+        /* F-24: pod diagnosis */
+        .menu-btn-diagnose { border-color: rgba(57, 135, 229, 0.45); background: rgba(57, 135, 229, 0.12); }
+        .diag-view { max-width: 980px; margin: 0 auto; color: #e2e8f0; font-size: 14px; line-height: 1.55; }
+        .diag-loading { color: #94a3b8; font-family: 'JetBrains Mono', monospace; font-size: 13px; }
+        .diag-verdict { border-radius: 14px; padding: 18px 20px; border: 1px solid; margin-bottom: 18px; }
+        .diag-verdict.critical { background: rgba(208, 59, 59, 0.14); border-color: rgba(239, 68, 68, 0.45); }
+        .diag-verdict.warning { background: rgba(245, 158, 11, 0.12); border-color: rgba(245, 158, 11, 0.45); }
+        .diag-verdict.info { background: rgba(57, 135, 229, 0.12); border-color: rgba(57, 135, 229, 0.45); }
+        .diag-verdict.ok { background: rgba(16, 185, 129, 0.10); border-color: rgba(16, 185, 129, 0.4); }
+        .diag-kicker { font-size: 11px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; margin-bottom: 4px; }
+        .diag-verdict.critical .diag-kicker { color: #f87171; }
+        .diag-verdict.warning .diag-kicker { color: #fbbf24; }
+        .diag-verdict.info .diag-kicker { color: #93c5fd; }
+        .diag-verdict.ok .diag-kicker { color: #34d399; }
+        .diag-headline { font-size: 20px; font-weight: 800; color: #f8fafc; margin-bottom: 6px; }
+        .diag-summary { color: #cbd5e1; }
+        .diag-meta { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px 14px; font: 12px 'JetBrains Mono', monospace; color: #94a3b8; }
+        .diag-meta b { color: #e2e8f0; font-weight: 600; }
+        .diag-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 20px; }
+        .diag-action { padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(57, 135, 229, 0.45); background: rgba(57, 135, 229, 0.12);
+                       color: #e2e8f0; font: 600 12px 'Outfit', sans-serif; cursor: pointer; }
+        .diag-action:hover { background: rgba(57, 135, 229, 0.28); color: #fff; }
+        .diag-section { font-size: 11px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; color: #64748b; margin: 22px 0 8px; }
+        .diag-finding { border-left: 3px solid; padding: 10px 14px; margin-bottom: 10px; background: rgba(255, 255, 255, 0.03); border-radius: 0 10px 10px 0; }
+        .diag-finding.critical { border-color: #ef4444; }
+        .diag-finding.warning { border-color: #f59e0b; }
+        .diag-finding.info { border-color: #3987e5; }
+        .diag-finding-title { font-weight: 700; color: #f8fafc; }
+        .diag-finding-title .sev { font: 700 10px 'JetBrains Mono', monospace; text-transform: uppercase; margin-right: 6px; }
+        .diag-finding.critical .sev { color: #f87171; }
+        .diag-finding.warning .sev { color: #fbbf24; }
+        .diag-finding.info .sev { color: #93c5fd; }
+        .diag-finding p { margin: 4px 0 0; color: #cbd5e1; }
+        .diag-evidence { margin: 8px 0 0; padding: 0; list-style: none; font: 12px/1.5 'JetBrains Mono', monospace; color: #94a3b8; word-break: break-word; }
+        .diag-evidence li::before { content: '› '; color: #475569; }
+        .diag-fixes { margin: 8px 0 0; padding-left: 18px; color: #a7f3d0; font-size: 13px; }
+        .diag-fixes li { margin: 2px 0; }
+        .diag-hygiene summary { cursor: pointer; color: #94a3b8; font-size: 13px; }
+        .diag-containers { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 10px; }
+        .diag-container { border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 10px; padding: 10px 12px; font-size: 12px; background: rgba(255, 255, 255, 0.02); }
+        .diag-container .cname { font: 700 13px 'JetBrains Mono', monospace; color: #f8fafc; word-break: break-all; }
+        .diag-container .ckind { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #64748b; margin-left: 6px; }
+        .diag-container .crow { display: flex; justify-content: space-between; gap: 10px; margin-top: 3px; color: #94a3b8; }
+        .diag-container .crow span:last-child { color: #e2e8f0; text-align: right; font-family: 'JetBrains Mono', monospace; word-break: break-word; }
+        .diag-container .bad { color: #f87171 !important; }
+        .diag-events { width: 100%; border-collapse: collapse; font: 12px 'JetBrains Mono', monospace; }
+        .diag-events td { padding: 4px 8px 4px 0; vertical-align: top; color: #cbd5e1; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
+        .diag-events td.w { color: #f87171; font-weight: 700; }
+        .diag-events td.n { color: #34d399; }
+        .diag-events td.r { color: #fbbf24; white-space: nowrap; }
+        .diag-events td.t { color: #64748b; white-space: nowrap; }
+        .diag-note { color: #64748b; font-size: 12px; margin-top: 18px; }
+
         /* Search Panel Styling */
         #search-panel {
             position: relative;
@@ -971,6 +1024,7 @@
         .ops-alert-meta .ops-fly { display: block; margin-top: 4px; font-size: 13px; color: #94a3b8; }
         .ops-alert-meta .ops-link { display: block; margin-top: 2px; font-size: 12px; cursor: copy; opacity: 0.7; }
         .ops-alert-meta .ops-link:hover { opacity: 1; }
+        .ops-alert-meta .ops-diag { cursor: pointer; }
         .ops-empty { text-align: center; color: #64748b; font-size: 12px; margin-top: 18px; }
         .ops-empty.ok { color: #10b981; }
         .alert-pill {
@@ -1903,6 +1957,7 @@
     <!-- Command Action Menu -->
     <div id="pod-command-menu">
         <div class="menu-title" id="menu-pod-name">Select Pod Action</div>
+        <button class="menu-btn menu-btn-diagnose" id="menu-btn-diagnose">🩺 Why is it failing? (Diagnose)</button>
         <button class="menu-btn" id="menu-btn-spec">📋 Get Pod Specification</button>
         <button class="menu-btn" id="menu-btn-logs">📜 Get Logs</button>
         <button class="menu-btn" id="menu-btn-describe">🔍 Describe Pod</button>
@@ -1919,6 +1974,7 @@
         <div class="terminal-header">
             <div class="terminal-command" id="terminal-cmd-header">$ kubectl logs</div>
             <div class="terminal-actions">
+                <button class="terminal-btn" id="terminal-btn-back" style="display: none;" title="Back to the diagnosis">← Diagnosis</button>
                 <button class="terminal-btn" id="terminal-btn-copy">📋 Copy Output</button>
                 <button class="terminal-btn" id="terminal-btn-scroll-up">▲ Up</button>
                 <button class="terminal-btn" id="terminal-btn-scroll-down">▼ Down</button>
@@ -1927,6 +1983,7 @@
         </div>
         <div class="terminal-body" id="terminal-body-container">
             <pre id="terminal-text">Fetching output...</pre>
+            <div id="diagnosis-view" class="diag-view" style="display: none;"></div>
         </div>
     </div>
 
@@ -2831,6 +2888,7 @@ ${labels}`;
                         <span>⚠️</span> Error State
                     </span>
                     <span class="hud-value" style="color: #f8fafc; font-size: 12px; word-break: break-word; font-family: 'JetBrains Mono', monospace;">${escapeHtml(errorReason)}</span>
+                    <span style="font-size: 11px; color: #94a3b8;">Press <strong>C</strong> → 🩺 Diagnose to find out why</span>
                 </div>
             `;
         }
@@ -3535,7 +3593,7 @@ ${labels}`;
                     ${row('Priority Class', data.priorityClassName)}
                     ${row('Last Node', data.formerNode)}
                     ${isPending && data.inTransit ? row('Status', 'Arriving by boat') : ''}
-                    <div style="margin-top: 10px; font-size: 11px; color: #64748b;">Press <strong>C</strong> for describe, events and spec</div>
+                    <div style="margin-top: 10px; font-size: 11px; color: #64748b;">${data.simulated ? 'Press <strong>C</strong> for describe, events and spec' : 'Press <strong>C</strong> → 🩺 Diagnose to find out why'}</div>
                 </div>
             `;
         }
@@ -3639,7 +3697,7 @@ ${labels}`;
                         <div class="ops-alert-subject">${escapeHtml(alertSubjectLabel(a))}</div>
                         <div class="ops-alert-detail">${escapeHtml(a.detail)}</div>
                     </div>
-                    <div class="ops-alert-meta">${escapeHtml(formatDuration(a.since))}<span class="ops-fly">⌖</span><span class="ops-link" title="Copy a link to this alert">🔗</span></div>
+                    <div class="ops-alert-meta">${escapeHtml(formatDuration(a.since))}<span class="ops-fly">⌖</span>${a.subject && a.subject.kind === 'pod' ? '<span class="ops-link ops-diag" title="Why is it failing? (diagnose)">🩺</span>' : ''}<span class="ops-link" title="Copy a link to this alert">🔗</span></div>
                 </div>`).join('');
         }
 
@@ -4658,7 +4716,7 @@ ${labels}`;
         // ---------- Shareable deep links (F-23) ----------
         // #ctx=<context>&(pod=<ns>/<name> | node=<name> | workload=<ns>/<Kind>/<name> | alert=<id> | lobby=1 | cam=x,y,z,tx,ty,tz)[&xray=1][&ops=<tab>]
         let pendingDeepLink = null;        // parsed link waiting for its context's data
-        const DEEP_LINK_KEYS = ['ctx', 'pod', 'node', 'workload', 'alert', 'lobby', 'cam', 'xray', 'ops', 'lens', 'tv'];
+        const DEEP_LINK_KEYS = ['ctx', 'pod', 'node', 'workload', 'alert', 'lobby', 'cam', 'xray', 'ops', 'lens', 'tv', 'diagnose'];
         const OPS_TABS = ['alerts', 'vitals', 'top', 'security', 'resilience', 'rightsizing'];
 
         function currentContextName() {
@@ -4767,6 +4825,8 @@ ${labels}`;
                 const [ns, ...rest] = link.pod.split('/');
                 const name = rest.join('/');
                 const key = podKey(ns, name);
+                // Diagnosis comes from the live pod, so it also works for lobby crates and pods with no room
+                if (link.diagnose === '1' && ns && name) openDiagnosis(ns, name);
                 if (activePodMeshes.has(key)) {
                     focusOnTarget('pod', key);
                     flashMeshes([activePodMeshes.get(key)]);
@@ -6629,6 +6689,7 @@ ${labels}`;
                     e.stopPropagation();
                     const row = e.target.closest('.ops-alert-row');
                     const a = row && alertIndex && alertIndex.all[parseInt(row.dataset.alertIndex, 10)];
+                    if (a && e.target.closest('.ops-diag')) { openDiagnosis(a.subject.namespace, a.subject.name); return; }
                     if (a && e.target.closest('.ops-link')) { copyDeepLink({ alert: a.id }, `alert "${a.title}"`); return; }
                     if (a) flyToAlert(a);
                 });
@@ -7772,6 +7833,7 @@ ${labels}`;
             const restartBtn = document.getElementById('menu-btn-restart');
             const deleteBtn = document.getElementById('menu-btn-delete');
             const eventsBtn = document.getElementById('menu-btn-events');
+            const diagnoseBtn = document.getElementById('menu-btn-diagnose');
 
             if (menuEl) {
                 menuEl.classList.add('visible');
@@ -7789,6 +7851,7 @@ ${labels}`;
                     }
                     if (logsBtn) logsBtn.style.display = 'flex';
                     if (describeBtn) describeBtn.style.display = 'flex';
+                    if (diagnoseBtn) diagnoseBtn.style.display = data.simulated ? 'none' : 'flex';
                     if (restartBtn) restartBtn.style.display = 'flex';
                     if (deleteBtn) deleteBtn.style.display = 'flex';
                     const simBtnPod = document.getElementById('menu-btn-simulate');
@@ -7810,6 +7873,7 @@ ${labels}`;
                     // Hide pod-specific buttons
                     if (logsBtn) logsBtn.style.display = 'none';
                     if (describeBtn) describeBtn.style.display = 'none';
+                    if (diagnoseBtn) diagnoseBtn.style.display = 'none';
                     if (restartBtn) restartBtn.style.display = 'none';
                     if (deleteBtn) deleteBtn.style.display = 'none';
                     const simBtn = document.getElementById('menu-btn-simulate');
@@ -7939,14 +8003,15 @@ ${labels}`;
             return escaped;
         }
 
-        function fetchPodTroubleshooting(action, podName, namespace) {
+        function fetchPodTroubleshooting(action, podName, namespace, opts = {}) {
             const modalEl = document.getElementById('command-output-modal');
             const terminalTextEl = document.getElementById('terminal-text');
             const cmdHeaderEl = document.getElementById('terminal-cmd-header');
+            showTerminalView('text', podKey(namespace, podName));
             
             let cmdStr = "";
             if (action === 'logs') {
-                cmdStr = `$ kubectl logs ${podName} -n ${namespace} --tail=200`;
+                cmdStr = `$ kubectl logs ${podName} -n ${namespace} --tail=200${opts.container ? ` -c ${opts.container}` : ''}${opts.previous ? ' --previous' : ''}`;
             } else if (action === 'describe') {
                 cmdStr = `$ kubectl describe pod ${podName} -n ${namespace}`;
             } else if (action === 'spec') {
@@ -7985,7 +8050,8 @@ ${labels}`;
             let url = '';
             if (action === 'logs') {
                 endpoint = '/api/v1/pods/logs';
-                url = `${endpoint}?pod=${encodeURIComponent(podName)}&namespace=${encodeURIComponent(namespace)}`;
+                url = `${endpoint}?pod=${encodeURIComponent(podName)}&namespace=${encodeURIComponent(namespace)}`
+                    + (opts.container ? `&container=${encodeURIComponent(opts.container)}` : '') + (opts.previous ? '&previous=1' : '');
             } else if (action === 'describe') {
                 endpoint = '/api/v1/pods/describe';
                 url = `${endpoint}?pod=${encodeURIComponent(podName)}&namespace=${encodeURIComponent(namespace)}`;
@@ -8029,6 +8095,7 @@ ${labels}`;
             const modalEl = document.getElementById('command-output-modal');
             const terminalTextEl = document.getElementById('terminal-text');
             const cmdHeaderEl = document.getElementById('terminal-cmd-header');
+            showTerminalView('text', null);
             
             let cmdStr = "";
             if (action === 'events') {
@@ -8084,6 +8151,148 @@ ${labels}`;
                     const mockText = getMockNodeEvents(nodeName, conditions);
                     terminalTextEl.innerHTML = highlightEventsOutput(mockText);
                 });
+        }
+
+        // ---------- F-24: "Why is my pod failing?" diagnosis ----------
+        let lastDiagnosis = null;   // { key, namespace, podName, result } for "← Diagnosis" and Copy
+        let diagnosisSeq = 0;
+
+        // The output modal shows either raw command output (<pre>) or the diagnosis view
+        function showTerminalView(which, forPodKey) {
+            document.getElementById('terminal-text').style.display = which === 'text' ? '' : 'none';
+            document.getElementById('diagnosis-view').style.display = which === 'diagnosis' ? '' : 'none';
+            const back = document.getElementById('terminal-btn-back');
+            back.style.display = which === 'text' && lastDiagnosis && lastDiagnosis.key === forPodKey ? '' : 'none';
+            document.getElementById('terminal-body-container').scrollTop = 0;
+        }
+
+        function openDiagnosis(namespace, podName) {
+            const modalEl = document.getElementById('command-output-modal');
+            const view = document.getElementById('diagnosis-view');
+            const key = podKey(namespace, podName);
+            document.getElementById('terminal-cmd-header').textContent = `🩺 Why is ${podName} failing?`;
+            modalEl.classList.add('visible');
+            controls.unlock();
+            moveForward = moveBackward = moveLeft = moveRight = moveUp = moveDown = false;
+            velocity.set(0, 0, 0);
+
+            if (lastDiagnosis && lastDiagnosis.key === key && lastDiagnosis.result) {
+                view.innerHTML = renderDiagnosis(lastDiagnosis.result);   // keep it on screen while refreshing
+            } else {
+                view.innerHTML = '<div class="diag-loading">Reading the pod, its events and its node…</div>';
+            }
+            lastDiagnosis = { key, namespace, podName, result: lastDiagnosis && lastDiagnosis.key === key ? lastDiagnosis.result : null };
+            showTerminalView('diagnosis', key);
+
+            const seq = ++diagnosisSeq;
+            fetch(`/api/v1/pods/diagnose?pod=${encodeURIComponent(podName)}&namespace=${encodeURIComponent(namespace)}`)
+                .catch(() => { throw Object.assign(new Error('Lex server unreachable'), { offline: true }); })
+                .then(res => res.json().catch(() => ({})).then(body => {
+                    if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+                    return body;
+                }))
+                .then(result => {
+                    if (seq !== diagnosisSeq) return;
+                    lastDiagnosis.result = result;
+                    view.innerHTML = renderDiagnosis(result);
+                })
+                .catch(err => {
+                    if (seq !== diagnosisSeq) return;
+                    const offline = !!err.offline;   // fetch() itself failed: no Lex server (e.g. file://)
+                    if (!offline) console.error('[Lex] Diagnosis failed:', err);
+                    view.innerHTML = `<div class="diag-verdict critical"><div class="diag-kicker">Diagnosis unavailable</div>
+                        <div class="diag-summary">${offline
+                            ? 'Diagnosis reads the live pod and its events through the Lex server, which isn\'t reachable from this page.'
+                            : escapeHtml(err.message)}</div></div>`;
+                });
+        }
+
+        function renderDiagnosis(r) {
+            const sevLabel = { critical: 'Failing', warning: 'Needs attention', info: 'In progress', ok: 'Healthy' }[r.severity] || r.severity;
+            const p = r.pod || {};
+            const meta = [
+                ['Status', p.status], ['Phase', p.phase], ['Node', p.node || '(not scheduled)'], ['Age', p.age],
+                ['Restarts', p.restarts], ['Owner', p.owner ? `${p.owner.kind}/${p.owner.name}` : null]
+            ].filter(([, v]) => v !== null && v !== undefined && v !== '')
+             .map(([k, v]) => `<span>${k} <b>${escapeHtml(v)}</b></span>`).join('');
+
+            // The verdict box already explains the top finding: don't repeat it word for word
+            const finding = f => `
+                <div class="diag-finding ${escapeHtml(f.severity)}">
+                    <div class="diag-finding-title"><span class="sev">${escapeHtml(f.severity)}</span>${escapeHtml(f.title)}</div>
+                    ${f.title === r.headline && r.summary.startsWith(f.explanation) ? '' : `<p>${escapeHtml(f.explanation)}</p>`}
+                    ${f.evidence.length ? `<ul class="diag-evidence">${f.evidence.map(e => `<li>${escapeHtml(e)}</li>`).join('')}</ul>` : ''}
+                    ${f.fixes.length ? `<ul class="diag-fixes">${f.fixes.map(x => `<li>${escapeHtml(x)}</li>`).join('')}</ul>` : ''}
+                </div>`;
+            const problems = r.findings.filter(f => f.severity !== 'info');
+            const notes = r.findings.filter(f => f.severity === 'info' && !(r.severity === 'info' && f.title === r.headline));
+
+            const actions = (r.actions || []).map((a, i) =>
+                `<button class="diag-action" data-diag-action="${i}">${a.action === 'logs' ? '📜' : a.action === 'events' ? '🔔' : '🔍'} ${escapeHtml(a.label)}</button>`).join('');
+
+            const containers = (r.containers || []).map(c => {
+                const row = (k, v, bad) => v ? `<div class="crow"><span>${k}</span><span class="${bad ? 'bad' : ''}">${escapeHtml(v)}</span></div>` : '';
+                const res = obj => Object.entries(obj || {}).map(([k, v]) => `${k} ${v}`).join(', ');
+                const lt = c.lastTermination;
+                return `<div class="diag-container">
+                    <div><span class="cname">${escapeHtml(c.name)}</span><span class="ckind">${escapeHtml(c.kind === 'app' ? 'container' : c.kind)}</span></div>
+                    ${row('State', c.state + (c.state.startsWith('Running') ? (c.ready ? ' · ready' : ' · not ready') : ''), !c.state.startsWith('Running') || !c.ready)}
+                    ${row('Restarts', String(c.restarts), c.restarts > 0)}
+                    ${lt ? row('Last exit', `${lt.reason || 'Error'} (${lt.exitCode}: ${lt.meaning})${lt.ago ? ', ' + lt.ago : ''}`, lt.exitCode !== 0) : ''}
+                    ${row('Requests', res(c.requests) || 'none')}
+                    ${row('Limits', res(c.limits) || 'none')}
+                    ${Object.entries(c.probes || {}).map(([k, v]) => row(k[0].toUpperCase() + k.slice(1), v)).join('')}
+                    ${c.kind === 'app' && !(c.probes || {}).readiness ? row('Readiness', 'no probe') : ''}
+                </div>`;
+            }).join('');
+
+            const events = (r.events || []).map(e => `<tr>
+                    <td class="t">${e.lastSeen ? escapeHtml(getAgeString(e.lastSeen)) : ''}</td>
+                    <td class="${e.type === 'Warning' ? 'w' : 'n'}">${escapeHtml(e.type)}</td>
+                    <td class="r">${escapeHtml(e.reason)}${e.count > 1 ? ` ×${escapeHtml(e.count)}` : ''}</td>
+                    <td>${escapeHtml(e.message)}</td></tr>`).join('');
+
+            return `
+                <div class="diag-verdict ${escapeHtml(r.severity)}">
+                    <div class="diag-kicker">${escapeHtml(sevLabel)} · ${escapeHtml(p.namespace)}/${escapeHtml(p.name)}</div>
+                    <div class="diag-headline">${escapeHtml(r.headline)}</div>
+                    <div class="diag-summary">${escapeHtml(r.summary)}</div>
+                    <div class="diag-meta">${meta}</div>
+                </div>
+                ${actions ? `<div class="diag-actions">${actions}</div>` : ''}
+                ${problems.length ? `<div class="diag-section">What's wrong</div>${problems.map(finding).join('')}` : ''}
+                ${notes.length ? `<details class="diag-hygiene" ${problems.length ? '' : 'open'}><summary>${notes.length} thing${notes.length === 1 ? '' : 's'} worth knowing (not the cause)</summary>${notes.map(finding).join('')}</details>` : ''}
+                ${containers ? `<div class="diag-section">Containers</div><div class="diag-containers">${containers}</div>` : ''}
+                <div class="diag-section">Events${r.eventCount > (r.events || []).length ? ` (latest ${r.events.length} of ${r.eventCount})` : ''}</div>
+                ${events ? `<table class="diag-events">${events}</table>` : `<div class="diag-note" style="margin-top:0">${r.eventsError ? escapeHtml(r.eventsError) : 'No events on record. Kubernetes keeps events for about an hour.'}</div>`}
+                <div class="diag-note">Diagnosed from the live pod at ${escapeHtml(new Date(r.generatedAt).toLocaleTimeString())}${r.context === 'demo' ? ' (demo cluster, synthetic events)' : ''}${isDVRMode ? '. This is the cluster now, not the DVR frame on screen' : ''}.
+                    ${r.usageWindowMinutes ? `Usage figures cover the last ${escapeHtml(r.usageWindowMinutes)} min Lex has been sampling.` : ''} 📋 Copy Output copies this as text, with a link.</div>`;
+        }
+
+        // Plain text for pasting into a ticket or chat
+        function diagnosisToText(r) {
+            const p = r.pod || {};
+            const lines = [`${r.headline} — ${p.namespace}/${p.name} (${p.status})`, '', r.summary];
+            r.findings.filter(f => f.severity !== 'info').forEach(f => {
+                lines.push('', `[${f.severity.toUpperCase()}] ${f.title}`, f.explanation);
+                f.evidence.forEach(e => lines.push(`  › ${e}`));
+                f.fixes.forEach(x => lines.push(`  - ${x}`));
+            });
+            const warnings = (r.events || []).filter(e => e.type === 'Warning').slice(0, 5);
+            if (warnings.length) {
+                lines.push('', 'Recent warning events:');
+                warnings.forEach(e => lines.push(`  ${e.reason}${e.count > 1 ? ' ×' + e.count : ''}: ${e.message}`));
+            }
+            lines.push('', `Open in Lex: ${buildDeepLink({ pod: `${p.namespace}/${p.name}`, diagnose: '1' })}`);
+            return lines.join('\n');
+        }
+
+        function runDiagnosisAction(index) {
+            const d = lastDiagnosis;
+            const a = d && d.result && d.result.actions[index];
+            if (!a) return;
+            if (a.action === 'logs') fetchPodTroubleshooting('logs', d.podName, d.namespace, { container: a.container, previous: !!a.previous });
+            else fetchPodTroubleshooting(a.action, d.podName, d.namespace);
         }
 
         function setupTroubleshootingUI() {
@@ -8154,13 +8363,32 @@ ${labels}`;
                 });
             }
 
+            const menuDiagnoseBtn = document.getElementById('menu-btn-diagnose');
+            if (menuDiagnoseBtn) menuDiagnoseBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const menuEl = document.getElementById('pod-command-menu');
+                menuEl.classList.remove('visible');
+                openDiagnosis(menuEl.dataset.namespace, menuEl.dataset.podName);
+            });
+            document.getElementById('diagnosis-view').addEventListener('click', (e) => {
+                const btn = e.target.closest('[data-diag-action]');
+                if (btn) { e.stopPropagation(); runDiagnosisAction(parseInt(btn.dataset.diagAction, 10)); }
+            });
+            document.getElementById('terminal-btn-back').addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (lastDiagnosis) openDiagnosis(lastDiagnosis.namespace, lastDiagnosis.podName);
+            });
+
             const copyBtn = document.getElementById('terminal-btn-copy');
             const terminalTextEl = document.getElementById('terminal-text');
             if (copyBtn && terminalTextEl) {
                 copyBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    const textToCopy = terminalTextEl.textContent || terminalTextEl.innerText;
-                    navigator.clipboard.writeText(textToCopy).then(() => {
+                    const diagVisible = document.getElementById('diagnosis-view').style.display !== 'none';
+                    const textToCopy = diagVisible && lastDiagnosis && lastDiagnosis.result
+                        ? diagnosisToText(lastDiagnosis.result)
+                        : (terminalTextEl.textContent || terminalTextEl.innerText);
+                    copyText(textToCopy).then(() => {
                         const originalText = copyBtn.textContent;
                         copyBtn.textContent = "✓ Copied!";
                         copyBtn.style.borderColor = "#10b981";
@@ -8194,7 +8422,8 @@ ${labels}`;
                     e.stopPropagation();
                     const modalEl = document.getElementById('command-output-modal');
                     modalEl.classList.remove('visible');
-                    controls.lock();
+                    const opsPanel = document.getElementById('ops-panel');
+                    if (!(opsPanel && opsPanel.classList.contains('visible'))) controls.lock();
                 });
             }
 

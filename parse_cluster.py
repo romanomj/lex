@@ -246,7 +246,9 @@ def create_mock_files_if_missing(context=None):
     stuck_time = (now - datetime.timedelta(minutes=45)).strftime("%Y-%m-%dT%H:%M:%SZ")
     normal_time = (now - datetime.timedelta(minutes=5)).strftime("%Y-%m-%dT%H:%M:%SZ")
     joining_time = (now - datetime.timedelta(minutes=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
-    
+    crash_started = (now - datetime.timedelta(minutes=3, seconds=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    crash_finished = (now - datetime.timedelta(minutes=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
     mock_nodes = {
         "apiVersion": "v1",
         "kind": "List",
@@ -445,10 +447,17 @@ def create_mock_files_if_missing(context=None):
                     "namespace": "production",
                     "creationTimestamp": "2026-05-21T02:00:00Z"
                 },
-                "spec": {"nodeName": "node-alpha", "containers": [{"name": "cache", "image": "redis:7-alpine", "resources": {"requests": {"memory": "4Gi"}}}]},
+                "spec": {"nodeName": "node-alpha", "containers": [{"name": "cache", "image": "redis:7-alpine",
+                                                                   "resources": {"requests": {"memory": "4Gi"}, "limits": {"memory": "4Gi"}},
+                                                                   "livenessProbe": {"tcpSocket": {"port": 6379}, "periodSeconds": 10}}]},
                 "status": {
-                    "phase": "CrashLoopBackOff",
-                    "containerStatuses": [{"name": "cache", "restartCount": 9}]
+                    "phase": "Running",
+                    "conditions": [{"type": "Ready", "status": "False", "reason": "ContainersNotReady"}],
+                    "containerStatuses": [{"name": "cache", "image": "redis:7-alpine", "restartCount": 9, "ready": False, "started": False,
+                                           "state": {"waiting": {"reason": "CrashLoopBackOff",
+                                                                 "message": "back-off 5m0s restarting failed container=cache pod=cache-pod-9a3f2c7d-5m1q9_production"}},
+                                           "lastState": {"terminated": {"reason": "Error", "exitCode": 1, "startedAt": crash_started, "finishedAt": crash_finished,
+                                                                        "message": "*** FATAL CONFIG FILE ERROR (Redis 7.2.4) *** line 12: 'maxmemory 4gb-x' Bad directive or wrong number of arguments"}}}]
                 }
             },
             {
