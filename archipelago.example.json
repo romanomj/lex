@@ -1,0 +1,8 @@
+{
+  "_comment": "Copy to archipelago.json (git-ignored) to tune which workloads Lex compares between environments. Globs use * and ?.",
+  "ignoreNamespaces": ["sandbox-*", "observability"],
+  "ignoreWorkloads": ["*/Deployment/*-operator"],
+  "alwaysCompare": ["payments/Deployment/payment-gateway"],
+  "pairs": [["kind-staging", "arn:aws:eks:us-east-1:123456789012:cluster/shop-live"]],
+  "fleetShare": 0.5
+}

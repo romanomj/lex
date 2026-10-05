@@ -10,6 +10,7 @@ import datetime
 import alerts
 import redaction
 import security
+import network
 
 # Configuration
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -146,17 +147,29 @@ def kubectl_available():
             _kubectl_available = False
     return _kubectl_available
 
-def run_kubectl(context=None):
-    """Attempts to run kubectl to fetch live cluster JSONs."""
-    nodes_file, pods_file, _ = get_file_paths(context)
+# O-02: live data is parsed in memory; only the compiled (slim) state is written. Raw lists are kept on disk
+# only when asked (server.py --keep-raw-dumps), e.g. to debug the parser. The demo still reads its fixture files.
+KEEP_RAW_DUMPS = os.environ.get("LEX_KEEP_RAW_DUMPS") == "1"
+
+def maybe_write_raw(path, data):
+    """Writes a sanitized raw list only when raw dumps are enabled."""
+    if KEEP_RAW_DUMPS:
+        write_file_atomic(path, json.dumps(redaction.sanitize_list_for_disk(data), separators=(",", ":")))
+
+def fetch_cluster_lists(context=None):
+    """
+    Lists nodes, pods and workloads (+ PDBs) with kubectl and returns them parsed, in memory:
+    (nodes, pods, workloads), or None if the cluster can't be read. Workloads are optional (RBAC may forbid them):
+    on failure they come back as {"items": [], "lexError": ...}.
+    """
     if context:
         print(f"Attempting to query Kubernetes cluster context: {context}...")
     else:
         print("Attempting to query active Kubernetes cluster context...")
-        
+
     if not kubectl_available():
         print("▲ Note: 'kubectl' CLI utility is not installed or not in system PATH.")
-        return False
+        return None
 
     base_cmd = ["kubectl"]
     if context:
@@ -166,51 +179,71 @@ def run_kubectl(context=None):
             subprocess.run(["kubectl", "config", "current-context"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True, timeout=10)
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             print("▲ Note: 'kubectl' is installed, but no active cluster context was detected.")
-            return False
+            return None
     # No separate connectivity pre-check: the 'get' calls below carry their own timeouts, and a short
     # cluster-info probe produced false "unreachable" results on EKS when exec-plugin auth was slow.
 
     get_cmd = base_cmd + [f"--request-timeout={KUBECTL_REQUEST_TIMEOUT}", "get"]
 
-    # Fetch nodes
-    try:
-        print(f"Fetching nodes list and writing to {nodes_file}...")
-        nodes_res = subprocess.run(get_cmd + ["nodes", "-o", "json"], capture_output=True, text=True, check=True, timeout=KUBECTL_PROCESS_TIMEOUT)
-        write_file_atomic(nodes_file, redaction.sanitize_json_text_for_disk(nodes_res.stdout))
-    except subprocess.CalledProcessError as e:
-        print(f"▲ Error fetching nodes: {e.stderr}")
-        return False
-    except subprocess.TimeoutExpired:
-        print(f"▲ Error fetching nodes: timed out after {KUBECTL_PROCESS_TIMEOUT}s")
-        return False
+    def get(kinds, all_namespaces):
+        cmd = get_cmd + [kinds] + (["--all-namespaces"] if all_namespaces else []) + ["-o", "json"]
+        res = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=KUBECTL_PROCESS_TIMEOUT)
+        # Literal env values (often credentials) and last-applied-configuration are dropped as soon as they arrive
+        return redaction.sanitize_list_for_disk(json.loads(res.stdout))
 
-    # Fetch pods
-    try:
-        print(f"Fetching pods list across all namespaces and writing to {pods_file}...")
-        pods_res = subprocess.run(get_cmd + ["pods", "--all-namespaces", "-o", "json"], capture_output=True, text=True, check=True, timeout=KUBECTL_PROCESS_TIMEOUT)
-        # Literal env values (often credentials) and last-applied-configuration never reach the disk
-        write_file_atomic(pods_file, redaction.sanitize_json_text_for_disk(pods_res.stdout))
-    except subprocess.CalledProcessError as e:
-        print(f"▲ Error fetching pods: {e.stderr}")
-        return False
-    except subprocess.TimeoutExpired:
-        print(f"▲ Error fetching pods: timed out after {KUBECTL_PROCESS_TIMEOUT}s")
-        return False
+    results = {}
+    for key, kinds, all_ns in (("nodes", "nodes", False), ("pods", "pods", True)):
+        try:
+            print(f"Fetching {key}...")
+            results[key] = get(kinds, all_ns)
+        except subprocess.CalledProcessError as e:
+            print(f"▲ Error fetching {key}: {e.stderr}")
+            return None
+        except subprocess.TimeoutExpired:
+            print(f"▲ Error fetching {key}: timed out after {KUBECTL_PROCESS_TIMEOUT}s")
+            return None
+        except ValueError as e:
+            print(f"▲ Error parsing {key}: {e}")
+            return None
 
     # Workloads (for replica availability). Non-fatal: RBAC may not allow it, and the rest of Lex still works.
-    workloads_file = get_workloads_path(context)
     try:
-        print(f"Fetching deployments/statefulsets/daemonsets/poddisruptionbudgets and writing to {workloads_file}...")
-        wl_res = subprocess.run(get_cmd + ["deployments,statefulsets,daemonsets,poddisruptionbudgets", "--all-namespaces", "-o", "json"],
-                                capture_output=True, text=True, check=True, timeout=KUBECTL_PROCESS_TIMEOUT)
-        write_file_atomic(workloads_file, redaction.sanitize_json_text_for_disk(wl_res.stdout))
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        print("Fetching deployments/statefulsets/daemonsets/poddisruptionbudgets...")
+        results["workloads"] = get("deployments,statefulsets,daemonsets,poddisruptionbudgets", True)
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, ValueError) as e:
         detail = getattr(e, "stderr", "") or str(e)
         print(f"▲ Could not fetch workloads (continuing without them): {str(detail).strip()[:200]}")
-        write_file_atomic(workloads_file, json.dumps({"items": [], "lexError": str(detail).strip()[:500]}))
+        results["workloads"] = {"items": [], "lexError": str(detail).strip()[:500]}
 
+    # F-21: Services, Ingresses and NetworkPolicies ride along with the workloads. Non-fatal, and per kind if the
+    # combined call fails (RBAC often allows Services but not NetworkPolicies), so each kind is known listed or not.
+    network_kinds = (("Service", "services"), ("Ingress", "ingresses.networking.k8s.io"),
+                     ("NetworkPolicy", "networkpolicies.networking.k8s.io"))
+    listed = {}
+    try:
+        print("Fetching services/ingresses/networkpolicies...")
+        data = get(",".join(k for _, k in network_kinds), True)
+        results["workloads"]["items"].extend(data.get("items") or [])
+        listed = {kind: True for kind, _ in network_kinds}
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, ValueError):
+        for kind, resource in network_kinds:
+            try:
+                data = get(resource, True)
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired, ValueError) as e:
+                print(f"▲ Could not list {resource} (continuing without them): {str(getattr(e, 'stderr', '') or e).strip()[:200]}")
+                continue
+            for item in data.get("items") or []:
+                item.setdefault("kind", kind)
+            results["workloads"]["items"].extend(data.get("items") or [])
+            listed[kind] = True
+    results["workloads"]["lexNetwork"] = listed
+
+    nodes_file, pods_file, _ = get_file_paths(context)
+    maybe_write_raw(nodes_file, results["nodes"])
+    maybe_write_raw(pods_file, results["pods"])
+    maybe_write_raw(get_workloads_path(context), results["workloads"])
     print("● Live cluster data successfully extracted!")
-    return True
+    return results["nodes"], results["pods"], results["workloads"]
 
 def get_cluster_name(context=None):
     """Attempts to fetch active Kubernetes context/cluster name."""
@@ -248,6 +281,9 @@ def create_mock_files_if_missing(context=None):
     joining_time = (now - datetime.timedelta(minutes=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
     crash_started = (now - datetime.timedelta(minutes=3, seconds=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
     crash_finished = (now - datetime.timedelta(minutes=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    rollout_started = (now - datetime.timedelta(minutes=4)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    rollout_latest = (now - datetime.timedelta(seconds=40)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    cache_rollout = (now - datetime.timedelta(minutes=48)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     mock_nodes = {
         "apiVersion": "v1",
@@ -445,7 +481,7 @@ def create_mock_files_if_missing(context=None):
                     "ownerReferences": [{"kind": "ReplicaSet", "name": "cache-pod-9a3f2c7d", "controller": True}],
                     "labels": {"pod-template-hash": "9a3f2c7d", "app": "cache"},
                     "namespace": "production",
-                    "creationTimestamp": "2026-05-21T02:00:00Z"
+                    "creationTimestamp": cache_rollout
                 },
                 "spec": {"nodeName": "node-alpha", "containers": [{"name": "cache", "image": "redis:7-alpine",
                                                                    "resources": {"requests": {"memory": "4Gi"}, "limits": {"memory": "4Gi"}},
@@ -459,6 +495,76 @@ def create_mock_files_if_missing(context=None):
                                            "lastState": {"terminated": {"reason": "Error", "exitCode": 1, "startedAt": crash_started, "finishedAt": crash_finished,
                                                                         "message": "*** FATAL CONFIG FILE ERROR (Redis 7.2.4) *** line 12: 'maxmemory 4gb-x' Bad directive or wrong number of arguments"}}}]
                 }
+            },
+            {
+                "metadata": {
+                    "name": "cache-pod-4e5f6a7b-k8j2h",
+                    "ownerReferences": [{"kind": "ReplicaSet", "name": "cache-pod-4e5f6a7b", "controller": True}],
+                    "labels": {"pod-template-hash": "4e5f6a7b", "app": "cache"},
+                    "namespace": "production",
+                    "creationTimestamp": "2026-04-28T09:00:00Z"
+                },
+                "spec": {"nodeName": "node-alpha", "containers": [{"name": "cache", "image": "redis:7.0-alpine",
+                                                                   "resources": {"requests": {"memory": "4Gi"}, "limits": {"memory": "4Gi"}},
+                                                                   "livenessProbe": {"tcpSocket": {"port": 6379}}}]},
+                "status": {"phase": "Running", "conditions": [{"type": "Ready", "status": "True"}],
+                           "containerStatuses": [{"name": "cache", "restartCount": 0, "ready": True, "state": {"running": {"startedAt": "2026-04-28T09:00:05Z"}}}]}
+            },
+            {
+                "metadata": {
+                    "name": "checkout-5d6c7b8a-q2x7k",
+                    "ownerReferences": [{"kind": "ReplicaSet", "name": "checkout-5d6c7b8a", "controller": True}],
+                    "labels": {"pod-template-hash": "5d6c7b8a", "app": "checkout"},
+                    "namespace": "production",
+                    "creationTimestamp": "2026-09-12T14:00:00Z"
+                },
+                "spec": {"nodeName": "node-charlie", "containers": [{"name": "checkout", "image": "registry.example.com/checkout:1.41.0",
+                                                                   "resources": {"requests": {"memory": "1Gi", "cpu": "250m"}, "limits": {"memory": "1Gi"}},
+                                                                   "readinessProbe": {"httpGet": {"path": "/ready", "port": 8080}}}]},
+                "status": {"phase": "Running", "conditions": [{"type": "Ready", "status": "True"}],
+                           "containerStatuses": [{"name": "checkout", "restartCount": 0, "ready": True, "state": {"running": {"startedAt": "2026-09-12T14:00:20Z"}}}]}
+            },
+            {
+                "metadata": {
+                    "name": "checkout-5d6c7b8a-w9p3m",
+                    "ownerReferences": [{"kind": "ReplicaSet", "name": "checkout-5d6c7b8a", "controller": True}],
+                    "labels": {"pod-template-hash": "5d6c7b8a", "app": "checkout"},
+                    "namespace": "production",
+                    "creationTimestamp": "2026-09-12T14:01:00Z"
+                },
+                "spec": {"nodeName": "node-charlie", "containers": [{"name": "checkout", "image": "registry.example.com/checkout:1.41.0",
+                                                                   "resources": {"requests": {"memory": "1Gi", "cpu": "250m"}, "limits": {"memory": "1Gi"}},
+                                                                   "readinessProbe": {"httpGet": {"path": "/ready", "port": 8080}}}]},
+                "status": {"phase": "Running", "conditions": [{"type": "Ready", "status": "True"}],
+                           "containerStatuses": [{"name": "checkout", "restartCount": 0, "ready": True, "state": {"running": {"startedAt": "2026-09-12T14:01:20Z"}}}]}
+            },
+            {
+                "metadata": {
+                    "name": "checkout-7f9a1b2c-a4b8n",
+                    "ownerReferences": [{"kind": "ReplicaSet", "name": "checkout-7f9a1b2c", "controller": True}],
+                    "labels": {"pod-template-hash": "7f9a1b2c", "app": "checkout"},
+                    "namespace": "production",
+                    "creationTimestamp": rollout_started
+                },
+                "spec": {"nodeName": "node-charlie", "containers": [{"name": "checkout", "image": "registry.example.com/checkout:1.42.0",
+                                                                   "resources": {"requests": {"memory": "1Gi", "cpu": "250m"}, "limits": {"memory": "1Gi"}},
+                                                                   "readinessProbe": {"httpGet": {"path": "/ready", "port": 8080}}}]},
+                "status": {"phase": "Running", "conditions": [{"type": "Ready", "status": "True"}],
+                           "containerStatuses": [{"name": "checkout", "restartCount": 0, "ready": True, "state": {"running": {"startedAt": rollout_started}}}]}
+            },
+            {
+                "metadata": {
+                    "name": "checkout-7f9a1b2c-c6d2v",
+                    "ownerReferences": [{"kind": "ReplicaSet", "name": "checkout-7f9a1b2c", "controller": True}],
+                    "labels": {"pod-template-hash": "7f9a1b2c", "app": "checkout"},
+                    "namespace": "production",
+                    "creationTimestamp": rollout_latest
+                },
+                "spec": {"nodeName": "node-charlie", "containers": [{"name": "checkout", "image": "registry.example.com/checkout:1.42.0",
+                                                                   "resources": {"requests": {"memory": "1Gi", "cpu": "250m"}, "limits": {"memory": "1Gi"}},
+                                                                   "readinessProbe": {"httpGet": {"path": "/ready", "port": 8080}}}]},
+                "status": {"phase": "Pending", "conditions": [{"type": "Ready", "status": "False"}],
+                           "containerStatuses": [{"name": "checkout", "restartCount": 0, "ready": False, "state": {"waiting": {"reason": "ContainerCreating"}}}]}
             },
             {
                 "metadata": {
@@ -636,10 +742,24 @@ def create_mock_files_if_missing(context=None):
             {"kind": "Deployment", "metadata": {"name": "backend-pod", "namespace": "production"}, "spec": {"replicas": 1},
              "status": {"replicas": 1, "readyReplicas": 1, "availableReplicas": 1,
                         "conditions": [{"type": "Available", "status": "True"}]}},
-            {"kind": "Deployment", "metadata": {"name": "cache-pod", "namespace": "production"}, "spec": {"replicas": 1},
-             "status": {"replicas": 1, "readyReplicas": 0, "availableReplicas": 0, "unavailableReplicas": 1,
-                        "conditions": [{"type": "Available", "status": "False", "reason": "MinimumReplicasUnavailable",
-                                        "message": "Deployment does not have minimum availability.", "lastTransitionTime": stuck_time}]}},
+            # Stalled rollout: revision 3 crash-loops while the revision 2 pod keeps serving
+            {"kind": "Deployment", "metadata": {"name": "cache-pod", "namespace": "production", "generation": 3,
+                                                "annotations": {"deployment.kubernetes.io/revision": "3"}},
+             "spec": {"replicas": 1, "strategy": {"type": "RollingUpdate", "rollingUpdate": {"maxSurge": "25%", "maxUnavailable": "25%"}}},
+             "status": {"observedGeneration": 3, "replicas": 2, "updatedReplicas": 1, "readyReplicas": 1, "availableReplicas": 1, "unavailableReplicas": 1,
+                        "conditions": [{"type": "Available", "status": "True", "reason": "MinimumReplicasAvailable"},
+                                       {"type": "Progressing", "status": "False", "reason": "ProgressDeadlineExceeded",
+                                        "message": 'ReplicaSet "cache-pod-9a3f2c7d" has timed out progressing.',
+                                        "lastUpdateTime": cache_rollout, "lastTransitionTime": stuck_time}]}},
+            # Healthy rolling update in progress: 2 of 3 replicas on revision 7
+            {"kind": "Deployment", "metadata": {"name": "checkout", "namespace": "production", "generation": 7,
+                                                "annotations": {"deployment.kubernetes.io/revision": "7"}},
+             "spec": {"replicas": 3, "strategy": {"type": "RollingUpdate", "rollingUpdate": {"maxSurge": 1, "maxUnavailable": 0}}},
+             "status": {"observedGeneration": 7, "replicas": 4, "updatedReplicas": 2, "readyReplicas": 3, "availableReplicas": 3, "unavailableReplicas": 1,
+                        "conditions": [{"type": "Available", "status": "True", "reason": "MinimumReplicasAvailable"},
+                                       {"type": "Progressing", "status": "True", "reason": "ReplicaSetUpdated",
+                                        "message": 'ReplicaSet "checkout-7f9a1b2c" is progressing.',
+                                        "lastUpdateTime": rollout_latest, "lastTransitionTime": rollout_started}]}},
             {"kind": "StatefulSet", "metadata": {"name": "db-pod", "namespace": "database"}, "spec": {"replicas": 2},
              "status": {"replicas": 2, "readyReplicas": 2, "currentReplicas": 2}},
             {"kind": "PodDisruptionBudget", "metadata": {"name": "frontend-pdb", "namespace": "production"},
@@ -651,8 +771,49 @@ def create_mock_files_if_missing(context=None):
             {"kind": "StatefulSet", "metadata": {"name": "redis-replica", "namespace": "database"}, "spec": {"replicas": 3},
              "status": {"replicas": 3, "readyReplicas": 2, "currentReplicas": 3}},
             {"kind": "DaemonSet", "metadata": {"name": "logging-agent", "namespace": "kube-system"},
-             "status": {"desiredNumberScheduled": 4, "currentNumberScheduled": 1, "numberReady": 1, "numberAvailable": 1}}
-        ]
+             "status": {"desiredNumberScheduled": 4, "currentNumberScheduled": 1, "numberReady": 1, "numberAvailable": 1}},
+            # F-21 network exposure: a public LB with no policy behind it, an Ingress whose backends are locked down,
+            # a NodePort, an internal LB still waiting for its address, and an Ingress pointing at a missing Service
+            {"kind": "Service", "metadata": {"name": "frontend", "namespace": "production"},
+             "spec": {"type": "LoadBalancer", "selector": {"app": "frontend"}, "ports": [{"port": 443, "protocol": "TCP", "nodePort": 31443}]},
+             "status": {"loadBalancer": {"ingress": [{"hostname": "a1b2c3d4e5f6-1234567890.us-east-1.elb.amazonaws.com"}]}}},
+            {"kind": "Service", "metadata": {"name": "checkout", "namespace": "production"},
+             "spec": {"type": "ClusterIP", "selector": {"app": "checkout"}, "ports": [{"port": 8080, "protocol": "TCP"}]}},
+            {"kind": "Service", "metadata": {"name": "backend", "namespace": "production"},
+             "spec": {"type": "ClusterIP", "selector": {"app": "backend"}, "ports": [{"port": 9000, "protocol": "TCP"}]}},
+            {"kind": "Service", "metadata": {"name": "cache-debug", "namespace": "production"},
+             "spec": {"type": "NodePort", "selector": {"app": "cache"}, "ports": [{"port": 6379, "protocol": "TCP", "nodePort": 30379}]}},
+            {"kind": "Service", "metadata": {"name": "postgres", "namespace": "database"},
+             "spec": {"type": "ClusterIP", "selector": {"app": "postgres"}, "ports": [{"port": 5432, "protocol": "TCP"}]}},
+            {"kind": "Service", "metadata": {"name": "grafana", "namespace": "monitoring",
+                                             "annotations": {"service.beta.kubernetes.io/aws-load-balancer-scheme": "internal"}},
+             "spec": {"type": "LoadBalancer", "selector": {"app": "grafana"}, "ports": [{"port": 80, "protocol": "TCP"}]}, "status": {}},
+            {"kind": "Ingress", "metadata": {"name": "shop", "namespace": "production"},
+             "spec": {"ingressClassName": "alb", "tls": [{"hosts": ["shop.example.com"]}],
+                      "rules": [{"host": "shop.example.com", "http": {"paths": [
+                          {"path": "/", "pathType": "Prefix", "backend": {"service": {"name": "checkout", "port": {"number": 8080}}}},
+                          {"path": "/api", "pathType": "Prefix", "backend": {"service": {"name": "backend", "port": {"number": 9000}}}}]}}]},
+             "status": {"loadBalancer": {"ingress": [{"hostname": "k8s-shop-0a1b2c3d4e-987654321.us-east-1.elb.amazonaws.com"}]}}},
+            {"kind": "Ingress", "metadata": {"name": "docs", "namespace": "production"},
+             "spec": {"ingressClassName": "alb", "rules": [{"host": "docs.example.com", "http": {"paths": [
+                 {"path": "/", "pathType": "Prefix", "backend": {"service": {"name": "docs", "port": {"number": 80}}}}]}}]},
+             "status": {"loadBalancer": {"ingress": [{"hostname": "k8s-docs-5f6e7d8c9b-123123123.us-east-1.elb.amazonaws.com"}]}}},
+            {"kind": "NetworkPolicy", "metadata": {"name": "checkout-from-ingress", "namespace": "production"},
+             "spec": {"podSelector": {"matchLabels": {"app": "checkout"}}, "policyTypes": ["Ingress"],
+                      "ingress": [{"from": [{"namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": "kube-system"}}}],
+                                   "ports": [{"port": 8080}]}]}},
+            {"kind": "NetworkPolicy", "metadata": {"name": "backend-from-apps", "namespace": "production"},
+             "spec": {"podSelector": {"matchExpressions": [{"key": "app", "operator": "In", "values": ["backend"]}]},
+                      "ingress": [{"from": [{"podSelector": {"matchLabels": {"app": "checkout"}}},
+                                            {"podSelector": {"matchLabels": {"app": "frontend"}}}]}]}},
+            {"kind": "NetworkPolicy", "metadata": {"name": "default-deny-ingress", "namespace": "database"},
+             "spec": {"podSelector": {}, "policyTypes": ["Ingress"]}},
+            {"kind": "NetworkPolicy", "metadata": {"name": "postgres-from-production", "namespace": "database"},
+             "spec": {"podSelector": {"matchLabels": {"app": "postgres"}}, "policyTypes": ["Ingress"],
+                      "ingress": [{"from": [{"namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": "production"}}}],
+                                   "ports": [{"port": 5432}]}]}}
+        ],
+        "lexNetwork": {"Service": True, "Ingress": True, "NetworkPolicy": True}
     }
     workloads_file = get_workloads_path(context)
     if not os.path.exists(workloads_file) or is_generated_mock(workloads_file):
@@ -885,12 +1046,21 @@ def get_node_cost_details(node):
     }
 
 def summarize_containers(spec):
-    """Name / image / requests per container: what the hover panel shows, without the full pod spec."""
+    """Name / image / requests / limits / probes per container: what the hover panel and the namespace report card
+    need, without the full pod spec."""
     out = []
     for kind, containers in (("init", spec.get("initContainers") or []), ("app", spec.get("containers") or [])):
         for c in containers:
-            requests = (c.get("resources") or {}).get("requests") or {}
+            resources = c.get("resources") or {}
+            requests, limits = resources.get("requests") or {}, resources.get("limits") or {}
             item = {"name": c.get("name"), "image": c.get("image"), "cpu": requests.get("cpu"), "memory": requests.get("memory")}
+            if limits.get("cpu"):
+                item["cpuLimit"] = limits["cpu"]
+            if limits.get("memory"):
+                item["memoryLimit"] = limits["memory"]
+            probes = [p for p in ("readiness", "liveness", "startup") if c.get(p + "Probe")]
+            if probes:
+                item["probes"] = probes
             if kind == "init":
                 item["init"] = True
                 if is_restartable_init_container(c):
@@ -917,6 +1087,52 @@ def resolve_workload(metadata):
         return {"kind": "Deployment", "name": rs_name.rsplit("-", 1)[0]} if "-" in rs_name else owner
     return owner
 
+NEW_RS_RE = re.compile(r'ReplicaSet "([^"]+)"')
+
+def summarize_rollout(kind, md, spec, status, progressing):
+    """
+    What the rollout view needs to tell old pods from new ones, without listing ReplicaSets:
+      - Deployment: the Progressing condition usually names the newest ReplicaSet ('ReplicaSet "web-7d4f9b8c" is progressing'),
+        whose suffix is the pod-template-hash label on its pods. The condition can be stale (seen on real clusters: it still
+        named a 2024 ReplicaSet after later rollouts), so the UI decides *whether* a rollout is running from the replica
+        counts below and only trusts newHash when pods with that hash exist.
+      - StatefulSet: status.updateRevision equals the controller-revision-hash label on updated pods.
+      - DaemonSet: the API doesn't expose the new revision's hash; the UI infers it from the newest pod.
+    """
+    out = {
+        "generation": md.get("generation"),
+        "observedGeneration": status.get("observedGeneration"),
+        "revision": (md.get("annotations") or {}).get("deployment.kubernetes.io/revision"),
+    }
+    if kind == "Deployment":
+        m = NEW_RS_RE.search(progressing.get("message") or "")
+        name = md.get("name") or ""
+        if m and m.group(1).startswith(name + "-"):
+            out["newHash"] = m.group(1)[len(name) + 1:]
+            out["newReplicaSet"] = m.group(1)
+        out["updated"] = status.get("updatedReplicas") or 0
+        out["replicas"] = status.get("replicas") or 0      # old + new pods the controller counts
+        out["progressReason"] = progressing.get("reason")
+        out["progressSince"] = progressing.get("lastUpdateTime") or progressing.get("lastTransitionTime")
+        out["paused"] = bool(spec.get("paused"))
+        strategy = spec.get("strategy") or {}
+        out["strategy"] = strategy.get("type") or "RollingUpdate"
+        ru = strategy.get("rollingUpdate") or {}
+        if ru:
+            out["maxSurge"], out["maxUnavailable"] = ru.get("maxSurge"), ru.get("maxUnavailable")
+    elif kind == "StatefulSet":
+        out["newHash"] = status.get("updateRevision")
+        out["currentHash"] = status.get("currentRevision")
+        out["updated"] = status.get("updatedReplicas") or 0
+        out["strategy"] = (spec.get("updateStrategy") or {}).get("type") or "RollingUpdate"
+        partition = ((spec.get("updateStrategy") or {}).get("rollingUpdate") or {}).get("partition")
+        if partition:
+            out["partition"] = partition
+    elif kind == "DaemonSet":
+        out["updated"] = status.get("updatedNumberScheduled") or 0
+        out["strategy"] = (spec.get("updateStrategy") or {}).get("type") or "RollingUpdate"
+    return {k: v for k, v in out.items() if v is not None}
+
 def summarize_workloads(workloads_data):
     """Desired vs ready replicas for Deployments, StatefulSets and DaemonSets."""
     out = []
@@ -936,6 +1152,8 @@ def summarize_workloads(workloads_data):
         conds = {c.get("type"): c for c in status.get("conditions") or []}
         avail_cond = conds.get("Available") or {}
         progressing = conds.get("Progressing") or {}
+        rollout = summarize_rollout(kind, md, spec, status, progressing)
+        template = (spec.get("template") or {}).get("spec") or {}
         out.append({
             "kind": kind,
             "namespace": md.get("namespace", "default"),
@@ -946,6 +1164,10 @@ def summarize_workloads(workloads_data):
             "unavailableSince": avail_cond.get("lastTransitionTime") if avail_cond.get("status") == "False" else None,
             "stalled": progressing.get("reason") == "ProgressDeadlineExceeded",
             "message": progressing.get("message") if progressing.get("reason") == "ProgressDeadlineExceeded" else avail_cond.get("message"),
+            "rollout": rollout,
+            # F-36: the version the workload asks for (pod images can include injected sidecars or leftover pods)
+            "images": [c.get("image") for c in template.get("containers") or [] if c.get("image")],
+            "knativeService": (md.get("labels") or {}).get("serving.knative.dev/service"),
         })
     out.sort(key=lambda w: (w["namespace"], w["kind"], w["name"]))
     return out
@@ -1083,6 +1305,8 @@ def compile_state(nodes_data, pods_data, workloads_data, cluster_name, alert_con
     unscheduled_pods = []
     failed_pods = []
     pod_list = pods_data.get("items", [])
+    # F-21: gates (LoadBalancer/NodePort/Ingress) and NetworkPolicy coverage, when those kinds were listed
+    network_summary, network_per_pod = network.analyze(workloads_data, pod_list)
     for pod in pod_list:
         metadata = pod.get("metadata", {})
         name = metadata.get("name")
@@ -1180,9 +1404,15 @@ def compile_state(nodes_data, pods_data, workloads_data, cluster_name, alert_con
             "hostIP": status.get("hostIP"),
             "containers": summarize_containers(spec),
             "lastTermination": get_last_termination(status),
-            "security": security.summarize(pod, namespace, resolve_workload(metadata)),
+            # None when the pod reports no Ready condition (unknown, not "not ready")
+            "ready": (lambda c: c.get("status") == "True" if c else None)(get_pod_condition(pod, "Ready")),
+            "security": security.summarize(pod, namespace, resolve_workload(metadata),
+                                           (network_per_pod.get(f"{namespace}/{name}") or {}).get("finding")),
             "scheduling": summarize_scheduling(spec)
         }
+        pod_network = network.pod_view(network_per_pod.get(f"{namespace}/{name}"))
+        if pod_network:
+            pod_item["network"] = pod_network
 
         # If a pod is scheduled to a node not in our nodes inventory, create a placeholder node
         if node_name not in node_map:
@@ -1232,7 +1462,8 @@ def compile_state(nodes_data, pods_data, workloads_data, cluster_name, alert_con
         "unscheduledPods": unscheduled_pods,
         "failedPods": failed_pods,
         "workloads": workloads,
-        "pdbs": pdbs
+        "pdbs": pdbs,
+        "network": network_summary
     }
     # Actionable alerts (stable `since` timestamps, so they don't change the hash of an unchanged cluster)
     output_state["alerts"] = alerts.evaluate(output_state, context=alert_context)
@@ -1252,48 +1483,20 @@ def compile_state(nodes_data, pods_data, workloads_data, cluster_name, alert_con
               f"({len(unscheduled_pods)} unscheduled, {len(failed_pods)} failed).")
     return output_state
 
-def parse_cluster(context=None, force_mock=False, write_to_file=True, custom_output_file=None):
-    nodes_file, pods_file, output_file = get_file_paths(context)
-    if custom_output_file:
-        output_file = custom_output_file
-    ensure_data_dir()
-
-    # 1. Gather data (live cluster pull or force mock)
-    if force_mock:
-        create_mock_files_if_missing(context)
-    else:
-        live_success = run_kubectl(context)
-        if not live_success:
-            if context:
-                print(f"Error: Failed to query cluster context '{context}'")
+def read_fixture_files(context=None):
+    """The demo / mock fixtures (and hand-written raw files) from disk: (nodes, pods, workloads or None)."""
+    nodes_file, pods_file, _ = get_file_paths(context)
+    out = []
+    for path in (nodes_file, pods_file):
+        if not os.path.exists(path):
+            print(f"Error: {path} is missing. Cannot parse.")
+            sys.exit(1)
+        with open(path, "r", encoding="utf-8") as f:
+            try:
+                out.append(json.load(f))
+            except json.JSONDecodeError as e:
+                print(f"Error parsing {path}: {e}")
                 sys.exit(1)
-            print("▲ Live cluster query skipped/failed. Processing via local files...")
-            create_mock_files_if_missing(context)
-
-    # 2. Read nodes
-    if not os.path.exists(nodes_file):
-        print(f"Error: {nodes_file} is missing. Cannot parse.")
-        sys.exit(1)
-
-    with open(nodes_file, "r", encoding="utf-8") as f:
-        try:
-            nodes_data = json.load(f)
-        except json.JSONDecodeError as e:
-            print(f"Error parsing {nodes_file}: {e}")
-            sys.exit(1)
-
-    # 3. Read pods
-    if not os.path.exists(pods_file):
-        print(f"Error: {pods_file} is missing. Cannot parse.")
-        sys.exit(1)
-
-    with open(pods_file, "r", encoding="utf-8") as f:
-        try:
-            pods_data = json.load(f)
-        except json.JSONDecodeError as e:
-            print(f"Error parsing {pods_file}: {e}")
-            sys.exit(1)
-
     workloads_data = None
     workloads_file = get_workloads_path(context)
     if os.path.exists(workloads_file):
@@ -1302,6 +1505,28 @@ def parse_cluster(context=None, force_mock=False, write_to_file=True, custom_out
                 workloads_data = json.load(f)
         except (OSError, ValueError) as e:
             print(f"▲ Could not read {workloads_file}: {e}")
+    return out[0], out[1], workloads_data
+
+def parse_cluster(context=None, force_mock=False, write_to_file=True, custom_output_file=None):
+    _, _, output_file = get_file_paths(context)
+    if custom_output_file:
+        output_file = custom_output_file
+    ensure_data_dir()
+
+    # 1. Live clusters are fetched and parsed in memory (O-02); the demo / mock fixtures come from files
+    live = None
+    if not force_mock:
+        live = fetch_cluster_lists(context)
+        if live is None:
+            if context:
+                print(f"Error: Failed to query cluster context '{context}'")
+                sys.exit(1)
+            print("▲ Live cluster query skipped/failed. Processing via local files...")
+    if live is not None:
+        nodes_data, pods_data, workloads_data = live
+    else:
+        create_mock_files_if_missing(context)
+        nodes_data, pods_data, workloads_data = read_fixture_files(context)
 
     if force_mock and (not context or context == "demo"):
         cluster_name = "demo"  # don't label the demo fixture with whatever kubectl context happens to be active

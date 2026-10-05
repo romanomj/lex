@@ -8,7 +8,7 @@ Instead of re-downloading every pod each sync interval, a ContextWatcher:
      DELETED events to an in-memory copy (sanitized on arrival, like the dumps on disk),
   3. recompiles the visualizer state when something changed (debounced, at most every COMPILE_MIN_INTERVAL),
      and at least every `poll_interval` so time-based alerts (grace periods, OOM windows) still mature,
-  4. re-lists workloads + PDBs every WORKLOADS_SECONDS, and everything every RELIST_SECONDS to correct drift.
+  4. re-lists workloads + PDBs (+ Services, Ingresses, NetworkPolicies) every WORKLOADS_SECONDS, and everything every RELIST_SECONDS to correct drift.
 
 Watch streams that expire (410 Gone) trigger a re-list; dropped streams reconnect with backoff; a quiet
 stream that stops responding is restarted by a watchdog. If the API refuses watches (RBAC), the watcher
@@ -20,12 +20,16 @@ import time
 import threading
 import subprocess
 
+import network
 import parse_cluster
 import redaction
 
 LIST_PATHS = {"nodes": "/api/v1/nodes", "pods": "/api/v1/pods"}
 WORKLOAD_PATHS = [("Deployment", "/apis/apps/v1/deployments"), ("StatefulSet", "/apis/apps/v1/statefulsets"),
-                  ("DaemonSet", "/apis/apps/v1/daemonsets"), ("PodDisruptionBudget", "/apis/policy/v1/poddisruptionbudgets")]
+                  ("DaemonSet", "/apis/apps/v1/daemonsets"), ("PodDisruptionBudget", "/apis/policy/v1/poddisruptionbudgets"),
+                  # F-21: network exposure (each optional, like the rest)
+                  ("Service", "/api/v1/services"), ("Ingress", "/apis/networking.k8s.io/v1/ingresses"),
+                  ("NetworkPolicy", "/apis/networking.k8s.io/v1/networkpolicies")]
 WATCH_TIMEOUT_SECONDS = 540       # the API server ends each watch after this; we resume from the last resourceVersion
 WATCHDOG_SECONDS = 660            # no events/bookmarks/reconnects for this long: assume a dead connection, reconnect
 RELIST_SECONDS = 600
@@ -116,28 +120,34 @@ class ContextWatcher:
                 self.rv[resource] = (data.get("metadata") or {}).get("resourceVersion")
         self.counters["lists"] += 1
         self._list_workloads(force=True)
-        # Keep a sanitized on-disk snapshot of the raw lists (offline tools, demo-style inspection)
+        # O-02: raw lists stay in memory; they're only written when raw dumps are enabled (--keep-raw-dumps)
         nodes_file, pods_file, _ = parse_cluster.get_file_paths(self.context)
-        parse_cluster.write_file_atomic(nodes_file, json.dumps(lists["nodes"], separators=(",", ":")))
-        parse_cluster.write_file_atomic(pods_file, json.dumps(lists["pods"], separators=(",", ":")))
+        parse_cluster.maybe_write_raw(nodes_file, lists["nodes"])
+        parse_cluster.maybe_write_raw(pods_file, lists["pods"])
 
     def _list_workloads(self, force=False):
         items = []
+        network_listed = {}
         for kind, path in WORKLOAD_PATHS:
             try:
                 data = self._raw(path)
             except Exception:
                 continue   # e.g. RBAC: carry on without this kind
+            if kind in network.NETWORK_KINDS:
+                network_listed[kind] = True
             for obj in data.get("items") or []:
                 obj["kind"] = kind      # raw list items omit their kind
                 items.append(obj)
-        wl = redaction.sanitize_list_for_disk({"items": items})
-        sig = parse_cluster.fingerprint([[o["kind"], o.get("metadata", {}).get("namespace"), o.get("metadata", {}).get("name"),
-                                          o.get("spec", {}).get("replicas"), o.get("status")] for o in items])
+        wl = redaction.sanitize_list_for_disk({"items": items, "lexNetwork": network_listed})
+        # Network objects change in spec (selectors, rules, type) more than status, so their resourceVersion is the signature
+        sig = parse_cluster.fingerprint([network_listed] + [
+            [o["kind"], o.get("metadata", {}).get("namespace"), o.get("metadata", {}).get("name")] +
+            ([o.get("metadata", {}).get("resourceVersion")] if o["kind"] in network.NETWORK_KINDS
+             else [o.get("spec", {}).get("replicas"), o.get("status")]) for o in items])
         if force or sig != self.workloads_sig:
             self.workloads_sig = sig
             self.workloads_data = wl
-            parse_cluster.write_file_atomic(parse_cluster.get_workloads_path(self.context), json.dumps(wl, separators=(",", ":")))
+            parse_cluster.maybe_write_raw(parse_cluster.get_workloads_path(self.context), wl)
             if not force:
                 self.dirty.set()
 

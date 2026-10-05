@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="64" viewBox="0 0 240 64">
+  <rect x="4" y="8" width="48" height="48" rx="12" fill="#7c5cff"/>
+  <path d="M18 44 L28 20 L38 44 M22 36 H34" stroke="#ffffff" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="64" y="41" font-family="Helvetica, Arial, sans-serif" font-size="24" font-weight="700" fill="#0f172a">Example Co</text>
+</svg>

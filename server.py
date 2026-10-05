@@ -26,13 +26,15 @@ import redaction
 import watcher
 import usage
 import diagnose
+import brand
+import archipelago
 
 PORT = 8000
 BIND_ADDRESS = '127.0.0.1'  # Hard-bound to local loopback for secure sandbox isolation
 SYNC_INTERVAL_SECONDS = 30
 # Bump whenever the state payload or API changes shape. The UI compares it with its own copy and asks the
 # user to reload if they differ (e.g. a browser tab still running a pre-upgrade index.html).
-API_SCHEMA_VERSION = 2
+API_SCHEMA_VERSION = 5
 DVR_RETENTION_DAYS = 7
 # Watch-based ingestion (list once, then stream changes). Off at module level so embedding/tests keep the
 # simple polling path; main() turns it on unless --no-watch is given.
@@ -80,11 +82,66 @@ def list_kube_contexts():
 active_context = "demo"
 active_context_lock = threading.Lock()
 
-# Thread-safe DVR recording session tracker. A recording is bound to the context it was started on,
-# and keeps recording that context even if the UI switches to another one.
-active_recording_session = None   # session_id
-active_recording_context = None   # context the session records
-active_recording_session_lock = threading.Lock()
+# DVR recordings: context -> session_id. Each recording is bound to the context it was started on and keeps
+# recording it in the background whichever context the UI shows; several clusters can be recorded at once (O-05).
+active_recordings = {}
+active_recordings_lock = threading.Lock()
+
+# Warm contexts (O-05): kept current in the background (a watcher each, or a parallel scrape in polling mode) so
+# switching to them is instant. The active context, recorded contexts, contexts named with --warm, and the
+# WARM_RECENT most recently used ones are warm.
+WARM_CONTEXTS = set()
+WARM_RECENT = 2
+recent_contexts = []          # most recent first, never the active context
+warm_lock = threading.Lock()
+
+# F-36 Archipelago: contexts shown as islands next to the active one. They are warm, so islands stay current.
+archipelago_members = []
+archipelago_lock = threading.Lock()
+
+def archipelago_contexts():
+    with archipelago_lock:
+        return list(archipelago_members)
+
+def recordings():
+    with active_recordings_lock:
+        return dict(active_recordings)
+
+def wanted_contexts():
+    """Real (non-demo) contexts that should be kept current right now."""
+    with active_context_lock:
+        wanted = {active_context}
+    wanted |= set(recordings())
+    with warm_lock:
+        wanted |= set(recent_contexts[:WARM_RECENT]) | WARM_CONTEXTS
+    wanted |= set(archipelago_contexts())
+    wanted.discard("demo")
+    wanted.discard(archipelago.DEMO_ISLAND)
+    return wanted
+
+def remember_recent(previous, current):
+    """Called on a context switch: the context we left stays warm for a while."""
+    global recent_contexts
+    with warm_lock:
+        recent_contexts = ([previous] if previous not in (None, "demo", current) else []) + \
+                          [c for c in recent_contexts if c not in (previous, current)]
+        del recent_contexts[10:]
+
+def context_ready(ctx):
+    """Has warm, current state on disk (switching to it needs no kubectl round trip)."""
+    if ctx == "demo":
+        return True
+    _, _, state_file = parse_cluster.get_file_paths(ctx)
+    if not os.path.exists(state_file):
+        return False
+    if WATCH_ENABLED:
+        w = get_watcher(ctx)
+        return w is not None and w.first_compile.is_set() and w.thread.is_alive()
+    status = get_sync_status(ctx)
+    if not status.get("lastSuccessAt") or status.get("lastError"):
+        return False
+    age = time.time() - calendar.timegm(time.strptime(status["lastSuccessAt"], "%Y-%m-%dT%H:%M:%SZ"))
+    return age < SYNC_INTERVAL_SECONDS * 2.5
 
 # Per-context scrape health, surfaced to the UI so stale data is never presented as live
 sync_status = {}
@@ -182,12 +239,8 @@ def ensure_watcher(ctx):
         return w
 
 def stop_unneeded_watchers():
-    """Only the active context and the context being recorded are kept live."""
-    with active_context_lock:
-        keep = {active_context}
-    with active_recording_session_lock:
-        if active_recording_context:
-            keep.add(active_recording_context)
+    """Only warm contexts (active, recorded, --warm, recently used) keep their watchers."""
+    keep = wanted_contexts()
     with watchers_lock:
         stale = [c for c in watchers if c not in keep]
         stopped = [watchers.pop(c) for c in stale]
@@ -211,6 +264,11 @@ def refresh_context(ctx):
     """Makes sure ctx has current state on disk and returns it (None on failure, see sync_status).
     Polling mode scrapes now; watch mode starts the watcher if needed and waits for its first compile."""
     if not WATCH_ENABLED or ctx == "demo":
+        if ctx != "demo" and ctx in wanted_contexts() and context_ready(ctx):
+            try:
+                return read_state_file(ctx)   # kept current by the parallel background scrapes
+            except (OSError, ValueError):
+                pass
         return scrape_context(ctx)
     w = ensure_watcher(ctx)
     if not w.wait_ready(WATCH_READY_TIMEOUT_SECONDS):
@@ -300,6 +358,95 @@ def load_state_bytes(path):
     entry = (body, gzip.compress(body, 6), data.get("contentHash") or "", data.get("generatedAt"))
     with _state_cache_lock:
         _state_cache[path] = (mtime, entry)
+    return entry
+
+# Island summaries cached per state file, invalidated by mtime (compare() itself is cheap)
+_island_cache = {}
+_island_cache_lock = threading.Lock()
+ARCHIPELAGO_CONFIG = os.environ.get("LEX_ARCHIPELAGO_CONFIG") or os.path.join(APP_DIR, "archipelago.json")
+_archipelago_cfg_cache = (None, None, None)   # (mtime, config, error)
+
+def _summary_for_path(path, demo_variant=False):
+    """Summary of a compiled state file (None if missing). Cached until the file changes."""
+    try:
+        mtime = os.stat(path).st_mtime_ns
+    except OSError:
+        return None
+    cache_key = (path, demo_variant)
+    with _island_cache_lock:
+        cached = _island_cache.get(cache_key)
+        if cached and cached[0] == mtime:
+            return cached[1]
+    with open(path, 'r', encoding='utf-8') as f:
+        state = json.load(f)
+    summary = archipelago.summarize(archipelago.demo_variant(state) if demo_variant else state)
+    with _island_cache_lock:
+        _island_cache[cache_key] = (mtime, summary)
+    return summary
+
+def island_summary(ctx):
+    """Compact summary of ctx's compiled state on disk, or None if it has never been compiled."""
+    if ctx in ("demo", archipelago.DEMO_ISLAND):
+        _, _, path = parse_cluster.get_file_paths("demo")
+        if not os.path.exists(path):
+            load_demo_state()
+        return _summary_for_path(path, demo_variant=ctx == archipelago.DEMO_ISLAND)
+    _, _, path = parse_cluster.get_file_paths(ctx)
+    return _summary_for_path(path)
+
+def fleet_standards(cfg):
+    """Workloads in most of the clusters Lex has compiled (every per-context state file on disk, not just islands)."""
+    summaries = []
+    try:
+        names = os.listdir(parse_cluster.DATA_DIR)
+    except OSError:
+        names = []
+    for name in names:
+        if name.startswith("cluster_state-") and name.endswith(".json"):
+            try:
+                summaries.append(_summary_for_path(os.path.join(parse_cluster.DATA_DIR, name)))
+            except (OSError, ValueError):
+                pass
+    return archipelago.fleet_standards(summaries, cfg["fleetShare"])
+
+def archipelago_config():
+    """archipelago.json (optional, git-ignored): ignore lists, always-compare list, explicit pairs. Returns (cfg, error)."""
+    global _archipelago_cfg_cache
+    try:
+        mtime = os.stat(ARCHIPELAGO_CONFIG).st_mtime_ns
+    except OSError:
+        return archipelago.load_config(None), None
+    if _archipelago_cfg_cache[0] == mtime:
+        return _archipelago_cfg_cache[1], _archipelago_cfg_cache[2]
+    try:
+        with open(ARCHIPELAGO_CONFIG, 'r', encoding='utf-8') as f:
+            cfg, err = archipelago.load_config(json.load(f)), None
+    except (OSError, ValueError) as e:
+        cfg, err = archipelago.load_config(None), f"{os.path.basename(ARCHIPELAGO_CONFIG)}: {e}"
+    _archipelago_cfg_cache = (mtime, cfg, err)
+    return cfg, err
+
+def island_payload(ctx, home_ctx, home, fleet, cfg):
+    """One island for /api/v1/archipelago: its rooms, freshness and, for an environment sibling, which apps differ."""
+    sync = get_sync_status(ctx) if ctx != archipelago.DEMO_ISLAND else {}
+    ready = ctx == archipelago.DEMO_ISLAND or context_ready(ctx)
+    entry = {"context": ctx, "ready": ready, "error": sync.get("lastError"),
+             "freshAt": sync.get("freshAt") or sync.get("lastSuccessAt"), "visitable": ctx != archipelago.DEMO_ISLAND,
+             "sibling": archipelago.are_siblings(home_ctx, ctx, cfg), "comparable": False, "notComparable": None}
+    try:
+        summary = island_summary(ctx)
+    except (OSError, ValueError) as e:
+        summary, entry["error"] = None, entry["error"] or f"Could not read compiled state: {e}"
+    entry["island"] = {k: v for k, v in summary.items() if k != "workloads"} if summary else None
+    if summary is None:
+        entry["notComparable"] = "no state yet"
+    elif not entry["sibling"]:
+        entry["notComparable"] = "not an environment of the same system"
+    elif not (home["hasWorkloadInfo"] and summary["hasWorkloadInfo"]):
+        entry["notComparable"] = "a state without workload info (compiled by an older Lex); it fills in after the next sync"
+    else:
+        entry["comparable"] = True
+        entry.update(archipelago.compare(home, summary, fleet, cfg))
     return entry
 
 class LocalAPIServer(http.server.SimpleHTTPRequestHandler):
@@ -410,8 +557,14 @@ class LocalAPIServer(http.server.SimpleHTTPRequestHandler):
             self.handle_metrics_history(parsed_url.query)
         elif path == '/api/v1/stream':
             self.handle_stream()
+        elif path == '/api/v1/archipelago':
+            self.handle_get_archipelago()
         elif path == '/api/v1/usage':
             self.handle_usage()
+        elif path == '/api/v1/brand':
+            self.handle_brand()
+        elif path.startswith('/brand/'):
+            self.serve_brand_asset(path)
         # Route: API DVR recording status
         elif path == '/api/v1/dvr/recording/status':
             self.handle_dvr_recording_status()
@@ -426,6 +579,8 @@ class LocalAPIServer(http.server.SimpleHTTPRequestHandler):
 
         if path == '/api/v1/contexts/switch':
             self.handle_switch_context()
+        elif path == '/api/v1/archipelago':
+            self.handle_set_archipelago()
         elif path == '/api/v1/dvr/recording/toggle':
             self.handle_dvr_recording_toggle()
         elif path == '/api/v1/dvr/sessions/delete':
@@ -479,6 +634,94 @@ class LocalAPIServer(http.server.SimpleHTTPRequestHandler):
             self.send_bytes_response(200, body, 'application/json; charset=utf-8', body_gz, meta_headers)
         else:
             self.send_error_json(404, "Cluster state file could not be found.")
+
+    def handle_brand(self):
+        """The optional user-supplied brand (brand/brand.json): name, tagline, accent color and asset URLs."""
+        info = brand.load()
+        self.send_json_response(200, {"brand": info["brand"], "problems": info["problems"]})
+
+    def serve_brand_asset(self, path):
+        """Only files the current brand.json names are served. SVGs can carry scripts, so the response is sandboxed
+        (it only ever renders as an <img>, where scripts don't run anyway)."""
+        name = unquote(path[len('/brand/'):])
+        found = brand.asset(name) if '/' not in name and '\\' not in name else None
+        if not found:
+            self.send_error_json(404, "Not found")
+            return
+        data, content_type = found
+        self.send_response(200)
+        self.send_header('Content-Type', content_type)
+        self.send_header('Content-Length', str(len(data)))
+        self.send_header('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; img-src data:; sandbox")
+        self.end_headers()
+        self.wfile.write(data)
+
+    def handle_get_archipelago(self):
+        """F-36: the active cluster plus its islands; sibling islands say which apps run a different version."""
+        with active_context_lock:
+            home_ctx = active_context
+        try:
+            home = island_summary(home_ctx)
+            if home is None:
+                raise OSError("not compiled yet")
+        except (OSError, ValueError) as e:
+            self.send_error_json(503, f"No state for '{home_ctx}' yet: {e}")
+            return
+        cfg, cfg_error = archipelago_config()
+        fleet = fleet_standards(cfg)
+        members = [c for c in archipelago_contexts() if c != home_ctx]
+        warm = sorted(c for c in wanted_contexts() if c != home_ctx and context_ready(c))
+        self.send_json_response(200, {
+            "home": home_ctx,
+            "homeHasWorkloadInfo": home["hasWorkloadInfo"],
+            "members": members,
+            "max": archipelago.MAX_ISLANDS,
+            "suggested": archipelago.suggest(home_ctx, list_kube_contexts(), warm, cfg),
+            "fleetSize": len(fleet),
+            "hiddenReasons": archipelago.HIDDEN_REASONS,
+            "configError": cfg_error,
+            "islands": [island_payload(ctx, home_ctx, home, fleet, cfg) for ctx in members],
+        })
+
+    def handle_set_archipelago(self):
+        """Sets the island contexts (max 4). They join the warm set, so they are kept current like O-05 contexts."""
+        try:
+            data = json.loads(self.rfile.read(int(self.headers.get('Content-Length', 0))).decode('utf-8'))
+            requested = data.get("contexts")
+        except Exception as e:
+            self.send_error_json(400, f"Invalid JSON payload: {e}")
+            return
+        if not isinstance(requested, list) or not all(isinstance(c, str) for c in requested):
+            self.send_error_json(400, "'contexts' must be a list of context names")
+            return
+        known = None
+        chosen = []
+        for c in requested:
+            if c in chosen:
+                continue
+            if c != archipelago.DEMO_ISLAND:
+                if c == "demo" or not is_valid_context_name(c):
+                    self.send_error_json(400, f"Invalid context name: {c!r}")
+                    return
+                known = known if known is not None else set(list_kube_contexts())
+                if c not in known:
+                    self.send_error_json(404, f"Context '{c}' not found in kubeconfig")
+                    return
+            chosen.append(c)
+        if len(chosen) > archipelago.MAX_ISLANDS:
+            self.send_error_json(400, f"At most {archipelago.MAX_ISLANDS} islands")
+            return
+        global archipelago_members
+        with archipelago_lock:
+            archipelago_members = chosen
+        if WATCH_ENABLED:
+            stop_unneeded_watchers()
+        # Start warming new islands now rather than at the next background interval
+        cold = [c for c in chosen if c != archipelago.DEMO_ISLAND and not context_ready(c)]
+        if cold:
+            threading.Thread(target=lambda: [ensure_watcher(c) if WATCH_ENABLED else scrape_context(c) for c in cold],
+                             daemon=True).start()
+        self.send_json_response(200, {"members": chosen})
 
     def handle_usage(self):
         """Actual CPU/memory usage (metrics-server) for the rightsizing lens, with recent peaks."""
@@ -536,10 +779,14 @@ class LocalAPIServer(http.server.SimpleHTTPRequestHandler):
                 
             with active_context_lock:
                 ctx = active_context
-                
+            wanted = wanted_contexts()
             self.send_json_response(200, {
                 "contexts": contexts,
-                "activeContext": ctx
+                "activeContext": ctx,
+                # O-05: contexts with current state in the background (switching to them is instant)
+                "warm": sorted(c for c in wanted if c != ctx and context_ready(c)),
+                "warming": sorted(c for c in wanted if c != ctx and not context_ready(c)),
+                "recording": sorted(recordings()),
             })
         except Exception as e:
             self.send_json_response(200, {
@@ -571,16 +818,20 @@ class LocalAPIServer(http.server.SimpleHTTPRequestHandler):
             return
 
         global active_context
+        with active_context_lock:
+            previous = active_context
+        instant = context_ready(target_context) and target_context in wanted_contexts()
         if refresh_context(target_context) is None:
             error = get_sync_status(target_context).get("lastError") or "unknown error"
             self.send_error_json(502, f"Failed to switch to '{target_context}': {error}")
             return
         with active_context_lock:
             active_context = target_context
+        remember_recent(previous, target_context)
         if WATCH_ENABLED:
             stop_unneeded_watchers()
         notify_state_change()
-        self.send_json_response(200, {"status": "success", "activeContext": target_context})
+        self.send_json_response(200, {"status": "success", "activeContext": target_context, "instant": instant})
 
     def handle_pod_logs(self, query_string):
         params = parse_qs(query_string)
@@ -901,7 +1152,7 @@ metadata:
     kubernetes.io/hostname: {node_name}
     kubernetes.io/os: linux
 spec:
-  providerID: aws:///us-east-1a/i-001c08c4cd51462ec
+  providerID: aws:///us-east-1a/i-0a1b2c3d4e5f60000
 status:
   capacity:
     cpu: "8"
@@ -1051,54 +1302,65 @@ status:
             return
         self.send_json_response(200, snapshot)
 
+    def recording_payload(self, ctx):
+        recs = recordings()
+        return {
+            # The fields the UI had before O-05 describe the context on screen
+            "recording": ctx in recs,
+            "session_id": recs.get(ctx),
+            "cluster_name": ctx if ctx in recs else None,
+            "recordings": [{"context": c, "session_id": sid} for c, sid in sorted(recs.items())],
+        }
+
     def handle_dvr_recording_status(self):
-        with active_recording_session_lock:
-            session_id = active_recording_session
-            recording_ctx = active_recording_context
-
-        self.send_json_response(200, {
-            "recording": session_id is not None,
-            "session_id": session_id,
-            "cluster_name": recording_ctx
-        })
-
-    def handle_dvr_recording_toggle(self):
-        global active_recording_session, active_recording_context
         with active_context_lock:
             ctx = active_context
+        self.send_json_response(200, self.recording_payload(ctx))
 
-        with active_recording_session_lock:
-            stopping_session = active_recording_session
+    def handle_dvr_recording_toggle(self):
+        """Starts or stops recording one context (the one on screen unless the payload names another)."""
+        try:
+            length = int(self.headers.get('Content-Length', 0))
+            data = json.loads(self.rfile.read(length).decode('utf-8') or "{}") if length else {}
+        except Exception as e:
+            self.send_error_json(400, f"Invalid JSON payload: {str(e)}")
+            return
+        with active_context_lock:
+            ctx = active_context
+        target = data.get("context") or ctx
+        if not isinstance(target, str) or (target != "demo" and not is_valid_context_name(target)):
+            self.send_error_json(400, "Invalid context name format")
+            return
+        if target != "demo" and target != ctx and target not in list_kube_contexts():
+            self.send_error_json(404, f"Context '{target}' not found in kubeconfig")
+            return
+
+        with active_recordings_lock:
+            stopping_session = active_recordings.pop(target, None)
+            session_id = None
             if stopping_session is None:
-                session_id = dvr_db.start_session(ctx)
+                session_id = dvr_db.start_session(target)
                 if not session_id:
                     self.send_error_json(500, "Could not start recording session")
                     return
-                active_recording_session = session_id
-                active_recording_context = ctx
-            else:
-                active_recording_session = None
-                active_recording_context = None
+                active_recordings[target] = session_id
 
         if stopping_session is not None:
             dvr_db.end_session(stopping_session)
-            self.send_json_response(200, {
-                "status": "success",
-                "recording": False,
-                "session_id": stopping_session
-            })
+            if WATCH_ENABLED:
+                stop_unneeded_watchers()
+            payload = self.recording_payload(ctx)
+            payload.update({"status": "success", "stopped": {"context": target, "session_id": stopping_session}})
+            self.send_json_response(200, payload)
             return
 
         # Record an initial snapshot immediately (outside the lock so the background sync isn't blocked)
-        state = refresh_context(ctx)
+        state = refresh_context(target)
         if state is not None:
-            dvr_db.add_snapshot(session_id, ctx, state)
-        self.send_json_response(200, {
-            "status": "success",
-            "recording": True,
-            "session_id": session_id,
-            "cluster_name": ctx
-        })
+            dvr_db.add_snapshot(session_id, target, state)
+        payload = self.recording_payload(ctx)
+        payload.update({"status": "success", "started": {"context": target, "session_id": session_id}})
+        self.send_json_response(200, payload)
 
     def handle_dvr_session_delete(self):
         try:
@@ -1118,12 +1380,11 @@ status:
             self.send_error_json(400, "Invalid session_id format")
             return
 
-        with active_recording_session_lock:
-            global active_recording_session, active_recording_context
-            # If the session to delete is active, toggle it off first
-            if active_recording_session == session_id:
-                active_recording_session = None
-                active_recording_context = None
+        with active_recordings_lock:
+            # If the session to delete is still recording, stop it first
+            for c, sid in list(active_recordings.items()):
+                if sid == session_id:
+                    del active_recordings[c]
 
         try:
             success = dvr_db.delete_session(session_id)
@@ -1170,7 +1431,7 @@ status:
         self.send_json_response(code, {"error": message})
 
 def run_bg_sync(interval=SYNC_INTERVAL_SECONDS):
-    """Background polling thread worker: refreshes the active context and feeds any active recording."""
+    """Background thread: keeps warm contexts current, feeds the vitals history, and records DVR frames."""
     print(f"Background Kubernetes context poller started ({interval}s interval).")
     last_prune = 0.0
     next_run = time.time() + interval  # main() has just compiled fresh state at boot
@@ -1188,49 +1449,64 @@ def run_bg_sync(interval=SYNC_INTERVAL_SECONDS):
         try:
             with active_context_lock:
                 ctx = active_context
-            with active_recording_session_lock:
-                session_id = active_recording_session
-                recording_ctx = active_recording_context
-
             if ctx != "demo":
                 try:
                     usage.sample_if_due(ctx, interval)   # keeps the rightsizing peaks current (one small call)
                 except Exception as e:
                     print(f"▲ Usage sample failed for '{ctx}': {e}")
             if WATCH_ENABLED:
-                record_from_watchers(ctx, session_id, recording_ctx)
-                continue
-            state = None
-            # Demo data is static, so only re-compile it when it's being recorded
-            if ctx != "demo":
-                state = scrape_context(ctx)
-            if session_id and recording_ctx:
-                if recording_ctx != ctx or state is None:
-                    state = scrape_context(recording_ctx)
-                if state is not None:
-                    dvr_db.add_snapshot(session_id, recording_ctx, state)
+                record_from_watchers()
+            else:
+                scrape_and_record()
         except Exception as e:
             print(f"Error in background sync worker: {e}")
 
-def record_from_watchers(ctx, session_id, recording_ctx):
-    """Watch mode: the watchers keep state files current, so each interval just samples them for the
-    vitals history and the DVR (and makes sure the needed watchers are running)."""
+def scrape_and_record():
+    """Polling mode: scrape every warm context in parallel (O-05), then add DVR frames for the recorded ones."""
+    recs = recordings()
+    contexts = sorted(wanted_contexts() | ({"demo"} if "demo" in recs else set()))
+    states = {}
+    if contexts:
+        with ThreadPoolExecutor(max_workers=min(4, len(contexts))) as pool:
+            for c, state in zip(contexts, pool.map(scrape_context, contexts)):
+                states[c] = state
+    for c, session_id in recs.items():
+        if states.get(c) is not None:
+            dvr_db.add_snapshot(session_id, c, states[c])
+
+def record_from_watchers():
+    """Watch mode: watchers keep each warm context's state file current, so each interval just samples them for
+    the vitals history and the DVR (and starts / stops watchers as the warm set changes)."""
     stop_unneeded_watchers()
-    if ctx != "demo":
-        w = ensure_watcher(ctx)
+    for c in wanted_contexts():
+        w = ensure_watcher(c)
         if w.first_compile.is_set():
             try:
-                metrics.record(ctx, read_state_file(ctx))
+                metrics.record(c, read_state_file(c))
             except Exception as e:
-                print(f"▲ Could not record metrics for '{ctx}': {e}")
-    if session_id and recording_ctx:
-        if recording_ctx == "demo":
+                print(f"▲ Could not record metrics for '{c}': {e}")
+    for c, session_id in recordings().items():
+        if c == "demo":
             state = scrape_context("demo")
         else:
-            w = ensure_watcher(recording_ctx)
-            state = read_state_file(recording_ctx) if w.first_compile.is_set() else None
+            w = ensure_watcher(c)
+            state = read_state_file(c) if w.first_compile.is_set() else None
         if state is not None:
-            dvr_db.add_snapshot(session_id, recording_ctx, state)
+            dvr_db.add_snapshot(session_id, c, state)
+
+def report_stale_raw_dumps():
+    """O-02: per-context raw dumps are no longer written or read. Point at leftovers instead of deleting user files."""
+    if parse_cluster.KEEP_RAW_DUMPS:
+        return
+    try:
+        stale = [n for n in os.listdir(parse_cluster.DATA_DIR)
+                 if re.match(r"^raw-(nodes|pods|workloads)-.+\.json$", n)]
+    except OSError:
+        return
+    if stale:
+        size = sum(os.path.getsize(os.path.join(parse_cluster.DATA_DIR, n)) for n in stale) / 1e6
+        print(f"● {len(stale)} raw cluster dump(s) from earlier versions ({size:.0f} MB) in {parse_cluster.DATA_DIR} are no longer "
+              f"used. Lex now keeps raw data in memory only. Remove them with: rm {parse_cluster.DATA_DIR}/raw-*-*.json")
 
 def init_active_context():
     """Attempts to discover active kubectl context at boot."""
@@ -1262,9 +1538,31 @@ def main():
                         help=f"Delete DVR frames older than this many days; 0 keeps everything (default: {DVR_RETENTION_DAYS})")
     parser.add_argument("--no-watch", action="store_true",
                         help="Re-list the whole cluster every interval instead of streaming changes with Kubernetes watches")
+    parser.add_argument("--warm", default="",
+                        help="Comma-separated contexts to keep current in the background for instant switching, or 'all'")
+    parser.add_argument("--warm-recent", type=int, default=None,
+                        help="Also keep this many recently used contexts warm (default: 2 with watches, 0 with --no-watch)")
+    parser.add_argument("--brand", default=None,
+                        help="Directory with a brand.json and its logo files (default: brand/ next to server.py, or LEX_BRAND_DIR)")
+    parser.add_argument("--keep-raw-dumps", action="store_true",
+                        help="Also write sanitized raw kubectl lists to data/ (debugging); by default only compiled state is stored")
     args = parser.parse_args()
     DVR_RETENTION_DAYS = args.dvr_retention_days
     WATCH_ENABLED = not args.no_watch
+    global WARM_RECENT, WARM_CONTEXTS
+    # Polling re-lists whole clusters every interval, so it only warms what was asked for
+    WARM_RECENT = max(0, args.warm_recent if args.warm_recent is not None else (2 if WATCH_ENABLED else 0))
+    if args.warm.strip() == "all":
+        WARM_CONTEXTS = set(list_kube_contexts())
+    else:
+        requested = {c.strip() for c in args.warm.split(",") if c.strip()}
+        bad = {c for c in requested if not is_valid_context_name(c)}
+        if bad:
+            parser.error(f"invalid context name(s) in --warm: {', '.join(sorted(bad))}")
+        WARM_CONTEXTS = requested
+    if WARM_CONTEXTS:
+        print(f"Keeping warm: {', '.join(sorted(WARM_CONTEXTS))}")
+    parse_cluster.KEEP_RAW_DUMPS = parse_cluster.KEEP_RAW_DUMPS or args.keep_raw_dumps
 
     SYNC_INTERVAL_SECONDS = max(5, args.interval)
 
@@ -1276,6 +1574,11 @@ def main():
     scrubbed = redaction.scrub_data_dir(parse_cluster.DATA_DIR, parse_cluster.write_file_atomic)
     if scrubbed:
         print(f"✔ Redacted secret values from {scrubbed} existing cluster dump(s) in {parse_cluster.DATA_DIR}")
+    report_stale_raw_dumps()
+    if args.brand:
+        brand.set_brand_dir(args.brand)
+    for line in brand.describe():
+        print(line)
 
     # Discover active context dynamically on startup
     init_active_context()

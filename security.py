@@ -37,6 +37,10 @@ FINDING_INFO = {
     "run-as-root": (MEDIUM, "May run as root"),
     "default-sa-token": (MEDIUM, "Default service account token mounted"),
     "mutable-image": (LOW, "Mutable image tag (:latest or none)"),
+    # F-21: network exposure (network.py decides which applies; at most one per pod)
+    "public-no-netpol": (HIGH, "Reachable from outside the cluster, no NetworkPolicy restricts it"),
+    "exposed-no-netpol": (MEDIUM, "Exposed via internal load balancer or NodePort, no NetworkPolicy restricts it"),
+    "no-netpol": (LOW, "Not covered by any ingress NetworkPolicy"),
 }
 
 
@@ -55,8 +59,9 @@ def _add(findings, code, detail=""):
     findings.append({"severity": severity, "code": code, "detail": detail})
 
 
-def pod_findings(pod):
-    """Findings for one raw pod object. Env values may already be redacted; names are enough."""
+def pod_findings(pod, network_finding=None):
+    """Findings for one raw pod object. Env values may already be redacted; names are enough.
+    network_finding is (code, detail) from network.analyze(), when Services and NetworkPolicies were listed."""
     spec = pod.get("spec") or {}
     pod_sc = spec.get("securityContext") or {}
     findings = []
@@ -114,12 +119,15 @@ def pod_findings(pod):
                 elif redaction.looks_like_secret(env.get("name"), value):
                     _add(findings, "secret-env", env.get("name"))
 
+    if network_finding:
+        _add(findings, network_finding[0], network_finding[1])
+
     findings.sort(key=lambda f: (-SEVERITY_RANK[f["severity"]], f["code"], f.get("detail") or ""))
     return findings
 
 
-def summarize(pod, namespace, workload):
-    findings = pod_findings(pod)
+def summarize(pod, namespace, workload, network_finding=None):
+    findings = pod_findings(pod, network_finding)
     worst = findings[0]["severity"] if findings else None
     return {
         "risk": worst,
