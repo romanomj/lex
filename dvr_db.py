@@ -7,13 +7,17 @@ Zero external dependencies, robust, and thread-safe operations.
 import os
 import sqlite3
 import json
+import zlib
 import datetime
 import re
+import alerts
+from parse_cluster import DATA_DIR
 
-DB_FILE = "lex_dvr.db"
+DB_FILE = os.path.join(DATA_DIR, "lex_dvr.db")
 
 def get_db_connection():
     """Returns a connection to the SQLite database with row factory enabled."""
+    os.makedirs(os.path.dirname(DB_FILE) or ".", exist_ok=True)
     conn = sqlite3.connect(DB_FILE, timeout=10.0)
     conn.row_factory = sqlite3.Row
     return conn
@@ -48,6 +52,22 @@ def init_db():
         )
         """)
         
+        # Migrations: compressed state + precomputed timeline summary (older rows keep using state_json)
+        existing_cols = {row[1] for row in cursor.execute("PRAGMA table_info(snapshots)")}
+        for col, ddl in (("state_blob", "BLOB"), ("summary_json", "TEXT"), ("has_incident", "INTEGER DEFAULT 0")):
+            if col not in existing_cols:
+                cursor.execute(f"ALTER TABLE snapshots ADD COLUMN {col} {ddl}")
+
+        # Vital-signs history (metrics.py): one small summary row per scrape and context
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS metrics_points (
+            context TEXT NOT NULL,
+            ts TEXT NOT NULL,
+            data TEXT NOT NULL
+        )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_metrics_context_ts ON metrics_points(context, ts)")
+
         # Indexes for fast querying
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_snapshots_session ON snapshots(session_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_snapshots_timestamp ON snapshots(timestamp)")
@@ -57,6 +77,9 @@ def init_db():
         cursor.execute("PRAGMA journal_mode=WAL")
         
         conn.commit()
+        for suffix in ("", "-wal", "-shm"):   # owner-only, like the rest of the data directory
+            if os.path.exists(DB_FILE + suffix):
+                os.chmod(DB_FILE + suffix, 0o600)
         print(f"✔ SQLite database '{DB_FILE}' successfully initialized.")
     except Exception as e:
         print(f"▲ Error initializing database: {e}")
@@ -102,38 +125,71 @@ def start_session(cluster_name):
     finally:
         conn.close()
 
+def summarize_state(state_dict, now=None):
+    """
+    Small per-frame summary used to draw the DVR timeline without downloading every frame.
+    Incidents come from the alert engine (the same rules the live UI uses).
+    """
+    now = now or datetime.datetime.now(datetime.timezone.utc)
+    frame_alerts = state_dict.get("alerts")
+    if frame_alerts is None:
+        # Frames recorded before alerts existed: evaluate statelessly
+        frame_alerts = alerts.evaluate(state_dict, now=now, tracker=alerts.AlertTracker())
+    nodes = state_dict.get("nodes") or []
+    problem_nodes, problem_pods = [], []
+    for a in frame_alerts:
+        subject = a.get("subject") or {}
+        if subject.get("kind") == "node" and subject.get("name") not in problem_nodes:
+            problem_nodes.append(subject.get("name"))
+        elif subject.get("kind") == "pod":
+            key = f"{subject.get('namespace')}/{subject.get('name')}"
+            if key not in problem_pods:
+                problem_pods.append(key)
+    return {
+        "nodes": len(nodes),
+        "pods": sum(len(n.get("pods") or []) for n in nodes),
+        "unscheduledPods": len(state_dict.get("unscheduledPods") or []),
+        "criticalAlerts": sum(1 for a in frame_alerts if a.get("severity") == "critical"),
+        "warningAlerts": sum(1 for a in frame_alerts if a.get("severity") == "warning"),
+        "problemNodes": problem_nodes[:20],
+        "problemPods": problem_pods[:20],
+        "problemNodeCount": len(problem_nodes),
+        "problemPodCount": len(problem_pods),
+    }
+
 def add_snapshot(session_id, cluster_name, state_dict):
     """
-    Adds a cluster state snapshot to an active session.
+    Adds a cluster state snapshot to an active session (zlib-compressed, with a timeline summary).
     Automatically increments the session snapshot_count.
     """
     now = datetime.datetime.now(datetime.timezone.utc)
     timestamp_iso = now.isoformat()
-    state_json = json.dumps(state_dict)
-    
+    state_blob = zlib.compress(json.dumps(state_dict, separators=(",", ":")).encode("utf-8"), 6)
+    summary = summarize_state(state_dict, now)
+    has_incident = 1 if (summary["problemNodeCount"] or summary["problemPodCount"]) else 0
+
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
-        
-        # Verify session exists and is active
+
+        # Verify session exists
         cursor.execute("SELECT session_id FROM recording_sessions WHERE session_id = ?", (session_id,))
         if not cursor.fetchone():
             # Session might have been deleted, ignore
             return False
-            
-        # Insert snapshot
+
         cursor.execute("""
-        INSERT INTO snapshots (session_id, cluster_name, timestamp, state_json)
-        VALUES (?, ?, ?, ?)
-        """, (session_id, cluster_name, timestamp_iso, state_json))
-        
+        INSERT INTO snapshots (session_id, cluster_name, timestamp, state_json, state_blob, summary_json, has_incident)
+        VALUES (?, ?, ?, '', ?, ?, ?)
+        """, (session_id, cluster_name, timestamp_iso, state_blob, json.dumps(summary), has_incident))
+
         # Update snapshot count in session
         cursor.execute("""
-        UPDATE recording_sessions 
+        UPDATE recording_sessions
         SET snapshot_count = snapshot_count + 1
         WHERE session_id = ?
         """, (session_id,))
-        
+
         conn.commit()
         return True
     except Exception as e:
@@ -205,33 +261,82 @@ def get_sessions():
     finally:
         conn.close()
 
-def get_snapshots(session_id):
-    """Retrieves all chronological snapshots for a session."""
+def _decode_state(row):
+    if row["state_blob"]:
+        return json.loads(zlib.decompress(row["state_blob"]).decode("utf-8"))
+    return json.loads(row["state_json"])  # rows written before compression was added
+
+def get_timeline(session_id):
+    """Chronological frame list for a session: ids, timestamps and incident summaries, without state."""
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
         cursor.execute("""
-        SELECT id, session_id, cluster_name, timestamp, state_json 
-        FROM snapshots 
+        SELECT id, timestamp, has_incident, summary_json, state_blob, state_json
+        FROM snapshots
         WHERE session_id = ?
         ORDER BY timestamp ASC
         """, (session_id,))
-        rows = cursor.fetchall()
-        
-        snapshots = []
-        for r in rows:
-            snap = dict(r)
-            # Parse state_json back into dict so API can send it clean
-            try:
-                snap["state"] = json.loads(snap["state_json"])
-                del snap["state_json"] # Free memory/clean payload
-            except Exception:
-                snap["state"] = None
-            snapshots.append(snap)
-        return snapshots
+        frames = []
+        for r in cursor.fetchall():
+            summary = json.loads(r["summary_json"]) if r["summary_json"] else None
+            has_incident = bool(r["has_incident"])
+            if summary is None:
+                # Legacy row: compute the summary once from the stored state
+                try:
+                    summary = summarize_state(_decode_state(r))
+                    has_incident = bool(summary["problemNodeCount"] or summary["problemPodCount"])
+                except Exception:
+                    summary = {}
+            frames.append({"id": r["id"], "timestamp": r["timestamp"], "hasIncident": has_incident, "summary": summary})
+        return frames
     except Exception as e:
-        print(f"▲ Error retrieving snapshots for '{session_id}': {e}")
+        print(f"▲ Error retrieving timeline for '{session_id}': {e}")
         return []
+    finally:
+        conn.close()
+
+def get_snapshot(session_id, snapshot_id):
+    """A single frame's full state, or None."""
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+        SELECT id, timestamp, state_blob, state_json FROM snapshots WHERE session_id = ? AND id = ?
+        """, (session_id, snapshot_id))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        return {"id": row["id"], "timestamp": row["timestamp"], "state": _decode_state(row)}
+    except Exception as e:
+        print(f"▲ Error retrieving snapshot {snapshot_id} for '{session_id}': {e}")
+        return None
+    finally:
+        conn.close()
+
+def prune_old_snapshots(max_age_days):
+    """Retention: deletes frames older than max_age_days and finished sessions left with no frames."""
+    if not max_age_days or max_age_days <= 0:
+        return 0
+    cutoff = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=max_age_days)).isoformat()
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM snapshots WHERE timestamp < ?", (cutoff,))
+        removed = cursor.rowcount
+        cursor.execute("""
+        UPDATE recording_sessions
+        SET snapshot_count = (SELECT COUNT(*) FROM snapshots s WHERE s.session_id = recording_sessions.session_id)
+        """)
+        cursor.execute("DELETE FROM recording_sessions WHERE is_active = 0 AND snapshot_count = 0")
+        conn.commit()
+        if removed:
+            print(f"✔ DVR retention: removed {removed} snapshots older than {max_age_days} days.")
+        return removed
+    except Exception as e:
+        print(f"▲ Error pruning snapshots: {e}")
+        conn.rollback()
+        return 0
     finally:
         conn.close()
 

@@ -1,0 +1,10 @@
+{
+  "_comment": "Copy this folder to brand/ (git-ignored) and edit. See brand.py for the format. Only name is required.",
+  "name": "Example Co Platform",
+  "tagline": "Production Kubernetes",
+  "logo": "logo.svg",
+  "logoOnLight": "logo-on-light.svg",
+  "favicon": "favicon.svg",
+  "accentColor": "#7c5cff",
+  "url": "https://example.com"
+}
